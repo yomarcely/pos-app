@@ -8,23 +8,29 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+
 import {
     Input
 } from '@/components/ui/input'
+
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger
 } from '@/components/ui/tooltip'
+
 import { Button } from '@/components/ui/button'
+
 import { Badge } from '@/components/ui/badge'
+
 import {
     ContextMenu,
     ContextMenuContent,
@@ -32,12 +38,7 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from '@/components/ui/tabs'
+
 import {
     NumberField,
     NumberFieldContent,
@@ -45,8 +46,19 @@ import {
     NumberFieldIncrement,
     NumberFieldInput,
 } from '@/components/ui/number-field'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxTrigger, ComboboxList } from '@/components/ui/combobox'
+
+import {
+    Combobox,
+    ComboboxAnchor,
+    ComboboxEmpty,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxList
+} from '@/components/ui/combobox'
 
 
 const selected = ref('Caisse 1') // valeur par défaut
@@ -99,79 +111,114 @@ const variationGroups: VariationGroup[] = [
 ]
 
 const images = import.meta.glob('@/assets/img/*', {
-  eager: true,
-  import: 'default'
+    eager: true,
+    import: 'default'
 }) as Record<string, string>
 
-const products = ref([
+type ProductBase = {
+    id: number
+    name: string
+    price: number // prix TTC
+    image: string
+    barcode?: string
+    variationGroupId?: string
+}
+
+const Products: ProductBase[] = [
     {
         id: 1,
         name: 'Freeze Fruit du Dragon 50ml',
-        quantity: 1,
         price: 14.90,
-        discount: 0,
-        discountType: '%',
-        variation: '',
-        image: images['/assets/img/freeze-dragon.png']
+        variationGroupId: '',
+        image: images['/assets/img/freeze-dragon.png'],
+        barcode: '1234567890123',
     },
     {
         id: 2,
         name: 'Booster 50/50',
-        quantity: 2,
         price: 1,
-        discount: 0,
-        discountType: '€',
-        variation: '',
+        variationGroupId: '',
         image: images['/assets/img/booster.png']
     },
     {
         id: 3,
         name: '-20 GeekVape Serie Z',
-        quantity: 4,
         price: 3.5,
-        discount: 0,
-        discountType: '%',
         variationGroupId: 'resistance',
-        variation: '',
         image: images['/assets/img/series-z.png']
     },
     {
         id: 4,
         name: '-20 GeekVape Serie Z',
-        quantity: 1,
         price: 3.5,
-        discount: 100,
-        discountType: '%',
         variationGroupId: 'resistance',
-        variation: '',
         image: images['/assets/img/series-z.png']
     },
     {
         id: 5,
         name: 'GeekVape Z nano 2',
-        quantity: 1,
         price: 24.90,
-        discount: 0,
-        discountType: '%',
         variationGroupId: 'color',
-        variation: 'noir',
         image: images['/assets/img/z-nano.png']
     },
     {
         id: 6,
         name: 'Pulp Cerise Glacée 10ml',
-        quantity: 1,
         price: 5.90,
-        discount: 0,
-        discountType: '%',
         variationGroupId: 'nicotine',
-        variation: '6mg',
         image: images['/assets/img/pulp-cerise.png']
     },
-])
+]
+
+type ProductInCart = ProductBase & {
+    quantity: number
+    discount: number
+    discountType: '%' | '€'
+    variation: string
+}
+
+const cart = ref<ProductInCart[]>([])
+
+function addToCart(product: ProductBase) {
+    const existing = cart.value.find(
+        p => p.id === product.id && p.variation === ''
+    )
+
+    if (existing) {
+        existing.quantity += 1
+    } else {
+        cart.value.push({
+            ...product,
+            quantity: 1,
+            discount: 0,
+            discountType: '%',
+            variation: ''
+        })
+    }
+}
+
+
+const barcodeInput = ref('')
+
+function handleBarcodeScan() {
+    const found = Products.find(p => p.barcode === barcodeInput.value)
+    if (found) {
+        addToCart(found)
+        barcodeInput.value = ''
+    }
+}
+
+const selectedProduct = ref<ProductBase | null>(null)
+
+watch(selectedProduct, (val) => {
+    if (val) {
+        addToCart(val)
+        selectedProduct.value = null // reset après ajout
+    }
+})
 
 function removeProduct(id: number) {
-    products.value = products.value.filter(p => p.id !== id)
+    cart.value = cart.value.filter(p => p.id !== id)
 }
 
 function addPayment(mode: string) {
@@ -186,16 +233,20 @@ function removePayment(mode: string) {
 }
 
 const totalTTC = computed(() =>
-    products.value.reduce((sum, product) => {
+    cart.value.reduce((sum, product) => {
+        const quantity = product.quantity ?? 1
+        const discount = product.discount ?? 0
+        const discountType = product.discountType ?? '%'
+
         let unitPrice = product.price
 
-        if (product.discountType === '%') {
-            unitPrice -= product.price * product.discount / 100
-        } else if (product.discountType === '€') {
-            unitPrice -= product.discount
+        if (discountType === '%') {
+            unitPrice -= product.price * discount / 100
+        } else if (discountType === '€') {
+            unitPrice -= discount
         }
 
-        return sum + Math.max(unitPrice, 0) * product.quantity
+        return sum + Math.max(unitPrice, 0) * quantity
     }, 0)
 )
 
@@ -208,23 +259,16 @@ const totalPaid = computed(() =>
 
 const balance = computed(() => totalTTC.value - totalPaid.value)
 
-function getProductTotal(product: {
-    price: number
-    quantity: number
-    discount: number
-    discountType: string
-}) {
-    const { price, quantity, discount, discountType } = product
+function getProductTotal(product: ProductInCart): number {
+    let unitPrice = product.price
 
-    let unitPrice = price
-
-    if (discountType === '%') {
-        unitPrice = price - (price * discount / 100)
-    } else if (discountType === '€') {
-        unitPrice = price - discount
+    if (product.discountType === '%') {
+        unitPrice -= unitPrice * product.discount / 100
+    } else if (product.discountType === '€') {
+        unitPrice -= product.discount
     }
 
-    return Math.max(unitPrice, 0) * quantity
+    return Math.max(unitPrice, 0) * product.quantity
 }
 
 const selectedClient = ref<null | { name: string; city: string }>(
@@ -235,13 +279,6 @@ function deselectClient() {
     selectedClient.value = null
 }
 
-const frameworks = [
-    { value: 'next.js', label: 'Next.js' },
-    { value: 'sveltekit', label: 'SvelteKit' },
-    { value: 'nuxt', label: 'Nuxt' },
-    { value: 'remix', label: 'Remix' },
-    { value: 'astro', label: 'Astro' },
-]
 </script>
 
 <template>
@@ -324,7 +361,7 @@ const frameworks = [
                 <!-- Sélecteur vendeur -->
                 <div>
                     <label class="text-sm font-semibold">Vendeur</label>
-                    <Select defaultValue="yohan">
+                    <Select defaultValue="">
                         <SelectTrigger>
                             <SelectValue placeholder="Sélectionner un vendeur" />
                         </SelectTrigger>
@@ -421,61 +458,50 @@ const frameworks = [
         <!-- 🟨 Colonne centrale : Scan / Produits -->
         <main class="p-4 rounded-lg shadow space-y-4 overflow-hidden bg-muted/50 h-full">
             <!-- Inputs scan + recherche -->
-            <div class="flex gap-2">
-                <Tabs default-value="barcode">
-                    <div class="flex items-center gap-2">
-                        <!-- Onglets -->
-                        <TabsList class="flex gap-1 w-auto">
-                            <TabsTrigger value="barcode">
-                                <Barcode class="w-4 h-4" />
-                            </TabsTrigger>
-                            <TabsTrigger value="search">
-                                <Search class="w-4 h-4" />
-                            </TabsTrigger>
-                        </TabsList>
-
-                        <!-- Contenu des tabs (input actif) -->
-                        <div class="flex-1">
-                            <TabsContent value="barcode">
-                                <Input placeholder="Scanner un code-barres" class="w-full" />
-                            </TabsContent>
-                            <TabsContent value="search">
-                                <Combobox by="label">
-                                        <ComboboxAnchor>
-                                            <div class="relative w-full max-w-sm items-center">
-                                                <ComboboxInput :display-value="(val) => val?.label ?? ''"
-                                                    placeholder="Select language..." />
-                                                <ComboboxTrigger
-                                                    class="absolute end-0 inset-y-0 flex items-center justify-center px-3">
-                                                </ComboboxTrigger>
-                                            </div>
-                                        </ComboboxAnchor>
-
-                                    <ComboboxList>
-                                        <ComboboxEmpty>
-                                            Nothing found.
-                                        </ComboboxEmpty>
-
-                                        <ComboboxGroup>
-                                            <ComboboxItem v-for="framework in frameworks" :key="framework.value"
-                                                :value="framework">
-                                                {{ framework.label }}
-                                            </ComboboxItem>
-                                        </ComboboxGroup>
-                                    </ComboboxList>
-                                </Combobox>
-                            </TabsContent>
-                        </div>
+            <div class="flex justify-center gap-4 w-full">
+                <!-- 📷 Input scan code-barres avec icône -->
+                <div class="w-full max-w-sm">
+                    <label class="text-sm font-semibold block mb-1">Scan</label>
+                    <div class="relative">
+                        <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Input v-model="barcodeInput" placeholder="Scanner un code-barres" class="w-full pl-10"
+                            @keyup.enter="handleBarcodeScan" />
                     </div>
-                </Tabs>
+                </div>
+
+                <!-- 🔍 Recherche produit avec combobox -->
+                <div class="w-full max-w-sm">
+                    <label class="text-sm font-semibold block mb-1">Recherche</label>
+                    <Combobox v-model="selectedProduct" :options="Products" option-value="id">
+                        <ComboboxAnchor>
+                            <div class="relative w-full items-center rounded-md border">
+                                <ComboboxInput placeholder="Rechercher un produit" class="w-full" />
+                                <ComboboxTrigger class="absolute right-0 inset-y-0 px-3" />
+                            </div>
+                        </ComboboxAnchor>
+
+                        <ComboboxList>
+                            <ComboboxEmpty>Aucun résultat</ComboboxEmpty>
+                            <ComboboxGroup>
+                                <ComboboxItem v-for="item in Products" :key="item.id" :value="item">
+                                    <div class="flex items-center gap-2">
+                                        <img :src="item.image" class="w-6 h-6 rounded" />
+                                        <span class="flex-1">{{ item.name }}</span>
+                                        <span class="text-sm text-gray-500">{{ item.price.toFixed(2) }} €</span>
+                                    </div>
+                                </ComboboxItem>
+                            </ComboboxGroup>
+                        </ComboboxList>
+                    </Combobox>
+                </div>
             </div>
 
             <!-- Liste des produits -->
             <ScrollArea class="h-[calc(100vh-180px)] w-full rounded-md p-4">
-                <p v-if="products.length === 0" class="text-gray-500 text-sm text-center italic">
+                <p v-if="Products.length === 0" class="text-gray-500 text-sm text-center italic">
                     Aucun produit scanné
                 </p>
-                <div v-for="product in products" :key="product.id"
+                <div v-for="product in cart" :key="product.id"
                     class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border">
                     <!-- ❌ Supprimer -->
                     <button @click="removeProduct(product.id)"
