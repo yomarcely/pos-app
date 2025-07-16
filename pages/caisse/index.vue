@@ -16,44 +16,63 @@ const products = ref<ProductBase[]>([
     id: 1,
     name: 'Freeze Fruit du Dragon 50ml',
     price: 14.90,
-    variationGroupId: '',
     image: '/assets/img/freeze-dragon.png',
     barcode: '1234567890123',
+    stock: 10,
+    purchasePrice: 8.9
   },
   {
     id: 2,
     name: 'Booster 50/50',
     price: 1,
-    variationGroupId: '',
     image: '/assets/img/booster.png',
+    stock: 400
   },
   {
     id: 3,
     name: '-20 GeekVape Serie Z',
     price: 3.5,
-    variationGroupId: 'resistance',
+    variationGroupIds: ['resistance'],
     image: '/assets/img/series-z.png',
+    stockByVariation: {
+      '0.15': 10,
+      '0.2': 18,
+    },
   },
   {
     id: 4,
-    name: '-20 GeekVape Serie Z',
+    name: '-20 GeekVape Serie B',
     price: 3.5,
-    variationGroupId: 'resistance',
+    variationGroupIds: ['resistance'],
     image: '/assets/img/series-z.png',
+    stockByVariation: {
+      '0.15': 8,
+      '0.2': 3,
+    },
   },
   {
     id: 5,
     name: 'GeekVape Z nano 2',
     price: 24.90,
-    variationGroupId: 'color',
+    variationGroupIds: ['color'],
     image: '/assets/img/z-nano.png',
+    stockByVariation: {
+      noir: 4,
+      bleu: 2,
+      vert: 7,
+    },
   },
   {
     id: 6,
     name: 'Pulp Cerise Glacée 10ml',
     price: 5.90,
-    variationGroupId: 'nicotine',
+    variationGroupIds: ['nicotine'],
     image: '/assets/img/pulp-cerise.png',
+    stockByVariation: {
+      '0mg': 10,
+      '3mg': 0,
+      '6mg': 6,
+    },
   },
 ])
 </script>
