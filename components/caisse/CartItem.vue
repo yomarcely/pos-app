@@ -20,7 +20,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-    (e: 'remove', id: number): void
+  (e: 'remove', id: number, variation: string): void
 }>()
 
 // Stock dynamique selon la variation sélectionnée
@@ -98,7 +98,7 @@ const isBelowPurchasePrice = computed(() => {
 <template>
     <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border">
         <!-- ❌ Supprimer -->
-        <button @click="emit('remove', product.id)" class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+        <button @click="emit('remove', product.id, product.variation)" class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
             <X class="w-4 h-4" />
         </button>
 

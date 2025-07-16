@@ -1,29 +1,28 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, isRef } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { ProductInCart } from '@/types/pos'
 import { X,  Banknote, CreditCard } from 'lucide-vue-next'
 
-const props = defineProps<{
-  cart: any
-}>()
-
-const cart = props.cart as Ref<ProductInCart[]>
-
+const props = defineProps(['cart'])
+const cart = toRef(props, 'cart') as Ref<ProductInCart[]>
 const montantRecu = ref(0)
 const paymentMode = ref('')
 
 const totalTTC = computed(() =>
-  Array.isArray(cart.value) ? cart.value.reduce((sum, p) => sum + p.price * p.quantity, 0) : 0
+  Array.isArray(cart.value)
+    ? cart.value.reduce((sum, p) => {
+        const basePrice =
+          p.discountType === '%'
+            ? p.price * (1 - p.discount / 100)
+            : p.price - p.discount
+        return sum + basePrice * p.quantity
+      }, 0)
+    : 0
 )
 
 const totalHT = computed(() => totalTTC.value / 1.2)
-
-const renduMonnaie = computed(() => {
-  const rendu = montantRecu.value - totalTTC.value
-  return rendu > 0 ? rendu : 0
-})
 
 function validerVente() {
   if (!paymentMode.value) {
@@ -53,6 +52,10 @@ function addPayment(mode: string) {
 function removePayment(mode: string) {
     payments.value = payments.value.filter((p) => p.mode !== mode)
 }
+
+watch(() => cart.value, (val) => {
+  console.log('cart changed →', val)
+}, { deep: true })
 </script>
 
 <template>
@@ -62,7 +65,7 @@ function removePayment(mode: string) {
                     class="relative rounded-lg w-full h-50 shadow bg-black text-white dark:bg-white dark:text-black p-4">
                     <!-- 🔝 Titre Total -->
                     <div class="absolute top-2 left-4 text-xl font-medium text-gray-400 dark:text-black">
-                        Total
+                        Total TTC
                     </div>
                     <!-- 🎯 Montant TTC -->
                     <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
