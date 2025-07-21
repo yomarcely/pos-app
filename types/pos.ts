@@ -17,7 +17,8 @@ export type ProductBase = {
   name: string
   image: string
   price: number
-  barcode?: string
+  barcode?: string,
+  tva: number,
 
   // S'il y a des variations, on liste ici les groupes associés (ex: ["nicotine", "resistance"])
   variationGroupIds?: string[]
@@ -40,4 +41,13 @@ export type ProductInCart = ProductBase & {
 
   // Combinaison de variations choisie (ex: "3mg|0.15")
   variation: string
+}
+
+export type ClientBase = {
+  id: number,
+  name: string,
+  lastname: string,
+  postalcode: number,
+  city: string,
+  number?: number,
 }

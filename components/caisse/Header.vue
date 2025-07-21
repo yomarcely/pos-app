@@ -17,7 +17,7 @@ const selected = ref('Caisse 1') // valeur par défaut
                 <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                     <GalleryVerticalEnd class="size-4" />
                 </div>
-                POS App
+                FymPOS
             </a>
         </div>
 
