@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
     Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
@@ -13,8 +13,10 @@ import { Badge } from '@/components/ui/badge'
 import { UserRoundPlus, X, User, List } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
-import type { ClientBase } from '~/types/pos'
-import AddClientForm from '~/components/caisse/AddClientForm.vue'
+import type { ClientBase } from '@/types'
+
+import { useCartStore } from '@/stores/cart'
+const cartStore = useCartStore()
 
 const selectedClient = ref<ClientBase | null>(null)
 const props = defineProps(['clients'])
@@ -81,10 +83,12 @@ function openClientHistory() {
 
                 <!-- ➕ Bouton -->
                 <Dialog>
-                    <DialogTrigger class="flex items-center border rounded-md p-2  hover:bg-gray-100 dark:hover:bg-gray-700">
-                        <UserRoundPlus class="w-5 h-5" />
+                    <DialogTrigger class="flex items-center">
+                        <Button variant="outline">
+                            <UserRoundPlus class="w-5 h-5" />
+                        </Button>
                     </DialogTrigger>
-                    <AddClientForm />
+                    <CaisseAddClientForm />
                 </Dialog>
             </div>
 
@@ -126,12 +130,12 @@ function openClientHistory() {
 
         </div>
 
-        <!-- Remise -->
+        <!-- Remise globale -->
         <div>
             <label class="text-sm font-semibold">Remise globale</label>
             <div class="flex gap-2 mt-2">
-                <Input placeholder="0" class="w-full" />
-                <Select defaultValue="%">
+                <Input type="number" min="0" placeholder="0" class="w-full" v-model.number="cartStore.globalDiscount" />
+                <Select v-model="cartStore.globalDiscountType">
                     <SelectTrigger class="w-20">
                         <SelectValue />
                     </SelectTrigger>
@@ -145,11 +149,16 @@ function openClientHistory() {
 
         <!-- Mise en attente / Reprise -->
         <div class="flex gap-2">
-            <Button class="flex-1" variant="outline">Mise en attente</Button>
-            <Button class="flex-1" variant="secondary">
-                Reprise
-                <Badge class="ml-2 bg-red-500" variant="default">{{ pendingTickets }}</Badge>
-            </Button>
+            <Button variant="outline" class="flex-1">Mise en attente</Button>
+            <Dialog class="flex-1">
+                <DialogTrigger>
+                    <Button variant="secondary">
+                        Reprise
+                        <Badge class="ml-2 bg-red-500" variant="default">{{ pendingTickets }}</Badge>
+                    </Button>
+                </DialogTrigger>
+                <CaissePendingTicketForm />
+            </Dialog>
         </div>
 
         <!-- Grille de raccourcis -->

@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { GalleryVerticalEnd, ChevronDown, Settings2 } from 'lucide-vue-next'
+import { ref } from 'vue'
 
 
 const selected = ref('Caisse 1') // valeur par défaut

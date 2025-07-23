@@ -8,7 +8,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { X } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
-import type { ProductInCart } from '@/types/pos'
+import { useCartStore } from '@/stores/cart'
+import type { ProductInCart } from '@/types'
+
+const cartStore = useCartStore()
+
 
 const props = defineProps<{
     product: ProductInCart
@@ -20,18 +24,15 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'remove', id: number, variation: string): void
+    (e: 'remove', id: number, variation: string): void
 }>()
 
-// Stock dynamique selon la variation sélectionnée
 const stock = computed(() => {
-    if (props.product.variationGroupIds && props.product.variationGroupIds.length > 0) {
-        const selectedKey = props.product.variation // exemple : '0.15'
-        const stockMap = props.product.stockByVariation ?? {}
-        return stockMap[selectedKey] ?? 0
-    } else {
-        return props.product.stock ?? 0
+    if (props.product.variationGroupIds?.length) {
+        const key = props.product.variation
+        return Number(props.product.stockByVariation?.[key] ?? 0)
     }
+    return Number(props.product.stock ?? 0)
 })
 
 const stockColor = computed(() => {
@@ -40,42 +41,60 @@ const stockColor = computed(() => {
     return 'bg-green-500'
 })
 
-// Prix final
-const finalPrice = ref(getFinalPriceFromProduct())
-const isEditingPrice = ref(false)
-const isEditingDiscount = ref(false)
-
-function getFinalPriceFromProduct(): number {
-    const p = props.product
-    return p.discountType === '%'
-        ? Math.round((p.price * (1 - p.discount / 100)) * 100) / 100
-        : Math.round((p.price - p.discount) * 100) / 100
-}
-
-watch(() => props.product.discount, (newVal) => {
-    if (isEditingDiscount.value) {
-        finalPrice.value = props.product.discountType === '%'
-            ? Math.round((props.product.price * (1 - newVal / 100)) * 100) / 100
-            : Math.round((props.product.price - newVal) * 100) / 100
-    }
-})
-
-watch(finalPrice, (newVal) => {
-    if (isEditingPrice.value) {
+// Prix final dynamique (getter uniquement)
+const finalPrice = computed({
+    get() {
+        return props.product.discountType === '%'
+            ? Math.round((props.product.price * (1 - props.product.discount / 100)) * 100) / 100
+            : Math.round((props.product.price - props.product.discount) * 100) / 100
+    },
+    set(newVal: number) {
         const base = props.product.price
         const delta = base - newVal
-        props.product.discount = props.product.discountType === '%'
+        const newDiscount = props.product.discountType === '%'
             ? Math.round((delta / base) * 10000) / 100
             : Math.round(delta * 100) / 100
+
+        cartStore.updateDiscount(props.product.id, props.product.variation, newDiscount, props.product.discountType)
     }
 })
 
-watch(() => props.product.discountType, () => {
+const previousFinalPrice = ref(finalPrice.value)
+const localDiscount = ref(props.product.discount)
+
+// 1. Quand on modifie le finalPrice à la main (prix unitaire)
+watch(finalPrice, (newVal) => {
+    previousFinalPrice.value = newVal
+
     const base = props.product.price
-    const delta = base - finalPrice.value
-    props.product.discount = props.product.discountType === '%'
+    const delta = base - newVal
+    const discount = props.product.discountType === '%'
         ? Math.round((delta / base) * 10000) / 100
         : Math.round(delta * 100) / 100
+
+    localDiscount.value = discount
+    cartStore.updateDiscount(props.product.id, props.product.variation, discount, props.product.discountType)
+})
+
+// 2. Quand on change le type de remise, on recalcule le montant
+watch(() => props.product.discountType, (newType, oldType) => {
+    const base = props.product.price
+    const final = previousFinalPrice.value
+
+    let discount = 0
+    if (newType === '%') {
+        discount = base !== 0 ? Math.round(((base - final) / base) * 10000) / 100 : 0
+    } else if (newType === '€') {
+        discount = Math.round((base - final) * 100) / 100
+    }
+
+    localDiscount.value = discount
+    cartStore.updateDiscount(props.product.id, props.product.variation, discount, newType)
+})
+
+// 3. Sync avec store si modifié ailleurs
+watch(() => props.product.discount, (newVal) => {
+    localDiscount.value = newVal
 })
 
 const allowOnlyDecimal = (e: KeyboardEvent) => {
@@ -98,13 +117,15 @@ const isBelowPurchasePrice = computed(() => {
 <template>
     <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border">
         <!-- ❌ Supprimer -->
-        <button @click="emit('remove', product.id, product.variation)" class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+        <button @click="emit('remove', product.id, product.variation)"
+            class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
             <X class="w-4 h-4" />
         </button>
 
         <!-- 📦 Quantité + image -->
         <div class="flex flex-col items-center gap-2 w-25">
-            <NumberField v-model.number="product.quantity" class="w-full text-center">
+            <NumberField :model-value="product.quantity"
+                @update:model-value="q => cartStore.updateQuantity(product.id, product.variation, q)">
                 <NumberFieldContent>
                     <NumberFieldDecrement />
                     <NumberFieldInput />
@@ -118,7 +139,6 @@ const isBelowPurchasePrice = computed(() => {
 
         <!-- 🧾 Détails -->
         <div class="flex-1 space-y-1 text-sm">
-            <!-- Nom + Stock -->
             <div class="flex items-center gap-2">
                 <RouterLink :to="`/produits/${product.id}`"
                     class="font-semibold text-primary hover:underline transition">
@@ -132,7 +152,7 @@ const isBelowPurchasePrice = computed(() => {
             </div>
 
             <!-- Groupes de variation -->
-            <div v-if="product.variationGroupIds && product.variationGroupIds.length > 0" class="flex gap-2 mt-1">
+            <div v-if="product.variationGroupIds?.length" class="flex gap-2 mt-1">
                 <div v-for="groupId in product.variationGroupIds" :key="groupId" class="flex-1">
                     <Select v-model="product.variation">
                         <SelectTrigger>
@@ -150,11 +170,13 @@ const isBelowPurchasePrice = computed(() => {
 
             <!-- Remise -->
             <div class="flex gap-2">
-                <Input @keydown="allowOnlyDecimal"
-                    :model-value="product.discount === 0 ? '' : product.discount.toString()" placeholder="Remise"
-                    @focus="isEditingDiscount = true" @blur="() => { isEditingDiscount = false }" @update:model-value="val => {
+                <Input @keydown="allowOnlyDecimal" :model-value="localDiscount === 0 ? '' : localDiscount.toString()"
+                    placeholder="Remise"
+                    @update:model-value="val => {
                         const num = parseFloat(String(val))
-                        product.discount = !isNaN(num) ? num : 0
+                        const safe = !isNaN(num) ? num : 0
+                        localDiscount = safe
+                        cartStore.updateDiscount(product.id, product.variation, safe, product.discountType)
                     }" class="w-24" />
                 <Select v-model="product.discountType">
                     <SelectTrigger class="w-16">
@@ -171,18 +193,12 @@ const isBelowPurchasePrice = computed(() => {
         <!-- 💰 Prix unitaire + total -->
         <div class="flex flex-col items-end justify-end gap-1">
             <label class="text-sm font-semibold block mb-1">Prix unitaire</label>
-            <Input @keydown="allowOnlyDecimal" :model-value="finalPrice.toString()" @focus="isEditingPrice = true"
-                @blur="() => { isEditingPrice = false }" @update:model-value="val => {
-                    const num = parseFloat(String(val))
-                    if (!isNaN(num)) {
-                        finalPrice = num
-                    }
-                }" :class="[
-                    'w-24 text-right',
-                    isBelowPurchasePrice ? 'border-red-500 text-red-600' : ''
-                ]" />
+            <Input @keydown="allowOnlyDecimal" :model-value="finalPrice" @update:model-value="val => {
+                const num = parseFloat(String(val))
+                if (!isNaN(num)) finalPrice = num
+            }" :class="['w-24 text-right', isBelowPurchasePrice ? 'border-red-500 text-red-600' : '']" />
             <p class="text-xs text-muted-foreground text-right">
-                Total : {{ (finalPrice * props.product.quantity).toFixed(2) }} €
+                Total : {{ (finalPrice * product.quantity).toFixed(2) }} €
             </p>
         </div>
     </div>

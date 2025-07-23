@@ -10,6 +10,7 @@ export default defineNuxtConfig({
     '@nuxt/fonts',
     '@nuxtjs/color-mode',
     'shadcn-nuxt',
+    '@pinia/nuxt'
   ],
   colorMode: {
   classSuffix: '', // ✅ produit <html class="dark">

@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, type Ref } from 'vue'
+import { ref, watch, computed, nextTick, type Ref, toRef } from 'vue'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import CartItem from './CartItem.vue'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
 import { Barcode } from 'lucide-vue-next'
-import type { ProductBase, ProductInCart, VariationGroup } from '@/types/pos'
+import type { ProductBase, ProductInCart, VariationGroup } from '@/types'
 
-const props = defineProps(['cart', 'products'])
+import { storeToRefs } from 'pinia'
+import { useProductsStore } from '@/stores/products'
+import { useCartStore } from '@/stores/cart'
 
-const Products = computed(() => props.products)
+const productsStore = useProductsStore()
+const cartStore = useCartStore()
+
+const { products: Products } = storeToRefs(productsStore)
+const { items: cart } = storeToRefs(cartStore)
+
 const barcodeInput = ref('')
-const cart = toRef(props, 'cart') as Ref<ProductInCart[]>
+
 const selectedProduct = ref<ProductBase | null>(null)
 const bottomRef = ref<HTMLElement | null>(null)
 
@@ -26,47 +32,21 @@ function scrollToBottom() {
 }
 
 function searchByBarcode() {
-  const found = Products.value.find((p: ProductBase) => p.barcode === barcodeInput.value)
-  if (found) addToCart(found)
+  const found = Products.value.find(p => p.barcode === barcodeInput.value)
+  if (found) {
+    cartStore.addToCart(found)
+    scrollToBottom()
+  }
   barcodeInput.value = ''
 }
 
 function removeFromCart(id: number) {
-  const index = cart.value.findIndex(p => p.id === id)
-  if (index !== -1) cart.value.splice(index, 1)
-}
-
-function addToCart(product: ProductBase) {
-  if (!cart.value) {
-    console.error('cart.value is undefined')
-    return
-  }
-
-  const existing = cart.value.find(
-    (p: ProductInCart) => p.id === product.id && p.variation === ''
-  )
-
-  if (existing) {
-    existing.quantity += 1
-  } else {
-    cart.value.push({
-      ...(product as ProductBase),
-      quantity: 1,
-      discount: 0,
-      discountType: '%',
-      variation: '',
-      stock: product.stock,
-      stockByVariation: product.stockByVariation ?? {}
-    } as ProductInCart)
-  }
-
-  console.log('Produit ajouté :', product)
-  scrollToBottom()
+  cartStore.removeFromCart(id)
 }
 
 watch(selectedProduct, (product) => {
   if (product) {
-    addToCart(product)
+    cartStore.addToCart(product)
     selectedProduct.value = null
   }
 })
@@ -140,7 +120,7 @@ const variationGroups: VariationGroup[] = [
   <ScrollArea class="h-[calc(100vh-180px)] w-full rounded-md p-4">
     <div class="flex flex-col gap-2">
       <TransitionGroup tag="div" name="fade-slide" class="flex flex-col gap-2">
-        <CartItem v-for="product in cart" :key="product.id" :product="product"
+        <CaisseCartItem v-for="product in cart" :key="product.id" :product="product"
           :variation-groups="variationGroups" @remove="removeFromCart" />
       </TransitionGroup>
       <!-- 🔻 Élément de référence invisible pour scroll auto -->

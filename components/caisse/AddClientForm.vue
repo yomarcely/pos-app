@@ -22,7 +22,7 @@ function submitClient() {
 <template>
     <DialogContent class="sm:max-w-[450px]">
         <DialogHeader>
-            <DialogTitle>Création d’un client</DialogTitle>
+            <DialogTitle>Nouveau client</DialogTitle>
             <DialogDescription>
                 Remplissez les informations du client puis cliquez sur "Enregistrer".
             </DialogDescription>
