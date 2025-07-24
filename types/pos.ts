@@ -1,6 +1,6 @@
-import type { ProductBase } from './product'
+import type { Product } from './product'
 
-export interface ProductInCart extends ProductBase {
+export interface ProductInCart extends Product {
   quantity: number
   discount: number
   discountType: '%' | '€'

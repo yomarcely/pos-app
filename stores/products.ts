@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ProductBase } from '@/types'
+import type { Product } from '@/types'
 
 export const useProductsStore = defineStore('products', () => {
   // État
-  const products = ref<ProductBase[]>([])
+  const products = ref<Product[]>([])
   const loaded = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -27,7 +27,7 @@ export const useProductsStore = defineStore('products', () => {
   }
 
   // Getters
-  function getById(id: number): ProductBase | undefined {
+  function getById(id: number): Product | undefined {
     return products.value.find(p => p.id === id)
   }
 

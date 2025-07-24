@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { ProductBase, ProductInCart } from '@/types'
+import type { Product, ProductInCart } from '@/types'
 import { useTicketsStore } from './tickets'
 
 export const useCartStore = defineStore('cart', () => {
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
-  const selectedProduct = ref<ProductBase | null>(null)
+  const selectedProduct = ref<Product | null>(null)
 
   const globalDiscount = ref(0)
   const globalDiscountType = ref<'%' | '€'>('%')
@@ -78,7 +78,7 @@ export const useCartStore = defineStore('cart', () => {
   })
 
   // --- ACTIONS ---
-  function addToCart(product: ProductBase, variation = '') {
+  function addToCart(product: Product, variation = '') {
     const existing = items.value.find(item => item.id === product.id && item.variation === variation)
     if (existing) {
       existing.quantity++

@@ -6,7 +6,7 @@ import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
 import { Barcode } from 'lucide-vue-next'
-import type { ProductBase, VariationGroup } from '@/types'
+import type { Product } from '@/types'
 
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '@/stores/products'
@@ -42,35 +42,6 @@ function removeFromCart(id: number, variation: string) {
   cartStore.removeFromCart(id, variation)
 }
 
-// Exemple statique de groupes de variations (pourrait être global)
-const variationGroups: VariationGroup[] = [
-  {
-    id: 'color',
-    name: 'Couleur',
-    options: [
-      { label: 'Noir', value: 'noir' },
-      { label: 'Bleu', value: 'bleu' },
-      { label: 'Vert', value: 'vert' }
-    ]
-  },
-  {
-    id: 'nicotine',
-    name: 'Taux de nicotine',
-    options: [
-      { label: '0mg', value: '0mg' },
-      { label: '3mg', value: '3mg' },
-      { label: '6mg', value: '6mg' }
-    ]
-  },
-  {
-    id: 'resistance',
-    name: 'Résistance',
-    options: [
-      { label: '0.15Ω', value: '0.15' },
-      { label: '0.2Ω', value: '0.2' }
-    ]
-  }
-]
 </script>
 
 <template>
@@ -78,16 +49,16 @@ const variationGroups: VariationGroup[] = [
     <!-- 📷 Scan code-barres -->
     <div class="relative">
       <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-      <Input v-model="barcodeInput" placeholder="Scanner un code-barres" class="w-full px-3 text-sm pl-10"
-             @keyup.enter="searchByBarcode" />
+      <Input v-model="barcodeInput" placeholder="Scanner code-barres" class="w-full px-3 text-sm pl-10"
+        @keyup.enter="searchByBarcode" />
     </div>
 
     <!-- 🔍 Recherche produit -->
-    <Combobox v-model="selectedProduct" :options="Products" :option-label="(p: ProductBase) => p.name"
-              :option-value="(p: ProductBase) => p.id">
+    <Combobox v-model="selectedProduct" :options="Products" :option-label="(p: Product) => p.name"
+      :option-value="(p: Product) => p.id">
       <ComboboxAnchor>
         <div class="relative w-full items-center rounded-md border">
-          <ComboboxInput placeholder="Rechercher un produit" class="w-full h-full text-sm px-3" />
+          <ComboboxInput placeholder="Recherche produit" class="w-full h-full text-sm px-3" />
         </div>
       </ComboboxAnchor>
       <ComboboxList>
@@ -109,9 +80,8 @@ const variationGroups: VariationGroup[] = [
   <ScrollArea class="h-[calc(100vh-180px)] w-full rounded-md p-4">
     <div class="flex flex-col gap-2">
       <TransitionGroup tag="div" name="fade-slide" class="flex flex-col gap-2">
-        <CaisseCartItem v-for="product in cart" :key="product.id + '-' + product.variation"
-                        :product="product" :variation-groups="variationGroups"
-                        @remove="removeFromCart" />
+        <CaisseCartItem v-for="product in cart" :key="product.id + '-' + product.variation" :product="product"
+          @remove="removeFromCart" />
       </TransitionGroup>
       <!-- 🔻 Élément invisible pour scroll auto -->
       <div ref="bottomRef" />

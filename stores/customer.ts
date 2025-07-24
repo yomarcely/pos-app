@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ClientBase } from '@/types'
+import type { Customer } from '@/types'
 
 export const useCustomerStore = defineStore('customer', () => {
   // État
-  const client = ref<ClientBase | null>(null)
-  const clients = ref<ClientBase[]>([])
+  const client = ref<Customer | null>(null)
+  const clients = ref<Customer[]>([])
   const loaded = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -28,7 +28,7 @@ export const useCustomerStore = defineStore('customer', () => {
     }
   }
 
-  function selectClient(c: ClientBase) {
+  function selectClient(c: Customer) {
     client.value = c
   }
 

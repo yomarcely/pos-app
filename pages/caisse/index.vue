@@ -2,13 +2,15 @@
 import { onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
+import { useSellersStore } from '@/stores/sellers'
 
+const sellersStore = useSellersStore()
 const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
 onMounted(() => {
-  // Chargement initial des produits si besoin
   productsStore.loadProducts()
   customerStore.loadCustomers()
+  sellersStore.loadSellers()
 })
 </script>
 

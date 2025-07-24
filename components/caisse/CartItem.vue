@@ -9,13 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
+
 import type { ProductInCart, VariationGroup } from '@/types'
 
 const cartStore = useCartStore()
+const variationStore = useVariationGroupsStore()
+const variationGroups = variationStore.groups
 
 const props = defineProps<{
     product: ProductInCart;
-    variationGroups: VariationGroup[];
 }>()
 
 const emit = defineEmits<{

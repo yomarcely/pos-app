@@ -12,7 +12,7 @@ export interface VariationGroup {
 }
 
 // Produit de base
-export interface ProductBase {
+export interface Product {
   id: number
   name: string
   image: string

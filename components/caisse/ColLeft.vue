@@ -13,9 +13,11 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
+import { useSellersStore } from '@/stores/sellers'
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
+const sellersStore = useSellersStore()
 const Clients = computed(() => customerStore.clients)
 const selectedClient = computed({
   get: () => customerStore.client,
@@ -42,16 +44,20 @@ function openClientHistory() {
     <!-- Sélecteur vendeur -->
     <div>
       <label class="text-sm font-semibold">Vendeur</label>
-      <Select defaultValue="">
-        <SelectTrigger>
-          <SelectValue placeholder="Sélectionner un vendeur" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="yohan">Yohan</SelectItem>
-          <SelectItem value="mary">Mary</SelectItem>
-          <SelectItem value="jade">Jade</SelectItem>
-        </SelectContent>
-      </Select>
+      <Select v-model="sellersStore.selectedSeller">
+  <SelectTrigger>
+    <SelectValue placeholder="Sélectionner un vendeur" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem
+      v-for="seller in sellersStore.sellers"
+      :key="seller.id"
+      :value="seller"
+    >
+      {{ seller.name }}
+    </SelectItem>
+  </SelectContent>
+</Select>
     </div>
 
     <!-- Client -->
@@ -64,7 +70,7 @@ function openClientHistory() {
                     get-option-value="id" get-option-label="name">
             <ComboboxAnchor>
               <div class="relative w-full flex items-center rounded-md border">
-                <ComboboxInput placeholder="Rechercher un client" class="w-full h-full px-3 text-sm" />
+                <ComboboxInput placeholder="Recherche client" class="w-full h-full px-3 text-sm" />
               </div>
             </ComboboxAnchor>
             <ComboboxList>
