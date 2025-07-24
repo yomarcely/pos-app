@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
@@ -14,6 +14,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
+const isPendingDialogOpen = ref(false)
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
@@ -45,19 +46,15 @@ function openClientHistory() {
     <div>
       <label class="text-sm font-semibold">Vendeur</label>
       <Select v-model="sellersStore.selectedSeller">
-  <SelectTrigger>
-    <SelectValue placeholder="Sélectionner un vendeur" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem
-      v-for="seller in sellersStore.sellers"
-      :key="seller.id"
-      :value="seller"
-    >
-      {{ seller.name }}
-    </SelectItem>
-  </SelectContent>
-</Select>
+        <SelectTrigger>
+          <SelectValue placeholder="Sélectionner un vendeur" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="seller in sellersStore.sellers" :key="seller.id" :value="seller">
+            {{ seller.name }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
     </div>
 
     <!-- Client -->
@@ -67,7 +64,7 @@ function openClientHistory() {
         <!-- 🔍 Recherche -->
         <client-only>
           <Combobox v-model="selectedClient" :options="Clients" option-value="id" option-label="name"
-                    get-option-value="id" get-option-label="name">
+            get-option-value="id" get-option-label="name">
             <ComboboxAnchor>
               <div class="relative w-full flex items-center rounded-md border">
                 <ComboboxInput placeholder="Recherche client" class="w-full h-full px-3 text-sm" />
@@ -102,8 +99,8 @@ function openClientHistory() {
 
       <!-- Card client sélectionné -->
       <div class="relative mt-2 px-4 py-3 rounded-md"
-           :class="selectedClient ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border shadow-sm' : 'bg-transparent'"
-           style="min-height: 66px;">
+        :class="selectedClient ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border shadow-sm' : 'bg-transparent'"
+        style="min-height: 66px;">
         <template v-if="selectedClient">
           <!-- ❌ Bouton de suppression client -->
           <button @click="deselectClient" class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
@@ -123,12 +120,10 @@ function openClientHistory() {
 
             <!-- 🔘 Actions client -->
             <div class="flex items-center gap-2 pr-5">
-              <button @click="openClientCard"
-                      class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+              <button @click="openClientCard" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
                 <User class="w-5 h-5 text-gray-600 dark:text-gray-300" />
               </button>
-              <button @click="openClientHistory"
-                      class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+              <button @click="openClientHistory" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
                 <List class="w-5 h-5 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
@@ -158,20 +153,25 @@ function openClientHistory() {
     <div class="flex gap-2">
       <client-only>
         <!-- Bouton Mise en attente -->
-        <Button variant="outline" class="flex-1"
-                @click="cartStore.holdSale(null, customerStore.client ? customerStore.client.id : null)">
+        <Button variant="outline" class="flex-1" @click="cartStore.addPendingCart(customerStore.client ? customerStore.client.id : null);
+        customerStore.clearClient()">
           Mise en attente
         </Button>
-        <Dialog class="flex-1">
+
+        <!-- Dialog de reprise -->
+        <Dialog class="flex-1" v-model:open="isPendingDialogOpen">
           <DialogTrigger>
             <Button variant="secondary">
               Reprise
-              <Badge class="ml-2 bg-red-500" variant="default">{{ pendingTickets }}</Badge>
+              <Badge class="ml-2 bg-red-500" variant="default">
+                {{ cartStore.pendingCart.length }}
+              </Badge>
             </Button>
           </DialogTrigger>
-          <CaissePendingTicketForm />
+          <CaissePendingCartForm @close="isPendingDialogOpen = false"/>
         </Dialog>
       </client-only>
+
     </div>
 
     <!-- Grille de raccourcis -->

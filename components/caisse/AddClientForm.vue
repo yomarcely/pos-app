@@ -5,9 +5,9 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 const form = ref({
   name: '',
@@ -15,7 +15,7 @@ const form = ref({
   address: '',
   postalcode: '',
   city: '',
-  country: '',
+  country: 'France',
   phonenumber: '',
   mail: '',
   fidelity: false,
@@ -28,12 +28,11 @@ const form = ref({
 
 function submitClient() {
   console.log('Nouveau client à enregistrer :', form.value)
-  // Ici tu peux appeler un store ou une API
 }
 </script>
 
 <template>
-  <DialogContent class="sm:max-w-[800px]">
+  <DialogContent class="w-full max-w-4xl">
     <DialogHeader>
       <DialogTitle>Nouveau client</DialogTitle>
       <DialogDescription>
@@ -41,77 +40,81 @@ function submitClient() {
       </DialogDescription>
     </DialogHeader>
 
-    <form @submit.prevent="submitClient" class="grid gap-4 py-4">
-      <!-- 🔹 Nom & prénom -->
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="lastname" class="text-right">Nom</Label>
-        <Input id="lastname" v-model="form.lastname" class="col-span-3" />
-      </div>
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="name" class="text-right">Prénom</Label>
-        <Input id="name" v-model="form.name" class="col-span-3" />
+    <form @submit.prevent="submitClient" class="grid grid-cols-2 gap-6 py-4">
+      <!-- Colonne 1 -->
+      <div class="space-y-4">
+        <div>
+          <Label for="lastname">Nom</Label>
+          <Input id="lastname" v-model="form.lastname" />
+        </div>
+        <div>
+          <Label for="name">Prénom</Label>
+          <Input id="name" v-model="form.name" />
+        </div>
+        <div>
+          <Label for="address">Adresse</Label>
+          <Input id="address" v-model="form.address" />
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <Label for="postalcode">Code postal</Label>
+            <Input id="postalcode" v-model="form.postalcode" />
+          </div>
+          <div class="flex-1">
+            <Label for="city">Ville</Label>
+            <Input id="city" v-model="form.city" />
+          </div>
+        </div>
+        <div>
+          <Label for="country">Pays</Label>
+          <Input id="country" v-model="form.country" />
+        </div>
+        <div>
+          <Label for="phonenumber">Téléphone</Label>
+          <Input id="phonenumber" v-model="form.phonenumber" />
+        </div>
+        <div class="col-span-2">
+          <Label for="mail">Email</Label>
+          <Input id="mail" v-model="form.mail" />
+        </div>
+
       </div>
 
-      <!-- 🔹 Adresse -->
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="address" class="text-right">Adresse</Label>
-        <Input id="address" v-model="form.address" class="col-span-3" />
-      </div>
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="postalcode" class="text-right">Code postal</Label>
-        <Input id="postalcode" v-model="form.postalcode" class="col-span-3" />
-      </div>
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="city" class="text-right">Ville</Label>
-        <Input id="city" v-model="form.city" class="col-span-3" />
-      </div>
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="country" class="text-right">Pays</Label>
-        <Input id="country" v-model="form.country" class="col-span-3" />
+      <!-- Colonne 2 -->
+      <div class="space-y-4">
+        <div>
+          <Label for="discount">Remise automatique (%)</Label>
+          <Input id="discount" type="number" min="0" v-model.number="form.discount" />
+        </div>
+
+        <div class="flex items-center gap-4">
+          <Switch id="fidelity" v-model:checked="form.fidelity" />
+          <Label for="fidelity">Fidélité active</Label>
+        </div>
+        <div class="flex items-center gap-4">
+          <Switch id="authorizesms" v-model:checked="form.authorizesms" />
+          <Label for="authorizesms">Autorise SMS</Label>
+        </div>
+        <div class="flex items-center gap-4">
+          <Switch id="authorizemailing" v-model:checked="form.authorizemailing" />
+          <Label for="authorizemailing">Autorise emailings</Label>
+        </div>
+        <div>
+          <Label for="alert">Alerte</Label>
+          <Textarea id="alert" rows="2" v-model="form.alert" />
+        </div>
+        <div>
+          <Label for="information">Informations complémentaires</Label>
+          <Textarea id="information" rows="3" v-model="form.information" />
+        </div>
       </div>
 
-      <!-- 🔹 Contact -->
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="phonenumber" class="text-right">Téléphone</Label>
-        <Input id="phonenumber" v-model="form.phonenumber" class="col-span-3" />
+      <!-- Bouton -->
+      <div class="col-span-2 flex justify-end pt-2">
+        <DialogFooter>
+          <Button type="submit">Enregistrer</Button>
+        </DialogFooter>
       </div>
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="mail" class="text-right">Email</Label>
-        <Input id="mail" v-model="form.mail" class="col-span-3" />
-      </div>
-
-      <!-- 🔹 Divers -->
-      <div class="grid grid-cols-4 items-center gap-4">
-        <Label for="discount" class="text-right">Remise (%)</Label>
-        <Input id="discount" type="number" min="0" max="100" v-model.number="form.discount" class="col-span-3" />
-      </div>
-
-      <!-- 🔹 Options -->
-      <div class="flex flex-col gap-2 col-span-4 ml-8">
-        <label class="flex items-center gap-2">
-          <Checkbox v-model:checked="form.fidelity" /> Fidélité active
-        </label>
-        <label class="flex items-center gap-2">
-          <Checkbox v-model:checked="form.authorizesms" /> Autorise SMS
-        </label>
-        <label class="flex items-center gap-2">
-          <Checkbox v-model:checked="form.authorizemailing" /> Autorise emailing
-        </label>
-      </div>
-
-      <!-- 🔹 Alertes & infos -->
-      <div class="grid grid-cols-4 items-start gap-4">
-        <Label for="alert" class="text-right">Alerte</Label>
-        <Textarea id="alert" v-model="form.alert" class="col-span-3" />
-      </div>
-      <div class="grid grid-cols-4 items-start gap-4">
-        <Label for="information" class="text-right">Infos</Label>
-        <Textarea id="information" v-model="form.information" class="col-span-3" />
-      </div>
-
-      <DialogFooter class="mt-2">
-        <Button type="submit">Enregistrer</Button>
-      </DialogFooter>
     </form>
   </DialogContent>
 </template>

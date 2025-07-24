@@ -1,15 +1,68 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart } from '@/types'
-import { useTicketsStore } from './tickets'
 
 export const useCartStore = defineStore('cart', () => {
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
   const selectedProduct = ref<Product | null>(null)
-
   const globalDiscount = ref(0)
   const globalDiscountType = ref<'%' | '€'>('%')
+
+  // --- TICKETS EN ATTENTE ---
+  const pendingCart = ref<{
+    id: number
+    items: ProductInCart[]
+    globalDiscount: number
+    globalDiscountType: '%' | '€'
+    clientId: number | null
+  }[]>([])
+
+  let nextPendingId = 1
+
+  function addPendingCart(clientId: number | null = null) {
+    if (!items.value.length) return
+
+    pendingCart.value.push({
+      id: nextPendingId++,
+      items: JSON.parse(JSON.stringify(items.value)), // deep clone
+      globalDiscount: globalDiscount.value,
+      globalDiscountType: globalDiscountType.value,
+      clientId
+    })
+
+    clearCart()
+  }
+
+  function recoverPendingCart(id: number) {
+  const index = pendingCart.value.findIndex(c => c.id === id)
+  if (index === -1) return
+
+  const cartData = pendingCart.value[index]
+  if (!cartData) return
+
+  // Appliquer les données du panier
+  items.value = cartData.items
+  globalDiscount.value = cartData.globalDiscount
+  globalDiscountType.value = cartData.globalDiscountType
+
+  // Gérer le client
+  const customerStore = useCustomerStore()
+  if (cartData.clientId !== null) {
+    const client = customerStore.clients.find(c => c.id === cartData.clientId)
+    if (client) {
+      customerStore.selectClient(client)
+    } else {
+      customerStore.clearClient()
+    }
+  } else {
+    customerStore.clearClient()
+  }
+
+  // Supprimer le panier
+  pendingCart.value.splice(index, 1)
+}
+
 
   // --- GETTERS ---
   function getFinalPrice(product: ProductInCart): number {
@@ -18,10 +71,8 @@ export const useCartStore = defineStore('cart', () => {
       : product.price - product.discount
 
     if (globalDiscountType.value === '%') {
-      // Remise globale en pourcentage
       price *= (1 - globalDiscount.value / 100)
     } else if (globalDiscountType.value === '€') {
-      // Remise globale fixe : répartition proportionnelle entre les produits
       const totalBefore = items.value.reduce((sum, p) => {
         const base = p.discountType === '%'
           ? p.price * (1 - p.discount / 100)
@@ -39,7 +90,7 @@ export const useCartStore = defineStore('cart', () => {
         price -= discountPerUnit
       }
     }
-    // Arrondi à 2 décimales et minimum 0
+
     return Math.max(0, Math.round(price * 100) / 100)
   }
 
@@ -51,6 +102,7 @@ export const useCartStore = defineStore('cart', () => {
       return sum + priceHT * item.quantity
     }, 0)
   )
+
   const totalTVA = computed(() =>
     items.value.reduce((sum, item) => {
       const price = getFinalPrice(item)
@@ -59,12 +111,14 @@ export const useCartStore = defineStore('cart', () => {
       return sum + tvaPart * item.quantity
     }, 0)
   )
+
   const totalTTC = computed(() =>
     items.value.reduce((sum, item) => {
       const price = getFinalPrice(item)
       return sum + price * item.quantity
     }, 0)
   )
+
   const itemCount = computed(() =>
     items.value.reduce((sum, item) => sum + item.quantity, 0)
   )
@@ -128,20 +182,12 @@ export const useCartStore = defineStore('cart', () => {
     if (item) {
       const existing = items.value.find(p => p.id === productId && p.variation === newVariation)
       if (existing && existing !== item) {
-        // Fusionne avec l'élément existant de même variation
         existing.quantity += item.quantity
-        // On pourrait aussi gérer la remise ici si nécessaire
         removeFromCart(productId, oldVariation)
       } else {
         item.variation = newVariation
       }
     }
-  }
-
-  function holdSale(ticketId: number | null = null, clientId: number | null = null) {
-    const tickets = useTicketsStore()
-    tickets.addTicket(items.value, totalTTC.value, ticketId, clientId)
-    clearCart()
   }
 
   return {
@@ -150,6 +196,7 @@ export const useCartStore = defineStore('cart', () => {
     selectedProduct,
     globalDiscount,
     globalDiscountType,
+    pendingCart,
     // getters
     getFinalPrice,
     totalHT,
@@ -164,6 +211,7 @@ export const useCartStore = defineStore('cart', () => {
     updateDiscount,
     updateGlobalDiscount,
     updateVariation,
-    holdSale
+    addPendingCart,
+    recoverPendingCart
   }
 })
