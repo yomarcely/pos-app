@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { GalleryVerticalEnd, ChevronDown, Settings2 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
-
 const selected = ref('Caisse 1') // valeur par défaut
 </script>
 
@@ -22,65 +21,72 @@ const selected = ref('Caisse 1') // valeur par défaut
             </a>
         </div>
 
-        <!-- Centre : Select caisse (transparent) -->
+        <!-- Centre : Select caisse (Dropdown + Tooltip) -->
         <div class="flex-1 flex justify-center">
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger class="flex items-center gap-1">
-                                {{ selected }}
-                                <ChevronDown class="h-4 w-4" />
-                            </DropdownMenuTrigger>
+            <client-only>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger class="flex items-center gap-1">
+                                    {{ selected }}
+                                    <ChevronDown class="h-4 w-4" />
+                                </DropdownMenuTrigger>
 
-                            <DropdownMenuContent align="start">
-                                <DropdownMenuItem @click="selected = 'Caisse 1'">Caisse 1</DropdownMenuItem>
-                                <DropdownMenuItem @click="selected = 'Caisse 2'">Caisse 2</DropdownMenuItem>
-                                <DropdownMenuItem @click="selected = 'Caisse 3'">Caisse 3</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Séléction du numéro de caisse</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuItem @click="selected = 'Caisse 1'">Caisse 1</DropdownMenuItem>
+                                    <DropdownMenuItem @click="selected = 'Caisse 2'">Caisse 2</DropdownMenuItem>
+                                    <DropdownMenuItem @click="selected = 'Caisse 3'">Caisse 3</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Séléction du numéro de caisse</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </client-only>
         </div>
 
         <!-- Droite : Select magasin + settings -->
         <div class="flex items-center gap-2">
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger>
-                        <Select defaultValue="shop-paris">
-                            <SelectTrigger class="px-3">
-                                <SelectValue placeholder="Magasin" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="shop-paris">Shop - Paris</SelectItem>
-                                    <SelectItem value="shop-marseille">Shop - Marseille</SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Séléction du point de vente</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger>
-                        <Button variant="ghost" size="icon">
-                            <Settings2 />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Paramètres Caisse</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+            <client-only>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <Select defaultValue="shop-paris">
+                                <SelectTrigger class="px-3">
+                                    <SelectValue placeholder="Magasin" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectItem value="shop-paris">Shop - Paris</SelectItem>
+                                        <SelectItem value="shop-marseille">Shop - Marseille</SelectItem>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Séléction du point de vente</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </client-only>
+
+            <client-only>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <Button variant="ghost" size="icon">
+                                <Settings2 />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Paramètres Caisse</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </client-only>
         </div>
     </header>
 </template>

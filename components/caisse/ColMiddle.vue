@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, type Ref, toRef } from 'vue'
+import { ref, nextTick } from 'vue'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
 import { Barcode } from 'lucide-vue-next'
-import type { ProductBase, ProductInCart, VariationGroup } from '@/types'
+import type { ProductBase, VariationGroup } from '@/types'
 
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '@/stores/products'
@@ -16,11 +16,9 @@ const productsStore = useProductsStore()
 const cartStore = useCartStore()
 
 const { products: Products } = storeToRefs(productsStore)
-const { items: cart } = storeToRefs(cartStore)
+const { items: cart, selectedProduct } = storeToRefs(cartStore)
 
 const barcodeInput = ref('')
-
-const selectedProduct = ref<ProductBase | null>(null)
 const bottomRef = ref<HTMLElement | null>(null)
 
 function scrollToBottom() {
@@ -40,18 +38,11 @@ function searchByBarcode() {
   barcodeInput.value = ''
 }
 
-function removeFromCart(id: number) {
-  cartStore.removeFromCart(id)
+function removeFromCart(id: number, variation: string) {
+  cartStore.removeFromCart(id, variation)
 }
 
-watch(selectedProduct, (product) => {
-  if (product) {
-    cartStore.addToCart(product)
-    selectedProduct.value = null
-  }
-})
-
-// Exemple statique de groupes de variations, peut être déplacé dans un fichier global
+// Exemple statique de groupes de variations (pourrait être global)
 const variationGroups: VariationGroup[] = [
   {
     id: 'color',
@@ -84,23 +75,21 @@ const variationGroups: VariationGroup[] = [
 
 <template>
   <div class="w-full flex justify-center gap-4">
-    <!-- 📷 Scan -->
+    <!-- 📷 Scan code-barres -->
     <div class="relative">
       <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
       <Input v-model="barcodeInput" placeholder="Scanner un code-barres" class="w-full px-3 text-sm pl-10"
-        @keyup.enter="searchByBarcode" />
+             @keyup.enter="searchByBarcode" />
     </div>
 
-    <!-- 🔍 Recherche -->
-    <Combobox v-model="selectedProduct" :options="Products" :option-value="(p: ProductBase) => p.id"
-      :option-label="(p: ProductBase) => p.name" :get-option-value="(p: ProductBase) => p.id"
-      :get-option-label="(p: ProductBase) => p.name">
+    <!-- 🔍 Recherche produit -->
+    <Combobox v-model="selectedProduct" :options="Products" :option-label="(p: ProductBase) => p.name"
+              :option-value="(p: ProductBase) => p.id">
       <ComboboxAnchor>
         <div class="relative w-full items-center rounded-md border">
-          <ComboboxInput placeholder="Rechercher un produit" class="w-full h-full text-sm" />
+          <ComboboxInput placeholder="Rechercher un produit" class="w-full h-full text-sm px-3" />
         </div>
       </ComboboxAnchor>
-
       <ComboboxList>
         <ComboboxEmpty>Aucun résultat</ComboboxEmpty>
         <ComboboxGroup>
@@ -116,32 +105,16 @@ const variationGroups: VariationGroup[] = [
     </Combobox>
   </div>
 
-  <!-- Liste des produits -->
+  <!-- Liste des produits du panier -->
   <ScrollArea class="h-[calc(100vh-180px)] w-full rounded-md p-4">
     <div class="flex flex-col gap-2">
       <TransitionGroup tag="div" name="fade-slide" class="flex flex-col gap-2">
-        <CaisseCartItem v-for="product in cart" :key="product.id" :product="product"
-          :variation-groups="variationGroups" @remove="removeFromCart" />
+        <CaisseCartItem v-for="product in cart" :key="product.id + '-' + product.variation"
+                        :product="product" :variation-groups="variationGroups"
+                        @remove="removeFromCart" />
       </TransitionGroup>
-      <!-- 🔻 Élément de référence invisible pour scroll auto -->
+      <!-- 🔻 Élément invisible pour scroll auto -->
       <div ref="bottomRef" />
     </div>
   </ScrollArea>
 </template>
-
-<style scoped>
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.2s ease;
-}
-
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-</style>

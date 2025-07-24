@@ -1,105 +1,35 @@
 import { defineStore } from 'pinia'
+import { ref } from 'vue'
 import type { ProductBase } from '@/types'
 
-export const useProductsStore = defineStore('products', {
-  //state: () => ({
-    // products: [] as ProductBase[],
-    //loaded: false
-  //}),
-  state: () => ({
-    products: [
-      {
-        id: 1,
-        name: 'Freeze Fruit du Dragon 50ml',
-        price: 14.90,
-        image: '/assets/img/freeze-dragon.png',
-        barcode: '1234567890123',
-        stock: 10,
-        purchasePrice: 8.9,
-        tva: 20
-      },
-      {
-        id: 2,
-        name: 'Booster 50/50',
-        price: 1,
-        image: '/assets/img/booster.png',
-        stock: 400,
-        purchasePrice: 0.2,
-        tva: 20
-      },
-      {
-        id: 3,
-        name: '-20 GeekVape Serie Z',
-        price: 3.5,
-        variationGroupIds: ['resistance'],
-        image: '/assets/img/series-z.png',
-        stockByVariation: {
-          '0.15': 10,
-          '0.2': 18
-        },
-        purchasePrice: 1,
-        tva: 20
-      },
-      {
-        id: 4,
-        name: '-20 GeekVape Serie B',
-        price: 3.5,
-        variationGroupIds: ['resistance'],
-        image: '/assets/img/series-z.png',
-        stockByVariation: {
-          '0.15': 8,
-          '0.2': 3
-        },
-        purchasePrice: 1,
-        tva: 20
-      },
-      {
-        id: 5,
-        name: 'GeekVape Z nano 2',
-        price: 24.90,
-        variationGroupIds: ['color'],
-        image: '/assets/img/z-nano.png',
-        stockByVariation: {
-          noir: 4,
-          bleu: 2,
-          vert: 7
-        },
-        purchasePrice: 12,
-        tva: 20
-      },
-      {
-        id: 6,
-        name: 'Pulp Cerise Glacée 10ml',
-        price: 5.90,
-        variationGroupIds: ['nicotine'],
-        image: '/assets/img/pulp-cerise.png',
-        stockByVariation: {
-          '0mg': 10,
-          '3mg': 0,
-          '6mg': 6
-        },
-        purchasePrice: 2.5,
-        tva: 20
-      }
-    ] as ProductBase[],
-    loaded: true
-  }),
+export const useProductsStore = defineStore('products', () => {
+  // État
+  const products = ref<ProductBase[]>([])
+  const loaded = ref(false)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  getters: {
-    getById: (state) => (id: number): ProductBase | undefined =>
-      state.products.find(p => p.id === id)
-  },
-
-  actions: {
-    async loadProducts() {
-      if (this.loaded) return
-      try {
-        const res = await fetch('/api/products')
-        this.products = await res.json()
-        this.loaded = true
-      } catch (err) {
-        console.error('Erreur chargement produits', err)
-      }
+  // Actions
+  async function loadProducts() {
+    if (loaded.value || loading.value) return
+    loading.value = true
+    error.value = null
+    try {
+      const res = await fetch('/mock/products.json')
+      products.value = await res.json()
+      loaded.value = true
+    } catch (err) {
+      console.error('Erreur chargement produits', err)
+      error.value = err instanceof Error ? err.message : String(err)
+    } finally {
+      loading.value = false
     }
   }
+
+  // Getters
+  function getById(id: number): ProductBase | undefined {
+    return products.value.find(p => p.id === id)
+  }
+
+  return { products, loaded, loading, error, loadProducts, getById }
 })

@@ -9,18 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
-import type { ProductInCart } from '@/types'
+import type { ProductInCart, VariationGroup } from '@/types'
 
 const cartStore = useCartStore()
 
-
 const props = defineProps<{
-    product: ProductInCart
-    variationGroups: {
-        id: string
-        name: string
-        options: { label: string; value: string }[]
-    }[]
+    product: ProductInCart;
+    variationGroups: VariationGroup[];
 }>()
 
 const emit = defineEmits<{
@@ -41,11 +36,11 @@ const stockColor = computed(() => {
     return 'bg-green-500'
 })
 
-// Prix final dynamique (getter uniquement)
+// Prix final dynamique par produit (hors remise globale)
 const finalPrice = computed({
     get() {
         return props.product.discountType === '%'
-            ? Math.round((props.product.price * (1 - props.product.discount / 100)) * 100) / 100
+            ? Math.round(props.product.price * (1 - props.product.discount / 100) * 100) / 100
             : Math.round((props.product.price - props.product.discount) * 100) / 100
     },
     set(newVal: number) {
@@ -62,10 +57,9 @@ const finalPrice = computed({
 const previousFinalPrice = ref(finalPrice.value)
 const localDiscount = ref(props.product.discount)
 
-// 1. Quand on modifie le finalPrice à la main (prix unitaire)
+// 1. Quand on modifie le prix unitaire final à la main
 watch(finalPrice, (newVal) => {
     previousFinalPrice.value = newVal
-
     const base = props.product.price
     const delta = base - newVal
     const discount = props.product.discountType === '%'
@@ -73,10 +67,10 @@ watch(finalPrice, (newVal) => {
         : Math.round(delta * 100) / 100
 
     localDiscount.value = discount
-    cartStore.updateDiscount(props.product.id, props.product.variation, discount, props.product.discountType)
+    // (Mise à jour du store déjà effectuée dans finalPrice.set)
 })
 
-// 2. Quand on change le type de remise, on recalcule le montant
+// 2. Quand on change le type de remise, on recalcule la remise pour garder le même prix final
 watch(() => props.product.discountType, (newType, oldType) => {
     const base = props.product.price
     const final = previousFinalPrice.value
@@ -92,7 +86,7 @@ watch(() => props.product.discountType, (newType, oldType) => {
     cartStore.updateDiscount(props.product.id, props.product.variation, discount, newType)
 })
 
-// 3. Sync avec store si modifié ailleurs
+// 3. Synchronisation si la remise est modifiée ailleurs
 watch(() => props.product.discount, (newVal) => {
     localDiscount.value = newVal
 })
@@ -154,7 +148,11 @@ const isBelowPurchasePrice = computed(() => {
             <!-- Groupes de variation -->
             <div v-if="product.variationGroupIds?.length" class="flex gap-2 mt-1">
                 <div v-for="groupId in product.variationGroupIds" :key="groupId" class="flex-1">
-                    <Select v-model="product.variation">
+                    <Select :model-value="product.variation" @update:model-value="val => {
+                        if (typeof val === 'string') {
+                            cartStore.updateVariation(product.id, product.variation, val)
+                        }
+                    }">
                         <SelectTrigger>
                             <SelectValue :placeholder="groupId" />
                         </SelectTrigger>
@@ -171,8 +169,7 @@ const isBelowPurchasePrice = computed(() => {
             <!-- Remise -->
             <div class="flex gap-2">
                 <Input @keydown="allowOnlyDecimal" :model-value="localDiscount === 0 ? '' : localDiscount.toString()"
-                    placeholder="Remise"
-                    @update:model-value="val => {
+                    placeholder="Remise" @update:model-value="val => {
                         const num = parseFloat(String(val))
                         const safe = !isNaN(num) ? num : 0
                         localDiscount = safe

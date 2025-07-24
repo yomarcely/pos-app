@@ -1,133 +1,170 @@
 import { defineStore } from 'pinia'
+import { ref, computed, watch } from 'vue'
 import type { ProductBase, ProductInCart } from '@/types'
 import { useTicketsStore } from './tickets'
 
-export const useCartStore = defineStore('cart', {
-  state: () => ({
-    items: [] as ProductInCart[],
-    tva: 0.20,
-    globalDiscount: 0,
-    globalDiscountType: '%' as '%' | '€'
-  }),
+export const useCartStore = defineStore('cart', () => {
+  // --- ÉTAT ---
+  const items = ref<ProductInCart[]>([])
+  const selectedProduct = ref<ProductBase | null>(null)
+  const tva = ref(0.20)
+  const globalDiscount = ref(0)
+  const globalDiscountType = ref<'%' | '€'>('%')
 
-  getters: {
-    getFinalPrice(state) {
-      return (product: ProductInCart): number => {
-        // Remise produit
-        let price = product.discountType === '%'
-          ? product.price * (1 - product.discount / 100)
-          : product.price - product.discount
+  // --- GETTERS ---
+  function getFinalPrice(product: ProductInCart): number {
+    let price = product.discountType === '%'
+      ? product.price * (1 - product.discount / 100)
+      : product.price - product.discount
 
-        // Remise globale
-        if (state.globalDiscountType === '%') {
-          price *= (1 - state.globalDiscount / 100)
-        } else if (state.globalDiscountType === '€') {
-          const totalBefore = state.items.reduce((sum, p) => {
-            const base = p.discountType === '%'
-              ? p.price * (1 - p.discount / 100)
-              : p.price - p.discount
-            return sum + base * p.quantity
-          }, 0)
-
-          if (totalBefore > 0) {
-            const productBaseTotal = (product.discountType === '%'
-              ? product.price * (1 - product.discount / 100)
-              : product.price - product.discount) * product.quantity
-
-            const prorata = productBaseTotal / totalBefore
-            const discountPerUnit = (state.globalDiscount * prorata) / product.quantity
-            price -= discountPerUnit
-          }
-        }
-        console.log(`[${product.name}] Prix base: ${product.price}, remise: ${product.discount}${product.discountType}, final: ${price}`)
-
-        return Math.max(0, Math.round(price * 100) / 100)
+    if (globalDiscountType.value === '%') {
+      // Remise globale en pourcentage
+      price *= (1 - globalDiscount.value / 100)
+    } else if (globalDiscountType.value === '€') {
+      // Remise globale fixe : répartition proportionnelle entre les produits
+      const totalBefore = items.value.reduce((sum, p) => {
+        const base = p.discountType === '%'
+          ? p.price * (1 - p.discount / 100)
+          : p.price - p.discount
+        return sum + base * p.quantity
+      }, 0)
+      if (totalBefore > 0) {
+        const productBaseTotal = (
+          product.discountType === '%'
+            ? product.price * (1 - product.discount / 100)
+            : product.price - product.discount
+        ) * product.quantity
+        const prorata = productBaseTotal / totalBefore
+        const discountPerUnit = (globalDiscount.value * prorata) / product.quantity
+        price -= discountPerUnit
       }
-    },
-
-    totalHT(state): number {
-      return state.items.reduce((sum, item) => {
-        const priceTTC = this.getFinalPrice(item)
-        const tvaRate = item.tva ?? 20
-        const priceHT = priceTTC / (1 + tvaRate / 100)
-        return sum + priceHT * item.quantity
-      }, 0)
-    },
-
-    totalTVA(state): number {
-      return state.items.reduce((sum, item) => {
-        const price = this.getFinalPrice(item)
-        const tva = item.tva ?? 20
-        const tvaPart = price * (tva / (100 + tva))
-        return sum + tvaPart * item.quantity
-      }, 0)
-    },
-
-    totalTTC(state): number {
-      return state.items.reduce((sum, item) => {
-        const price = this.getFinalPrice(item)
-        return sum + price * item.quantity
-      }, 0)
-    },
-
-    itemCount(state): number {
-      return state.items.reduce((sum, item) => sum + item.quantity, 0)
     }
-  },
+    // Arrondi à 2 décimales et minimum 0
+    return Math.max(0, Math.round(price * 100) / 100)
+  }
 
-  actions: {
-    addToCart(product: ProductBase, variation = '') {
-      const existing = this.items.find(
-        item => item.id === product.id && item.variation === variation
-      )
+  const totalHT = computed(() =>
+    items.value.reduce((sum, item) => {
+      const priceTTC = getFinalPrice(item)
+      const tvaRate = item.tva ?? 20
+      const priceHT = priceTTC / (1 + tvaRate / 100)
+      return sum + priceHT * item.quantity
+    }, 0)
+  )
+  const totalTVA = computed(() =>
+    items.value.reduce((sum, item) => {
+      const price = getFinalPrice(item)
+      const tvaRate = item.tva ?? 20
+      const tvaPart = price * (tvaRate / (100 + tvaRate))
+      return sum + tvaPart * item.quantity
+    }, 0)
+  )
+  const totalTTC = computed(() =>
+    items.value.reduce((sum, item) => {
+      const price = getFinalPrice(item)
+      return sum + price * item.quantity
+    }, 0)
+  )
+  const itemCount = computed(() =>
+    items.value.reduce((sum, item) => sum + item.quantity, 0)
+  )
 
-      if (existing) {
-        existing.quantity++
+  // --- RÉACTIONS ---
+  watch(selectedProduct, (product) => {
+    if (product) {
+      addToCart(product)
+      selectedProduct.value = null
+    }
+  })
+
+  // --- ACTIONS ---
+  function addToCart(product: ProductBase, variation = '') {
+    const existing = items.value.find(item => item.id === product.id && item.variation === variation)
+    if (existing) {
+      existing.quantity++
+    } else {
+      items.value.push({
+        ...product,
+        quantity: 1,
+        discount: 0,
+        discountType: '%',
+        variation
+      })
+    }
+  }
+
+  function removeFromCart(id: number, variation = '') {
+    items.value = items.value.filter(item => !(item.id === id && item.variation === variation))
+  }
+
+  function clearCart() {
+    items.value = []
+    globalDiscount.value = 0
+    globalDiscountType.value = '%'
+  }
+
+  function updateQuantity(productId: number, variation: string, quantity: number) {
+    const item = items.value.find(p => p.id === productId && p.variation === variation)
+    if (item) {
+      item.quantity = quantity
+    }
+  }
+
+  function updateDiscount(productId: number, variation: string, discount: number, type: '%' | '€') {
+    const item = items.value.find(p => p.id === productId && p.variation === variation)
+    if (item) {
+      item.discount = discount
+      item.discountType = type
+    }
+  }
+
+  function updateGlobalDiscount(value: number, type: '%' | '€') {
+    globalDiscount.value = value
+    globalDiscountType.value = type
+  }
+
+  function updateVariation(productId: number, oldVariation: string, newVariation: string) {
+    const item = items.value.find(p => p.id === productId && p.variation === oldVariation)
+    if (item) {
+      const existing = items.value.find(p => p.id === productId && p.variation === newVariation)
+      if (existing && existing !== item) {
+        // Fusionne avec l'élément existant de même variation
+        existing.quantity += item.quantity
+        // On pourrait aussi gérer la remise ici si nécessaire
+        removeFromCart(productId, oldVariation)
       } else {
-        this.items.push({
-          ...product,
-          quantity: 1,
-          discount: 0,
-          discountType: '%',
-          variation
-        })
+        item.variation = newVariation
       }
-    },
-
-    removeFromCart(id: number, variation = '') {
-      this.items = this.items.filter(
-        item => !(item.id === id && item.variation === variation)
-      )
-    },
-
-    clearCart() {
-      this.items = []
-    },
-
-    updateQuantity(productId: number, variation: string, quantity: number) {
-      const item = this.items.find(p => p.id === productId && p.variation === variation)
-      if (item) {
-        item.quantity = quantity
-      }
-    },
-
-    updateDiscount(productId: number, variation: string, discount: number, type: '%' | '€') {
-      const item = this.items.find(p => p.id === productId && p.variation === variation)
-      if (item) {
-        item.discount = discount
-        item.discountType = type
-      }
-    },
-
-    updateGlobalDiscount(value: number, type: '%' | '€') {
-      this.globalDiscount = value
-      this.globalDiscountType = type
-    },
-
-    holdSale(ticketId: number | null = null, clientId: number | null = null) {
-      const tickets = useTicketsStore()
-      tickets.addTicket(this.items, this.totalTTC, ticketId, clientId)
-      this.clearCart()
     }
+  }
+
+  function holdSale(ticketId: number | null = null, clientId: number | null = null) {
+    const tickets = useTicketsStore()
+    tickets.addTicket(items.value, totalTTC.value, ticketId, clientId)
+    clearCart()
+  }
+
+  return {
+    // état
+    items,
+    selectedProduct,
+    tva,
+    globalDiscount,
+    globalDiscountType,
+    // getters
+    getFinalPrice,
+    totalHT,
+    totalTVA,
+    totalTTC,
+    itemCount,
+    // actions
+    addToCart,
+    removeFromCart,
+    clearCart,
+    updateQuantity,
+    updateDiscount,
+    updateGlobalDiscount,
+    updateVariation,
+    holdSale
   }
 })

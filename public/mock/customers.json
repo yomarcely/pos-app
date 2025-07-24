@@ -1,0 +1,5 @@
+[
+    { "id": 1, "name": "Yohan", "lastname": "Marcel", "postalcode": 84300, "city": "Cavaillon" },
+    { "id": 2, "name": "Jade", "lastname": "Fachinetti", "postalcode": 84000, "city": "Avignon" },
+    { "id": 3, "name": "Diego", "lastname": "Lupu", "postalcode": 84300, "city": "Cavaillon" }
+  ]
