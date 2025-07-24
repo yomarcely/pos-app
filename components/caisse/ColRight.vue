@@ -54,12 +54,12 @@ function validerVente() {
 <template>
   <div class="space-y-4">
     <!-- 💰 Montant total -->
-    <div class="relative rounded-lg w-full h-50 shadow bg-black text-white dark:bg-white dark:text-black p-4">
+    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4">
       <div class="absolute top-2 left-4 text-xl font-medium text-gray-400 dark:text-black">
         Total TTC
       </div>
       <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-        <div class="text-5xl font-bold text-black dark:text-black">
+        <div class="text-5xl font-bold text-white dark:text-black">
           {{ totalTTC.toFixed(2) }} €
         </div>
       </div>

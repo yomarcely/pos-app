@@ -95,8 +95,8 @@ function openClientHistory() {
       </div>
 
       <!-- Card client sélectionné -->
-      <div class="relative mt-2 px-4 py-3 rounded-md shadow-sm"
-           :class="selectedClient ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border' : 'bg-transparent'"
+      <div class="relative mt-2 px-4 py-3 rounded-md"
+           :class="selectedClient ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border shadow-sm' : 'bg-transparent'"
            style="min-height: 66px;">
         <template v-if="selectedClient">
           <!-- ❌ Bouton de suppression client -->

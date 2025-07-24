@@ -7,7 +7,7 @@ export const useCartStore = defineStore('cart', () => {
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
   const selectedProduct = ref<ProductBase | null>(null)
-  const tva = ref(0.20)
+
   const globalDiscount = ref(0)
   const globalDiscountType = ref<'%' | '€'>('%')
 
@@ -148,7 +148,6 @@ export const useCartStore = defineStore('cart', () => {
     // état
     items,
     selectedProduct,
-    tva,
     globalDiscount,
     globalDiscountType,
     // getters
