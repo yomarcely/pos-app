@@ -16,7 +16,7 @@
         "image": "/assets/img/booster.png",
         "stock": 400,
         "purchasePrice": 0.2,
-        "tva": 20
+        "tva": 10
       },
       {
         "id": 3,

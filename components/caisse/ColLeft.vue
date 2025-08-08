@@ -50,7 +50,7 @@ function openClientHistory() {
           <SelectValue placeholder="Sélectionner un vendeur" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="seller in sellersStore.sellers" :key="seller.id" :value="seller">
+          <SelectItem v-for="seller in sellersStore.sellers" :key="seller.id" :value="String(seller.id)">
             {{ seller.name }}
           </SelectItem>
         </SelectContent>

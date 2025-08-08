@@ -19,3 +19,9 @@ export interface Seller {
   id: number
   name: string
 }
+
+export interface Payment {
+  id: string,
+  mode: 'Espèces'|'Carte'|'Autre',
+  amount: number
+}

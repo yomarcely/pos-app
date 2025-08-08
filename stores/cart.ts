@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart } from '@/types'
 
+import {
+  getFinalPrice,
+  totalTTC,
+  totalHT,
+  totalTVA
+} from '@/utils/cartUtils'
+
 export const useCartStore = defineStore('cart', () => {
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
@@ -35,89 +42,47 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   function recoverPendingCart(id: number) {
-  const index = pendingCart.value.findIndex(c => c.id === id)
-  if (index === -1) return
+    const index = pendingCart.value.findIndex(c => c.id === id)
+    if (index === -1) return
 
-  const cartData = pendingCart.value[index]
-  if (!cartData) return
+    const cartData = pendingCart.value[index]
+    if (!cartData) return
 
-  // Appliquer les données du panier
-  items.value = cartData.items
-  globalDiscount.value = cartData.globalDiscount
-  globalDiscountType.value = cartData.globalDiscountType
+    // Appliquer les données du panier
+    items.value = cartData.items
+    globalDiscount.value = cartData.globalDiscount
+    globalDiscountType.value = cartData.globalDiscountType
 
-  // Gérer le client
-  const customerStore = useCustomerStore()
-  if (cartData.clientId !== null) {
-    const client = customerStore.clients.find(c => c.id === cartData.clientId)
-    if (client) {
-      customerStore.selectClient(client)
+    // Gérer le client
+    const customerStore = useCustomerStore()
+    if (cartData.clientId !== null) {
+      const client = customerStore.clients.find(c => c.id === cartData.clientId)
+      if (client) {
+        customerStore.selectClient(client)
+      } else {
+        customerStore.clearClient()
+      }
     } else {
       customerStore.clearClient()
     }
-  } else {
-    customerStore.clearClient()
+
+    // Supprimer le panier
+    pendingCart.value.splice(index, 1)
   }
+  const totalTtcComputed = computed(() => totalTTC(items.value, {
+    value: globalDiscount.value,
+    type: globalDiscountType.value
+  }))
 
-  // Supprimer le panier
-  pendingCart.value.splice(index, 1)
-}
+  const totalHtComputed = computed(() => totalHT(items.value, {
+    value: globalDiscount.value,
+    type: globalDiscountType.value
+  }))
 
-
-  // --- GETTERS ---
-  function getFinalPrice(product: ProductInCart): number {
-    let price = product.discountType === '%'
-      ? product.price * (1 - product.discount / 100)
-      : product.price - product.discount
-
-    if (globalDiscountType.value === '%') {
-      price *= (1 - globalDiscount.value / 100)
-    } else if (globalDiscountType.value === '€') {
-      const totalBefore = items.value.reduce((sum, p) => {
-        const base = p.discountType === '%'
-          ? p.price * (1 - p.discount / 100)
-          : p.price - p.discount
-        return sum + base * p.quantity
-      }, 0)
-      if (totalBefore > 0) {
-        const productBaseTotal = (
-          product.discountType === '%'
-            ? product.price * (1 - product.discount / 100)
-            : product.price - product.discount
-        ) * product.quantity
-        const prorata = productBaseTotal / totalBefore
-        const discountPerUnit = (globalDiscount.value * prorata) / product.quantity
-        price -= discountPerUnit
-      }
-    }
-
-    return Math.max(0, Math.round(price * 100) / 100)
-  }
-
-  const totalHT = computed(() =>
-    items.value.reduce((sum, item) => {
-      const priceTTC = getFinalPrice(item)
-      const tvaRate = item.tva ?? 20
-      const priceHT = priceTTC / (1 + tvaRate / 100)
-      return sum + priceHT * item.quantity
-    }, 0)
-  )
-
-  const totalTVA = computed(() =>
-    items.value.reduce((sum, item) => {
-      const price = getFinalPrice(item)
-      const tvaRate = item.tva ?? 20
-      const tvaPart = price * (tvaRate / (100 + tvaRate))
-      return sum + tvaPart * item.quantity
-    }, 0)
-  )
-
-  const totalTTC = computed(() =>
-    items.value.reduce((sum, item) => {
-      const price = getFinalPrice(item)
-      return sum + price * item.quantity
-    }, 0)
-  )
+  const totalTvaComputed = computed(() => totalTVA(items.value, {
+    value: globalDiscount.value,
+    type: globalDiscountType.value
+  }))
 
   const itemCount = computed(() =>
     items.value.reduce((sum, item) => sum + item.quantity, 0)
@@ -198,10 +163,14 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscountType,
     pendingCart,
     // getters
-    getFinalPrice,
-    totalHT,
-    totalTVA,
-    totalTTC,
+    getFinalPrice: (product: ProductInCart) =>
+      getFinalPrice(product, items.value, {
+        value: globalDiscount.value,
+        type: globalDiscountType.value
+      }),
+    totalTTC: totalTtcComputed,
+    totalHT: totalHtComputed,
+    totalTVA: totalTvaComputed,
     itemCount,
     // actions
     addToCart,

@@ -7,11 +7,10 @@ import {
 } from '@/components/ui/number-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { X } from 'lucide-vue-next'
-import { RouterLink } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useVariationGroupsStore } from '@/stores/variationGroups'
 
-import type { ProductInCart, VariationGroup } from '@/types'
+import type { ProductInCart } from '@/types'
 
 const cartStore = useCartStore()
 const variationStore = useVariationGroupsStore()
@@ -121,11 +120,11 @@ const isBelowPurchasePrice = computed(() => {
 
         <!-- 📦 Quantité + image -->
         <div class="flex flex-col items-center gap-2 w-25">
-            <NumberField :model-value="product.quantity"
-                @update:model-value="q => cartStore.updateQuantity(product.id, product.variation, q)">
+            <NumberField :model-value="product.quantity" :min="1" :max="stock"
+                @update:model-value="val => cartStore.updateQuantity(product.id, product.variation, Number(val))">
                 <NumberFieldContent>
                     <NumberFieldDecrement />
-                    <NumberFieldInput />
+                    <NumberFieldInput inputmode="numeric" />
                     <NumberFieldIncrement />
                 </NumberFieldContent>
             </NumberField>

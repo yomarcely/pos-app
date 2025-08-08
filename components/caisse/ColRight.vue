@@ -7,11 +7,10 @@ import { useCartStore } from '@/stores/cart'
 
 const cartStore = useCartStore()
 
+
 const payments = ref<{ mode: string; amount: number }[]>([])
 
-const totalTTC = computed(() => cartStore.totalTTC)
-const totalHT = computed(() => cartStore.totalHT)
-const totalTVA = computed(() => cartStore.totalTVA)
+const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
 
 const totalPaid = computed(() =>
   payments.value.reduce((sum, p) => sum + p.amount, 0)
@@ -113,7 +112,7 @@ function validerVente() {
 
   <!-- ✅ Bouton de validation -->
   <div class="pt-4">
-    <Button class="w-full text-lg font-semibold" @click="validerVente">
+    <Button class="w-full text-lg font-semibold" @click="validerVente" :disabled="totalPaid < totalTTC">
       Valider la vente
     </Button>
   </div>

@@ -25,9 +25,9 @@ export const useSellersStore = defineStore('sellers', () => {
     }
   }
 
-  function selectSeller(seller: Seller) {
-    selectedSeller.value = seller
-  }
+function selectSellerById(id: number) {
+  selectedSeller.value = sellers.value.find(s => s.id === id) ?? null
+}
 
   function clearSeller() {
     selectedSeller.value = null
@@ -40,7 +40,7 @@ export const useSellersStore = defineStore('sellers', () => {
     loading,
     error,
     loadSellers,
-    selectSeller,
+    selectSellerById,
     clearSeller
   }
 })
