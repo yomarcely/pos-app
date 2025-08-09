@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
+import { storeToRefs } from 'pinia'
 
 const cartStore = useCartStore()
 

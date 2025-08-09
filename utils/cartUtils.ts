@@ -30,7 +30,7 @@ export function unitTtcAfterLineDiscount(it: ProductInCart): number {
 export function globalEuroAllocationCents(
   items: ProductInCart[],
   global: GlobalDiscount
-): Record<string, number> {
+): Record<string, number> {              // ✅ typer le Record
   if (global.type !== '€' || global.value <= 0 || items.length === 0) return {}
 
   const lines = items.map(it => {
@@ -44,7 +44,6 @@ export function globalEuroAllocationCents(
 
   const targetDiscountCents = Math.min(toCents(global.value), basketTtcCents)
 
-  // Part brute
   const provisional = lines.map(l => {
     const exactShare = (l.lineTtcCents * targetDiscountCents) / basketTtcCents
     const floorCents = Math.floor(exactShare)
@@ -52,7 +51,6 @@ export function globalEuroAllocationCents(
     return { ...l, floorCents, remainder }
   })
 
-  // Distribution des centimes restants
   let allocated = provisional.reduce((s, p) => s + p.floorCents, 0)
   let residual = targetDiscountCents - allocated
 
@@ -62,7 +60,7 @@ export function globalEuroAllocationCents(
       : (a.key < b.key ? -1 : 1)
   )
 
-  const allocMap: Record<string, number> = {}
+  const allocMap: Record<string, number> = {}   // ✅ typer ici aussi
   for (const p of provisional) {
     let give = p.floorCents
     if (residual > 0) { give += 1; residual -= 1 }

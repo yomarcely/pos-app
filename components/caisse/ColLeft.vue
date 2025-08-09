@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { UserRoundPlus, X, User, List } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
-
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
@@ -28,7 +27,6 @@ const selectedClient = computed({
   }
 })
 
-const pendingTickets = 3  // pourrait provenir de useTicketsStore()
 function deselectClient() {
   customerStore.clearClient()
 }
