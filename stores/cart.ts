@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart } from '@/types'
+import { useCustomerStore } from '@/stores/customer'
 
 import {
   getFinalPrice,
@@ -120,6 +121,8 @@ export const useCartStore = defineStore('cart', () => {
     items.value = []
     globalDiscount.value = 0
     globalDiscountType.value = '%'
+    const customerStore = useCustomerStore()
+    customerStore.clearClient?.()
   }
 
   function updateQuantity(productId: number, variation: string, quantity: number) {
