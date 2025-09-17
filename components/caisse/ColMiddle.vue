@@ -21,11 +21,11 @@ const { items: cart, selectedProduct } = storeToRefs(cartStore)
 const barcodeInput = ref('')
 const bottomRef = ref<HTMLElement | null>(null)
 
+const selectedLocal = ref<Product | null>(null)
+
 function scrollToBottom() {
   nextTick(() => {
-    if (bottomRef.value) {
-      bottomRef.value.scrollIntoView({ behavior: 'smooth' })
-    }
+    bottomRef.value?.scrollIntoView({ behavior: 'smooth' })
   })
 }
 
@@ -38,11 +38,29 @@ function searchByBarcode() {
   barcodeInput.value = ''
 }
 
+function isProduct(v: unknown): v is Product {
+  return typeof v === 'object' && v !== null && 'id' in v && 'name' in v
+}
+
+function onProductSelected(p: Product | null) {
+  if (!p) return
+  cartStore.addToCart(p)
+  selectedProduct.value = null as any
+  scrollToBottom()
+}
+
+// ✅ wrapper qui matche la signature attendue par la Combobox
+function onComboboxUpdate(value: unknown) {
+  onProductSelected(isProduct(value) ? value : null)
+}
+
 function removeFromCart(id: number, variation: string) {
   cartStore.removeFromCart(id, variation)
 }
-
 </script>
+vue
+Copier le code
+
 
 <template>
   <div class="w-full flex justify-center gap-4">
@@ -54,8 +72,11 @@ function removeFromCart(id: number, variation: string) {
     </div>
 
     <!-- 🔍 Recherche produit -->
-    <Combobox v-model="selectedProduct" :options="Products" :option-label="(p: Product) => p.name"
-      :option-value="(p: Product) => p.id">
+    <!-- ✅ On enlève :option-value pour travailler avec l'objet complet -->
+    <Combobox v-model="selectedProduct"
+  :options="Products"
+  :option-label="(p: Product) => p.name"
+  @update:modelValue="onComboboxUpdate">
       <ComboboxAnchor>
         <div class="relative w-full items-center rounded-md border">
           <ComboboxInput placeholder="Recherche produit" class="w-full h-full text-sm px-3" />
