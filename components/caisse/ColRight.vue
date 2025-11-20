@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { X, Banknote, CreditCard, Printer } from 'lucide-vue-next'
+import { X, Banknote, CreditCard, Printer, Lock } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
@@ -18,8 +18,21 @@ const customerStore = useCustomerStore()
 const sellersStore = useSellersStore()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
+const isDayClosed = ref(false)
 
 const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
+
+// Vérifier si la journée est clôturée au chargement
+onMounted(async () => {
+  try {
+    const closureCheck = await $fetch('/api/sales/check-closure')
+    if (closureCheck.isClosed) {
+      isDayClosed.value = true
+    }
+  } catch (error) {
+    console.error('Erreur lors de la vérification de clôture:', error)
+  }
+})
 
 const totalPaid = computed(() =>
   payments.value.reduce((sum, p) => sum + p.amount, 0)
@@ -38,6 +51,12 @@ function removePayment(mode: string) {
 }
 
 async function validerVente() {
+  // 0. Vérifier que la journée n'est pas clôturée
+  if (isDayClosed.value) {
+    toast.error('⚠️ La journée est clôturée. Impossible d\'enregistrer une vente.')
+    return
+  }
+
   // 1. Vérifications de base
   if (cartStore.items.length === 0) {
     toast.error('Le panier est vide')
@@ -113,16 +132,9 @@ async function validerVente() {
       throw new Error('Échec de l\'enregistrement de la vente')
     }
 
-    // 6. Mettre à jour les stocks localement
-    for (const item of cartStore.items) {
-      productsStore.updateStock(
-        item.id,
-        item.variation,
-        item.quantity,
-        'sale',
-        response.sale.id
-      )
-    }
+    // 6. Recharger les produits depuis la base de données pour avoir les stocks à jour
+    productsStore.loaded = false
+    await productsStore.loadProducts()
 
     console.log('✅ Vente NF525 enregistrée :', response.sale)
 
@@ -184,8 +196,19 @@ function printReceipt() {
 
 <template>
   <div class="space-y-4">
+    <!-- ⚠️ Message de journée clôturée -->
+    <div v-if="isDayClosed" class="p-4 border-2 border-red-500 rounded-lg bg-red-50 dark:bg-red-950">
+      <div class="flex items-center gap-2 text-red-700 dark:text-red-300">
+        <Lock class="w-5 h-5" />
+        <div>
+          <div class="font-semibold">Journée clôturée</div>
+          <div class="text-sm">Les ventes ne peuvent plus être enregistrées pour aujourd'hui.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 💰 Montant total -->
-    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4">
+    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4" :class="{ 'opacity-50': isDayClosed }">
       <div class="absolute top-2 left-4 text-xl font-medium text-gray-400 dark:text-black">
         Total TTC
       </div>
@@ -211,16 +234,16 @@ function printReceipt() {
     </div>
 
     <!-- 💳 Boutons de paiement -->
-    <div class="space-y-2">
+    <div class="space-y-2" :class="{ 'opacity-50 pointer-events-none': isDayClosed }">
       <label class="text-sm font-semibold">Mode de paiement</label>
       <div class="grid grid-cols-2 gap-2">
-        <Button variant="outline" @click="addPayment('Espèces')">
+        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed">
           <Banknote class="w-4 h-4 mr-2" /> Espèces
         </Button>
-        <Button variant="outline" @click="addPayment('Carte')">
+        <Button variant="outline" @click="addPayment('Carte')" :disabled="isDayClosed">
           <CreditCard class="w-4 h-4 mr-2" /> Carte
         </Button>
-        <Button variant="outline" @click="addPayment('Autre')">
+        <Button variant="outline" @click="addPayment('Autre')" :disabled="isDayClosed">
           Autre
         </Button>
       </div>
@@ -244,12 +267,13 @@ function printReceipt() {
 
   <!-- ✅ Bouton de validation -->
   <div class="pt-4 space-y-2">
-    <Button 
-      class="w-full text-lg font-semibold" 
-      @click="validerVente" 
-      :disabled="totalPaid < totalTTC || cartStore.items.length === 0"
+    <Button
+      class="w-full text-lg font-semibold"
+      @click="validerVente"
+      :disabled="totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
     >
-      Valider la vente
+      <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
+      {{ isDayClosed ? 'Journée clôturée' : 'Valider la vente' }}
     </Button>
     
     <!-- <Button 

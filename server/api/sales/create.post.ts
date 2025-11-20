@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, syncQueue } from '~/server/database/schema'
-import { desc, gte, lt, and } from 'drizzle-orm'
+import { sales, saleItems, stockMovements, auditLogs, syncQueue, products } from '~/server/database/schema'
+import { desc, gte, lt, and, eq } from 'drizzle-orm'
 import {
   generateTicketNumber,
   generateTicketHash,
@@ -206,24 +206,75 @@ export default defineEventHandler(async (event) => {
     await db.insert(saleItems).values(saleItemsData)
 
     // ==========================================
-    // 7. ENREGISTRER LES MOUVEMENTS DE STOCK
+    // 7. METTRE À JOUR LE STOCK ET ENREGISTRER LES MOUVEMENTS
     // ==========================================
 
-    // Note: Les stocks ont déjà été mis à jour côté client
-    // Ici on enregistre uniquement les mouvements pour l'audit
+    const stockMovementsData = []
 
-    const stockMovementsData = body.items.map(item => ({
-      productId: item.productId,
-      variation: item.variation || null,
-      quantity: -item.quantity, // Négatif car sortie de stock
-      oldStock: 0, // TODO: Récupérer le stock réel depuis la BDD
-      newStock: 0, // TODO: Calculer le nouveau stock
-      reason: 'sale' as const,
-      saleId: newSale.id,
-      userId: body.seller.id,
-    }))
+    for (const item of body.items) {
+      // Récupérer le produit pour obtenir le stock actuel
+      const [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, item.productId))
+        .limit(1)
 
-    await db.insert(stockMovements).values(stockMovementsData)
+      if (!product) {
+        console.warn(`Produit ${item.productId} non trouvé, stock non mis à jour`)
+        continue
+      }
+
+      let oldStock = 0
+      let newStock = 0
+
+      // Mise à jour du stock selon le type (avec ou sans variation)
+      if (item.variation && product.stockByVariation) {
+        const stockByVar = product.stockByVariation as Record<string, number>
+        oldStock = stockByVar[item.variation] || 0
+        newStock = oldStock - item.quantity
+
+        // Mettre à jour le stock de la variation
+        stockByVar[item.variation] = newStock
+
+        await db
+          .update(products)
+          .set({
+            stockByVariation: stockByVar,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, item.productId))
+      } else {
+        oldStock = product.stock || 0
+        newStock = oldStock - item.quantity
+
+        // Mettre à jour le stock principal
+        await db
+          .update(products)
+          .set({
+            stock: newStock,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, item.productId))
+      }
+
+      // Enregistrer le mouvement de stock
+      stockMovementsData.push({
+        productId: item.productId,
+        variation: item.variation || null,
+        quantity: -item.quantity, // Négatif car sortie de stock
+        oldStock,
+        newStock,
+        reason: 'sale' as const,
+        saleId: newSale.id,
+        userId: body.seller.id,
+      })
+
+      console.log(`✅ Stock mis à jour pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''}: ${oldStock} → ${newStock}`)
+    }
+
+    if (stockMovementsData.length > 0) {
+      await db.insert(stockMovements).values(stockMovementsData)
+    }
 
     // ==========================================
     // 8. LOG D'AUDIT

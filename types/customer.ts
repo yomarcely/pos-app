@@ -1,12 +1,12 @@
 export interface Customer {
   id: number
-  name: string
-  lastname: string
+  name: string | null
+  lastname: string | null
   address?: string
-  postalcode: number
-  city: string
+  postalcode?: string
+  city?: string
   country?: string
-  phonenumber?: number
+  phonenumber?: string
   mail?: string
   fidelity?: boolean
   authorizesms?: boolean
@@ -14,4 +14,6 @@ export interface Customer {
   discount?: number
   alert?: string
   information?: string
+  points?: number
+  createdAt?: Date | string
 }

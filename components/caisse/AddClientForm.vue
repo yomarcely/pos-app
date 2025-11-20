@@ -39,8 +39,8 @@ const loading = ref(false)
 
 async function submitClient() {
   // Validation
-  if (!form.value.name || !form.value.lastname) {
-    showError('Erreur', 'Le nom et le prénom sont obligatoires')
+  if (!form.value.name || !form.value.lastname || !form.value.postalcode) {
+    showError('Erreur', 'Le nom, le prénom et le code postal sont obligatoires')
     return
   }
 
@@ -102,12 +102,12 @@ async function submitClient() {
       <!-- Colonne 1 -->
       <div class="space-y-4">
         <div>
-          <Label for="lastname">Nom</Label>
-          <Input id="lastname" v-model="form.lastname" />
+          <Label for="lastname">Nom <span class="text-red-500">*</span></Label>
+          <Input id="lastname" v-model="form.lastname" required />
         </div>
         <div>
-          <Label for="name">Prénom</Label>
-          <Input id="name" v-model="form.name" />
+          <Label for="name">Prénom <span class="text-red-500">*</span></Label>
+          <Input id="name" v-model="form.name" required />
         </div>
         <div>
           <Label for="address">Adresse</Label>
@@ -115,8 +115,8 @@ async function submitClient() {
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <Label for="postalcode">Code postal</Label>
-            <Input id="postalcode" v-model="form.postalcode" />
+            <Label for="postalcode">Code postal <span class="text-red-500">*</span></Label>
+            <Input id="postalcode" v-model="form.postalcode" required />
           </div>
           <div class="flex-1">
             <Label for="city">Ville</Label>

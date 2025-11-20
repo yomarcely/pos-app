@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Package, TrendingUp, AlertCircle, PackageX, History } from 'lucide-vue-next'
+import { Package, TrendingUp, AlertCircle, PackageX, History, ChevronDown, ChevronRight, Trash2 } from 'lucide-vue-next'
 
 const productsStore = useProductsStore()
 
@@ -68,6 +68,17 @@ const currentStock = computed(() => {
 const searchQuery = ref('')
 const stockFilter = ref<'all' | 'low' | 'out'>('all')
 
+// Produit avec variations déployées
+const expandedProducts = ref<Set<number>>(new Set())
+
+function toggleProductExpansion(productId: number) {
+  if (expandedProducts.value.has(productId)) {
+    expandedProducts.value.delete(productId)
+  } else {
+    expandedProducts.value.add(productId)
+  }
+}
+
 // Produit sélectionné pour ajustement
 const selectedProduct = ref<Product | null>(null)
 const adjustmentQuantity = ref(0)
@@ -77,6 +88,53 @@ const selectedVariation = ref('')
 
 // Historique
 const isHistoryDialogOpen = ref(false)
+const stockHistory = ref<any[]>([])
+const loadingHistory = ref(false)
+
+async function loadStockHistory() {
+  loadingHistory.value = true
+  try {
+    const response = await $fetch('/api/products/stock-movements')
+    if (response.success) {
+      stockHistory.value = response.movements
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement de l\'historique:', error)
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+async function openHistoryDialog() {
+  isHistoryDialogOpen.value = true
+  await loadStockHistory()
+}
+
+async function deleteMovement(movementId: number) {
+  if (!confirm('Êtes-vous sûr de vouloir supprimer cet ajustement ? Le stock sera restauré à sa valeur précédente.')) {
+    return
+  }
+
+  try {
+    const response = await $fetch(`/api/products/stock-movements/${movementId}`, {
+      method: 'DELETE',
+    })
+
+    if (response.success) {
+      // Recharger l'historique
+      await loadStockHistory()
+
+      // Recharger les produits pour avoir les stocks à jour
+      productsStore.loaded = false
+      await productsStore.loadProducts()
+
+      console.log('✅ Mouvement supprimé:', response.movement)
+    }
+  } catch (error) {
+    console.error('Erreur lors de la suppression du mouvement:', error)
+    alert('Erreur lors de la suppression du mouvement')
+  }
+}
 
 const filteredProducts = computed(() => {
   let filtered = productsStore.products
@@ -112,28 +170,39 @@ function openAdjustDialog(product: Product) {
   isAdjustDialogOpen.value = true
 }
 
-function applyAdjustment() {
+async function applyAdjustment() {
   if (!selectedProduct.value) return
 
   const product = selectedProduct.value
 
-  if (adjustmentType.value === 'add') {
-    productsStore.addStock(
-      product.id,
-      selectedVariation.value,
-      adjustmentQuantity.value,
-      'inventory_adjustment'
-    )
-  } else {
-    productsStore.setStock(
-      product.id,
-      selectedVariation.value,
-      adjustmentQuantity.value
-    )
-  }
+  try {
+    // Appeler l'API pour mettre à jour le stock
+    const response = await $fetch('/api/products/update-stock', {
+      method: 'POST',
+      body: {
+        productId: product.id,
+        variation: selectedVariation.value || undefined,
+        quantity: adjustmentQuantity.value,
+        adjustmentType: adjustmentType.value,
+        reason: 'inventory_adjustment',
+        userId: 1, // TODO: Récupérer l'utilisateur connecté
+      },
+    })
 
-  isAdjustDialogOpen.value = false
-  selectedProduct.value = null
+    if (response.success) {
+      // Recharger les produits depuis la base de données
+      productsStore.loaded = false
+      await productsStore.loadProducts()
+
+      console.log('✅ Stock mis à jour:', response.stock)
+    }
+
+    isAdjustDialogOpen.value = false
+    selectedProduct.value = null
+  } catch (error) {
+    console.error('Erreur lors de l\'ajustement du stock:', error)
+    alert('Erreur lors de la mise à jour du stock')
+  }
 }
 
 function getStockBadge(product: Product) {
@@ -228,7 +297,7 @@ function getProductValue(product: Product): number {
       </Select>
 
       <div class="ml-auto">
-        <Button variant="outline" @click="isHistoryDialogOpen = true">
+        <Button variant="outline" @click="openHistoryDialog">
           <History class="w-4 h-4 mr-2" />
           Historique
         </Button>
@@ -241,7 +310,6 @@ function getProductValue(product: Product): number {
         <TableHeader>
           <TableRow>
             <TableHead>Produit</TableHead>
-            <TableHead>Code-barres</TableHead>
             <TableHead class="text-center">Stock</TableHead>
             <TableHead class="text-right">Prix achat</TableHead>
             <TableHead class="text-right">Valeur</TableHead>
@@ -254,6 +322,17 @@ function getProductValue(product: Product): number {
             <TableRow>
               <TableCell>
                 <div class="flex items-center gap-3">
+                  <!-- Bouton pour déplier/replier les variations -->
+                  <button
+                    v-if="product.variationGroupIds?.length"
+                    @click="toggleProductExpansion(product.id)"
+                    class="p-1 hover:bg-muted rounded transition-colors"
+                  >
+                    <ChevronDown v-if="expandedProducts.has(product.id)" class="w-4 h-4 text-muted-foreground" />
+                    <ChevronRight v-else class="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <div v-else class="w-6"></div>
+
                   <img :src="product.image" :alt="product.name" class="w-10 h-10 rounded object-cover" />
                   <div>
                     <div class="font-medium">{{ product.name }}</div>
@@ -263,7 +342,6 @@ function getProductValue(product: Product): number {
                   </div>
                 </div>
               </TableCell>
-              <TableCell class="font-mono text-sm">{{ product.barcode || '—' }}</TableCell>
               <TableCell class="text-center">
                 <Badge :variant="getStockBadge(product).variant">
                   {{ getStockBadge(product).label }}
@@ -282,8 +360,9 @@ function getProductValue(product: Product): number {
               </TableCell>
             </TableRow>
 
-            <!-- Sous-lignes pour chaque variation -->
+            <!-- Sous-lignes pour chaque variation (affichées seulement si déployé) -->
             <TableRow
+              v-if="expandedProducts.has(product.id)"
               v-for="[varName, varStock] in Object.entries(product.stockByVariation || {})"
               :key="`${product.id}-${varName}`"
               class="bg-muted/30"
@@ -291,7 +370,6 @@ function getProductValue(product: Product): number {
               <TableCell class="pl-16">
                 <span class="text-sm text-muted-foreground">↳ {{ varName }}</span>
               </TableCell>
-              <TableCell></TableCell>
               <TableCell class="text-center">
                 <Badge
                   :variant="varStock === 0 ? 'destructive' : (varStock < 5 ? 'secondary' : 'default')"
@@ -396,7 +474,7 @@ function getProductValue(product: Product): number {
         <DialogHeader>
           <DialogTitle>Historique des mouvements de stock</DialogTitle>
           <DialogDescription>
-            {{ productsStore.stockHistory.length }} mouvement(s) enregistré(s)
+            {{ loadingHistory ? 'Chargement...' : `${stockHistory.length} mouvement(s) enregistré(s)` }}
           </DialogDescription>
         </DialogHeader>
 
@@ -411,10 +489,11 @@ function getProductValue(product: Product): number {
                 <TableHead>Raison</TableHead>
                 <TableHead class="text-right">Stock avant</TableHead>
                 <TableHead class="text-right">Stock après</TableHead>
+                <TableHead class="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="movement in productsStore.stockHistory.slice().reverse()" :key="movement.id">
+              <TableRow v-for="movement in stockHistory.slice().reverse()" :key="movement.id">
                 <TableCell class="text-xs">
                   {{ new Date(movement.date).toLocaleString('fr-FR') }}
                 </TableCell>
@@ -428,6 +507,16 @@ function getProductValue(product: Product): number {
                 <TableCell class="text-xs">{{ movement.reason }}</TableCell>
                 <TableCell class="text-right">{{ movement.oldStock }}</TableCell>
                 <TableCell class="text-right font-medium">{{ movement.newStock }}</TableCell>
+                <TableCell class="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="deleteMovement(movement.id)"
+                    class="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>

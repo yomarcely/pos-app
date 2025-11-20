@@ -49,10 +49,10 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<CreateCustomerRequest>(event)
 
     // Validation des données obligatoires
-    if (!body.name || !body.lastname) {
+    if (!body.name || !body.lastname || !body.postalcode) {
       throw createError({
         statusCode: 400,
-        message: 'Le nom et le prénom sont obligatoires',
+        message: 'Le nom, le prénom et le code postal sont obligatoires',
       })
     }
 

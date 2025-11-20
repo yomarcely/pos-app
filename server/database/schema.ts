@@ -65,6 +65,12 @@ export const sales = pgTable('sales', {
   cancellationReason: text('cancellation_reason'),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
 
+  // ==========================================
+  // CLÔTURE DE JOURNÉE (NF525)
+  // ==========================================
+  closureId: integer('closure_id').references(() => closures.id),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+
   // Sync cloud
   syncStatus: varchar('sync_status', { length: 20 }).default('pending'), // pending, synced, failed
   syncedAt: timestamp('synced_at', { withTimezone: true }),
@@ -76,6 +82,7 @@ export const sales = pgTable('sales', {
   ticketNumberIdx: index('sales_ticket_number_idx').on(table.ticketNumber),
   saleDateIdx: index('sales_sale_date_idx').on(table.saleDate),
   syncStatusIdx: index('sales_sync_status_idx').on(table.syncStatus),
+  closureIdIdx: index('sales_closure_id_idx').on(table.closureId),
 }))
 
 // ==========================================
@@ -261,7 +268,46 @@ export const auditLogs = pgTable('audit_logs', {
 }))
 
 // ==========================================
-// 8. ARCHIVES (NF525 - Conservation 6 ans)
+// 8. CLÔTURES DE JOURNÉE (NF525)
+// ==========================================
+export const closures = pgTable('closures', {
+  id: serial('id').primaryKey(),
+
+  // Date de la journée clôturée
+  closureDate: varchar('closure_date', { length: 10 }).notNull(), // Format YYYY-MM-DD
+
+  // Statistiques de la journée
+  ticketCount: integer('ticket_count').notNull().default(0),
+  cancelledCount: integer('cancelled_count').notNull().default(0),
+
+  // Totaux
+  totalHT: decimal('total_ht', { precision: 12, scale: 2 }).notNull(),
+  totalTVA: decimal('total_tva', { precision: 12, scale: 2 }).notNull(),
+  totalTTC: decimal('total_ttc', { precision: 12, scale: 2 }).notNull(),
+
+  // Modes de paiement
+  paymentMethods: jsonb('payment_methods').notNull(), // { "Espèces": 150.00, "Carte": 250.00 }
+
+  // Hash NF525 de clôture
+  closureHash: varchar('closure_hash', { length: 64 }).notNull().unique(),
+
+  // Premier et dernier ticket de la journée
+  firstTicketNumber: varchar('first_ticket_number', { length: 50 }),
+  lastTicketNumber: varchar('last_ticket_number', { length: 50 }),
+  lastTicketHash: varchar('last_ticket_hash', { length: 64 }),
+
+  // Métadonnées
+  closedBy: varchar('closed_by', { length: 100 }),
+  closedById: integer('closed_by_id'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  closureDateIdx: index('closures_closure_date_idx').on(table.closureDate),
+  closureHashIdx: index('closures_closure_hash_idx').on(table.closureHash),
+}))
+
+// ==========================================
+// 9. ARCHIVES (NF525 - Conservation 6 ans)
 // ==========================================
 export const archives = pgTable('archives', {
   id: serial('id').primaryKey(),
@@ -324,7 +370,15 @@ export const salesRelations = relations(sales, ({ one, many }) => ({
     fields: [sales.customerId],
     references: [customers.id],
   }),
+  closure: one(closures, {
+    fields: [sales.closureId],
+    references: [closures.id],
+  }),
   items: many(saleItems),
+}))
+
+export const closuresRelations = relations(closures, ({ many }) => ({
+  sales: many(sales),
 }))
 
 export const saleItemsRelations = relations(saleItems, ({ one }) => ({

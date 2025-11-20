@@ -17,9 +17,14 @@ export const useCustomerStore = defineStore('customer', () => {
     error.value = null
 
     try {
-      const res = await fetch('/mock/customers.json')
-      clients.value = await res.json()
-      loaded.value = true
+      const response = await $fetch('/api/customers')
+
+      if (response.success) {
+        clients.value = response.customers
+        loaded.value = true
+      } else {
+        throw new Error('Erreur lors de la récupération des clients')
+      }
     } catch (err) {
       console.error('Erreur chargement clients', err)
       error.value = err instanceof Error ? err.message : String(err)

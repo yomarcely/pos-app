@@ -18,9 +18,14 @@ export const useProductsStore = defineStore('products', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await fetch('/mock/products.json')
-      products.value = await res.json()
-      loaded.value = true
+      const response = await $fetch('/api/products')
+
+      if (response.success) {
+        products.value = response.products
+        loaded.value = true
+      } else {
+        throw new Error('Erreur lors de la récupération des produits')
+      }
     } catch (err) {
       console.error('Erreur chargement produits', err)
       error.value = err instanceof Error ? err.message : String(err)
