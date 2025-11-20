@@ -22,3 +22,18 @@ logs
 .env
 .env.*
 !.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+server/database/migrations/
+
+# Archives NF525 (données sensibles)
+data/
+archives/
+
+# Clés de certification INFOCERT (SENSIBLE!)
+*.pem
+*.key
+infocert/

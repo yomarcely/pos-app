@@ -8,6 +8,15 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/composables/useToast'
+import { useCustomerStore } from '@/stores/customer'
+
+const { success, error: showError } = useToast()
+const customerStore = useCustomerStore()
+
+const emit = defineEmits<{
+  success: [customer: any]
+}>()
 
 const form = ref({
   name: '',
@@ -26,8 +35,57 @@ const form = ref({
   information: ''
 })
 
-function submitClient() {
-  console.log('Nouveau client à enregistrer :', form.value)
+const loading = ref(false)
+
+async function submitClient() {
+  // Validation
+  if (!form.value.name || !form.value.lastname) {
+    showError('Erreur', 'Le nom et le prénom sont obligatoires')
+    return
+  }
+
+  loading.value = true
+
+  try {
+    const response = await $fetch('/api/customers/create', {
+      method: 'POST',
+      body: form.value,
+    })
+
+    if (response.success) {
+      success('Client créé', `${form.value.name} ${form.value.lastname} a été ajouté avec succès`)
+
+      // Recharger la liste des clients dans le store
+      customerStore.loaded = false
+      await customerStore.loadCustomers()
+
+      // Émettre l'événement de succès avec le client créé
+      emit('success', response.customer)
+
+      // Réinitialiser le formulaire
+      form.value = {
+        name: '',
+        lastname: '',
+        address: '',
+        postalcode: '',
+        city: '',
+        country: 'France',
+        phonenumber: '',
+        mail: '',
+        fidelity: false,
+        authorizesms: false,
+        authorizemailing: false,
+        discount: 0,
+        alert: '',
+        information: ''
+      }
+    }
+  } catch (err: any) {
+    console.error('Erreur lors de la création du client:', err)
+    showError('Erreur', err.data?.message || 'Impossible de créer le client')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

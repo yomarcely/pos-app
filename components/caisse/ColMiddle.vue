@@ -32,8 +32,7 @@ function scrollToBottom() {
 function searchByBarcode() {
   const found = Products.value.find(p => p.barcode === barcodeInput.value)
   if (found) {
-    cartStore.addToCart(found)
-    scrollToBottom()
+    handleProductAdd(found)
   }
   barcodeInput.value = ''
 }
@@ -44,8 +43,19 @@ function isProduct(v: unknown): v is Product {
 
 function onProductSelected(p: Product | null) {
   if (!p) return
-  cartStore.addToCart(p)
+  handleProductAdd(p)
   selectedProduct.value = null as any
+}
+
+function handleProductAdd(product: Product) {
+  // Si le produit a des variations, choisir automatiquement la première
+  if (product.variationGroupIds && product.variationGroupIds.length > 0 && product.stockByVariation) {
+    const firstVariation = Object.keys(product.stockByVariation)[0] || ''
+    cartStore.addToCart(product, firstVariation)
+  } else {
+    // Sinon, ajouter directement
+    cartStore.addToCart(product, '')
+  }
   scrollToBottom()
 }
 

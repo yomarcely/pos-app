@@ -7,6 +7,7 @@ import { useSellersStore } from '@/stores/sellers'
 const sellersStore = useSellersStore()
 const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
+
 onMounted(() => {
   productsStore.loadProducts()
   customerStore.loadCustomers()
@@ -33,5 +34,8 @@ onMounted(() => {
         <CaisseColRight />
       </aside>
     </div>
+
+    <!-- 🔔 Alertes de stock (flottant en bas à droite) -->
+    <CaisseStockAlerts />
   </div>
 </template>

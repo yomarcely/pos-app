@@ -2,12 +2,20 @@
 import { ref, computed } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { X, Banknote, CreditCard } from 'lucide-vue-next'
+import { X, Banknote, CreditCard, Printer } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
+import { useProductsStore } from '@/stores/products'
+import { useCustomerStore } from '@/stores/customer'
+import { useSellersStore } from '@/stores/sellers'
 import { storeToRefs } from 'pinia'
+import { useToast } from '@/composables/useToast'
+
+const toast = useToast()
 
 const cartStore = useCartStore()
-
+const productsStore = useProductsStore()
+const customerStore = useCustomerStore()
+const sellersStore = useSellersStore()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
 
@@ -29,25 +37,148 @@ function removePayment(mode: string) {
   payments.value = payments.value.filter((p) => p.mode !== mode)
 }
 
-function validerVente() {
+async function validerVente() {
+  // 1. Vérifications de base
+  if (cartStore.items.length === 0) {
+    toast.error('Le panier est vide')
+    return
+  }
+
   if (!payments.value.length) {
-    alert('Aucun mode de paiement sélectionné.')
+    toast.error('Aucun mode de paiement sélectionné')
     return
   }
 
   if (balance.value > 0) {
-    alert(`Il reste ${balance.value.toFixed(2)} € à payer.`)
+    toast.error(`Il reste ${balance.value.toFixed(2)} € à payer`)
     return
   }
 
-  console.log('✅ Vente validée :', {
-    items: cartStore.items,
-    total: totalTTC.value,
-    payments: payments.value,
-  })
+  // 2. Vérifier qu'un vendeur est sélectionné
+  if (!sellersStore.selectedSeller) {
+    toast.warning('Veuillez sélectionner un vendeur')
+    return
+  }
 
-  cartStore.clearCart()
-  payments.value = []
+  // 3. Confirmation automatique (pas de dialog bloquant)
+  const customerName = customerStore.client ? customerStore.clientName : 'Client'
+  toast.info(`Vente en cours pour ${customerName} - Total: ${totalTTC.value.toFixed(2)} €`)
+
+  try {
+    // 4. Préparer les données pour l'API
+    const seller = sellersStore.sellers.find(s => s.id === Number(sellersStore.selectedSeller))
+
+    const saleData = {
+      items: cartStore.items.map(item => {
+        const finalPrice = cartStore.getFinalPrice(item)
+        return {
+          productId: item.id,
+          productName: item.name,
+          quantity: item.quantity,
+          unitPrice: finalPrice,
+          variation: item.variation || '',
+          discount: item.discount,
+          discountType: item.discountType,
+          tva: item.tva || 20,
+        }
+      }),
+      seller: {
+        id: Number(sellersStore.selectedSeller),
+        name: seller?.name || 'Vendeur inconnu',
+      },
+      customer: customerStore.client ? {
+        id: customerStore.client.id,
+        firstName: customerStore.client.name,
+        lastName: customerStore.client.lastname,
+      } : null,
+      payments: payments.value,
+      totals: {
+        totalHT: totalHT.value,
+        totalTVA: totalTVA.value,
+        totalTTC: totalTTC.value,
+      },
+      globalDiscount: {
+        value: cartStore.globalDiscount,
+        type: cartStore.globalDiscountType,
+      },
+    }
+
+    // 5. Envoyer à l'API (NF525)
+    const response = await $fetch('/api/sales/create', {
+      method: 'POST',
+      body: saleData,
+    })
+
+    if (!response.success) {
+      throw new Error('Échec de l\'enregistrement de la vente')
+    }
+
+    // 6. Mettre à jour les stocks localement
+    for (const item of cartStore.items) {
+      productsStore.updateStock(
+        item.id,
+        item.variation,
+        item.quantity,
+        'sale',
+        response.sale.id
+      )
+    }
+
+    console.log('✅ Vente NF525 enregistrée :', response.sale)
+
+    // 7. Afficher le récapitulatif
+    let receipt = `
+╔════════════════════════════════════╗
+║         TICKET DE CAISSE           ║
+╚════════════════════════════════════╝
+
+N° Ticket: ${response.sale.ticketNumber}
+Date: ${new Date(response.sale.saleDate).toLocaleString('fr-FR')}
+Vendeur: ${sellersStore.sellers.find(s => s.id === Number(sellersStore.selectedSeller))?.name || 'N/A'}
+${customerStore.client ? `Client: ${customerStore.clientName}\n` : ''}
+────────────────────────────────────
+
+ARTICLES:
+${cartStore.items.map(item => {
+  const finalPrice = cartStore.getFinalPrice(item)
+  return `${item.name} ${item.variation ? `(${item.variation})` : ''}
+  ${item.quantity} x ${finalPrice.toFixed(2)}€ = ${(finalPrice * item.quantity).toFixed(2)}€`
+}).join('\n')}
+
+────────────────────────────────────
+Total HT:     ${totalHT.value.toFixed(2)} €
+TVA:          ${totalTVA.value.toFixed(2)} €
+Total TTC:    ${totalTTC.value.toFixed(2)} €
+
+PAIEMENTS:
+${payments.value.map(p => `${p.mode}: ${p.amount.toFixed(2)} €`).join('\n')}
+
+${balance.value < 0 ? `Rendu: ${Math.abs(balance.value).toFixed(2)} €\n` : ''}
+════════════════════════════════════
+
+Hash NF525: ${response.sale.hash.substring(0, 16)}...
+Signature: ${response.sale.signature?.substring(0, 16) || 'TEMP'}...
+
+Merci de votre visite !
+    `
+
+    console.log(receipt)
+    toast.success('Vente enregistrée avec succès !', 'Consultez la console pour le ticket')
+
+    // 9. Nettoyer
+    cartStore.clearCart()
+    customerStore.clearClient()
+    payments.value = []
+
+  } catch (error) {
+    console.error('Erreur lors de la validation:', error)
+    toast.error('Une erreur est survenue lors de la validation de la vente')
+  }
+}
+
+// Fonction pour imprimer le ticket (à implémenter)
+function printReceipt() {
+  toast.info('Fonctionnalité d\'impression à venir')
 }
 </script>
 
@@ -112,9 +243,23 @@ function validerVente() {
   </div>
 
   <!-- ✅ Bouton de validation -->
-  <div class="pt-4">
-    <Button class="w-full text-lg font-semibold" @click="validerVente" :disabled="totalPaid < totalTTC">
+  <div class="pt-4 space-y-2">
+    <Button 
+      class="w-full text-lg font-semibold" 
+      @click="validerVente" 
+      :disabled="totalPaid < totalTTC || cartStore.items.length === 0"
+    >
       Valider la vente
     </Button>
+    
+    <!-- <Button 
+      variant="outline" 
+      class="w-full" 
+      @click="printReceipt"
+      :disabled="cartStore.items.length === 0"
+    >
+      <Printer class="w-4 h-4 mr-2" />
+      Imprimer ticket
+    </Button> -->
   </div>
 </template>

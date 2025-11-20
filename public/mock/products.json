@@ -39,7 +39,7 @@
         "image": "/assets/img/series-z.png",
         "stockByVariation": {
           "0.15": 8,
-          "0.2": 3
+          "0.2": 4
         },
         "purchasePrice": 1,
         "tva": 20
@@ -51,9 +51,9 @@
         "variationGroupIds": ["color"],
         "image": "/assets/img/z-nano.png",
         "stockByVariation": {
-          "noir": 4,
-          "bleu": 2,
-          "vert": 7
+          "noir": 2,
+          "bleu": 5,
+          "vert": 1
         },
         "purchasePrice": 12,
         "tva": 20

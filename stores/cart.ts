@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
+import { useProductsStore } from '@/stores/products'
+import { useToast } from '@/composables/useToast'
 
 import {
   getFinalPrice,
@@ -11,6 +13,8 @@ import {
 } from '@/utils/cartUtils'
 
 export const useCartStore = defineStore('cart', () => {
+  const toast = useToast()
+
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
   const selectedProduct = ref<Product | null>(null)
@@ -33,7 +37,7 @@ export const useCartStore = defineStore('cart', () => {
 
     pendingCart.value.push({
       id: nextPendingId++,
-      items: JSON.parse(JSON.stringify(items.value)), // deep clone
+      items: JSON.parse(JSON.stringify(items.value)),
       globalDiscount: globalDiscount.value,
       globalDiscountType: globalDiscountType.value,
       clientId
@@ -48,6 +52,24 @@ export const useCartStore = defineStore('cart', () => {
 
     const cartData = pendingCart.value[index]
     if (!cartData) return
+
+    const productsStore = useProductsStore()
+
+    // Vérifier que tous les produits ont encore assez de stock
+    const stockIssues: string[] = []
+    for (const item of cartData.items) {
+      if (!productsStore.hasEnoughStock(item.id, item.variation, item.quantity)) {
+        const availableStock = productsStore.getAvailableStock(item.id, item.variation)
+        stockIssues.push(
+          `${item.name} ${item.variation ? `(${item.variation})` : ''}: demandé ${item.quantity}, disponible ${availableStock}`
+        )
+      }
+    }
+
+    if (stockIssues.length > 0) {
+      toast.warning('Stock insuffisant pour certains produits', stockIssues.join('\n'))
+      return
+    }
 
     // Appliquer les données du panier
     items.value = cartData.items
@@ -70,6 +92,7 @@ export const useCartStore = defineStore('cart', () => {
     // Supprimer le panier
     pendingCart.value.splice(index, 1)
   }
+
   const totalTtcComputed = computed(() => totalTTC(items.value, {
     value: globalDiscount.value,
     type: globalDiscountType.value
@@ -98,8 +121,20 @@ export const useCartStore = defineStore('cart', () => {
   })
 
   // --- ACTIONS ---
-  function addToCart(product: Product, variation = '') {
-    const existing = items.value.find(item => item.id === product.id && item.variation === variation)
+  
+  /**
+   * Ajoute un produit au panier (permet les stocks négatifs)
+   * @param product - Produit à ajouter
+   * @param variation - Variation du produit (optionnel)
+   * @returns true si l'ajout a réussi
+   */
+  function addToCart(product: Product, variation = ''): boolean {
+    // Vérifier si le produit existe déjà dans le panier
+    const existing = items.value.find(
+      item => item.id === product.id && item.variation === variation
+    )
+
+    // Ajouter ou incrémenter (sans vérification de stock)
     if (existing) {
       existing.quantity++
     } else {
@@ -111,10 +146,14 @@ export const useCartStore = defineStore('cart', () => {
         variation
       })
     }
+
+    return true
   }
 
   function removeFromCart(id: number, variation = '') {
-    items.value = items.value.filter(item => !(item.id === id && item.variation === variation))
+    items.value = items.value.filter(
+      item => !(item.id === id && item.variation === variation)
+    )
   }
 
   function clearCart() {
@@ -125,15 +164,36 @@ export const useCartStore = defineStore('cart', () => {
     customerStore.clearClient?.()
   }
 
-  function updateQuantity(productId: number, variation: string, quantity: number) {
-    const item = items.value.find(p => p.id === productId && p.variation === variation)
-    if (item) {
-      item.quantity = quantity
-    }
+  /**
+   * Met à jour la quantité d'un produit dans le panier (permet les stocks négatifs)
+   * @param productId - ID du produit
+   * @param variation - Variation du produit
+   * @param quantity - Nouvelle quantité
+   * @returns true si la mise à jour a réussi
+   */
+  function updateQuantity(
+    productId: number,
+    variation: string,
+    quantity: number
+  ): boolean {
+    const item = items.value.find(
+      p => p.id === productId && p.variation === variation
+    )
+    if (!item) return false
+
+    item.quantity = quantity
+    return true
   }
 
-  function updateDiscount(productId: number, variation: string, discount: number, type: '%' | '€') {
-    const item = items.value.find(p => p.id === productId && p.variation === variation)
+  function updateDiscount(
+    productId: number,
+    variation: string,
+    discount: number,
+    type: '%' | '€'
+  ) {
+    const item = items.value.find(
+      p => p.id === productId && p.variation === variation
+    )
     if (item) {
       item.discount = discount
       item.discountType = type
@@ -145,16 +205,50 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscountType.value = type
   }
 
-  function updateVariation(productId: number, oldVariation: string, newVariation: string) {
-    const item = items.value.find(p => p.id === productId && p.variation === oldVariation)
-    if (item) {
-      const existing = items.value.find(p => p.id === productId && p.variation === newVariation)
-      if (existing && existing !== item) {
-        existing.quantity += item.quantity
-        removeFromCart(productId, oldVariation)
-      } else {
-        item.variation = newVariation
+  function updateVariation(
+    productId: number,
+    oldVariation: string,
+    newVariation: string
+  ) {
+    const item = items.value.find(
+      p => p.id === productId && p.variation === oldVariation
+    )
+    if (!item) return
+
+    const existing = items.value.find(
+      p => p.id === productId && p.variation === newVariation
+    )
+
+    // Si la variation existe déjà, fusionner les quantités
+    if (existing && existing !== item) {
+      existing.quantity += item.quantity
+      removeFromCart(productId, oldVariation)
+    } else {
+      item.variation = newVariation
+    }
+  }
+
+  /**
+   * Valide que tous les produits du panier ont assez de stock
+   * @returns true si tout est OK, false sinon
+   */
+  function validateStock(): { valid: boolean; errors: string[] } {
+    const productsStore = useProductsStore()
+    const errors: string[] = []
+
+    for (const item of items.value) {
+      if (!productsStore.hasEnoughStock(item.id, item.variation, item.quantity)) {
+        const availableStock = productsStore.getAvailableStock(item.id, item.variation)
+        errors.push(
+          `${item.name} ${item.variation ? `(${item.variation})` : ''}: ` +
+          `demandé ${item.quantity}, disponible ${availableStock}`
+        )
       }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
     }
   }
 
@@ -165,6 +259,7 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscount,
     globalDiscountType,
     pendingCart,
+    
     // getters
     getFinalPrice: (product: ProductInCart) =>
       getFinalPrice(product, items.value, {
@@ -175,6 +270,7 @@ export const useCartStore = defineStore('cart', () => {
     totalHT: totalHtComputed,
     totalTVA: totalTvaComputed,
     itemCount,
+    
     // actions
     addToCart,
     removeFromCart,
@@ -184,6 +280,7 @@ export const useCartStore = defineStore('cart', () => {
     updateGlobalDiscount,
     updateVariation,
     addPendingCart,
-    recoverPendingCart
+    recoverPendingCart,
+    validateStock
   }
 })
