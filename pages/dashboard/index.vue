@@ -42,10 +42,10 @@ import {
 
 const buttons = [
     { label: 'Caisse', icon: ShoppingCart, path: '/caisse', color: 'bg-blue-500 hover:bg-blue-600' },
-    { label: 'Catalogue', icon: Package, path: '/catalogue', color: 'bg-green-500 hover:bg-green-600' },
+    { label: 'Catalogue', icon: Package, path: '/produits', color: 'bg-green-500 hover:bg-green-600' },
     { label: 'Clients', icon: Users, path: '/clients', color: 'bg-purple-500 hover:bg-purple-600' },
     { label: 'Synthèse', icon: ClipboardList, path: '/synthese', color: 'bg-yellow-500 hover:bg-yellow-600 text-black' },
-    { label: 'Mouvements', icon: MoveRight, path: '/mouvements', color: 'bg-orange-500 hover:bg-orange-600' },
+    { label: 'Etat du Stock', icon: MoveRight, path: '/stocks', color: 'bg-orange-500 hover:bg-orange-600' },
     { label: 'Statistiques', icon: BarChart, path: '/stats', color: 'bg-red-500 hover:bg-red-600' },
 ]
 </script>

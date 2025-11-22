@@ -117,13 +117,132 @@ export const saleItems = pgTable('sale_items', {
 })
 
 // ==========================================
-// 3. PRODUITS
+// 3. CATÉGORIES (ARBORESCENCE)
+// ==========================================
+export const categories = pgTable('categories', {
+  id: serial('id').primaryKey(),
+
+  name: varchar('name', { length: 255 }).notNull(),
+
+  // Catégorie parente (null = catégorie racine)
+  parentId: integer('parent_id'),
+
+  // Ordre d'affichage
+  sortOrder: integer('sort_order').default(0),
+
+  // Métadonnées
+  icon: varchar('icon', { length: 50 }), // Nom de l'icône
+  color: varchar('color', { length: 20 }), // Code couleur hex
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  parentIdIdx: index('categories_parent_id_idx').on(table.parentId),
+  nameIdx: index('categories_name_idx').on(table.name),
+}))
+
+// ==========================================
+// 4. GROUPES DE VARIATIONS
+// ==========================================
+export const variationGroups = pgTable('variation_groups', {
+  id: serial('id').primaryKey(),
+
+  name: varchar('name', { length: 100 }).notNull(), // Ex: "Couleur", "Taille"
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index('variation_groups_name_idx').on(table.name),
+}))
+
+// ==========================================
+// 5. VARIATIONS
+// ==========================================
+export const variations = pgTable('variations', {
+  id: serial('id').primaryKey(),
+
+  groupId: integer('group_id').notNull().references(() => variationGroups.id, { onDelete: 'cascade' }),
+
+  name: varchar('name', { length: 100 }).notNull(), // Ex: "Rouge", "Bleu", "S", "M", "L"
+
+  // Ordre d'affichage
+  sortOrder: integer('sort_order').default(0),
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  groupIdIdx: index('variations_group_id_idx').on(table.groupId),
+  nameIdx: index('variations_name_idx').on(table.name),
+}))
+
+// ==========================================
+// 6. FOURNISSEURS
+// ==========================================
+export const suppliers = pgTable('suppliers', {
+  id: serial('id').primaryKey(),
+
+  name: varchar('name', { length: 255 }).notNull(),
+  contact: varchar('contact', { length: 100 }),
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 20 }),
+  address: text('address'),
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index('suppliers_name_idx').on(table.name),
+}))
+
+// ==========================================
+// 7. MARQUES
+// ==========================================
+export const brands = pgTable('brands', {
+  id: serial('id').primaryKey(),
+
+  name: varchar('name', { length: 255 }).notNull(),
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index('brands_name_idx').on(table.name),
+}))
+
+// ==========================================
+// 8. PRODUITS
 // ==========================================
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
 
   name: varchar('name', { length: 255 }).notNull(),
   barcode: varchar('barcode', { length: 50 }),
+
+  // Catégorie
+  categoryId: integer('category_id').references(() => categories.id),
+
+  // Fournisseur et Marque
+  supplierId: integer('supplier_id').references(() => suppliers.id),
+  brandId: integer('brand_id').references(() => brands.id),
+  supplierCode: varchar('supplier_code', { length: 100 }), // Code interne fournisseur
 
   // Prix
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
@@ -152,10 +271,13 @@ export const products = pgTable('products', {
 }, (table) => ({
   barcodeIdx: index('products_barcode_idx').on(table.barcode),
   nameIdx: index('products_name_idx').on(table.name),
+  categoryIdIdx: index('products_category_id_idx').on(table.categoryId),
+  supplierIdIdx: index('products_supplier_id_idx').on(table.supplierId),
+  brandIdIdx: index('products_brand_id_idx').on(table.brandId),
 }))
 
 // ==========================================
-// 4. CLIENTS (RGPD)
+// 9. CLIENTS (RGPD)
 // ==========================================
 export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
@@ -195,7 +317,7 @@ export const customers = pgTable('customers', {
 }))
 
 // ==========================================
-// 5. VENDEURS
+// 10. VENDEURS
 // ==========================================
 export const sellers = pgTable('sellers', {
   id: serial('id').primaryKey(),
@@ -210,7 +332,7 @@ export const sellers = pgTable('sellers', {
 })
 
 // ==========================================
-// 6. MOUVEMENTS DE STOCK (AUDIT)
+// 11. MOUVEMENTS DE STOCK (AUDIT)
 // ==========================================
 export const stockMovements = pgTable('stock_movements', {
   id: serial('id').primaryKey(),
@@ -238,7 +360,7 @@ export const stockMovements = pgTable('stock_movements', {
 }))
 
 // ==========================================
-// 7. LOGS D'AUDIT (NF525 + RGPD)
+// 12. LOGS D'AUDIT (NF525 + RGPD)
 // ==========================================
 export const auditLogs = pgTable('audit_logs', {
   id: serial('id').primaryKey(),
@@ -268,7 +390,7 @@ export const auditLogs = pgTable('audit_logs', {
 }))
 
 // ==========================================
-// 8. CLÔTURES DE JOURNÉE (NF525)
+// 13. CLÔTURES DE JOURNÉE (NF525)
 // ==========================================
 export const closures = pgTable('closures', {
   id: serial('id').primaryKey(),
@@ -307,7 +429,7 @@ export const closures = pgTable('closures', {
 }))
 
 // ==========================================
-// 9. ARCHIVES (NF525 - Conservation 6 ans)
+// 14. ARCHIVES (NF525 - Conservation 6 ans)
 // ==========================================
 export const archives = pgTable('archives', {
   id: serial('id').primaryKey(),
@@ -335,7 +457,7 @@ export const archives = pgTable('archives', {
 }))
 
 // ==========================================
-// 9. SYNC QUEUE (Offline -> Cloud)
+// 15. SYNC QUEUE (Offline -> Cloud)
 // ==========================================
 export const syncQueue = pgTable('sync_queue', {
   id: serial('id').primaryKey(),
@@ -392,7 +514,50 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
   }),
 }))
 
-export const productsRelations = relations(products, ({ many }) => ({
+export const categoriesRelations = relations(categories, ({ one, many }) => ({
+  parent: one(categories, {
+    fields: [categories.parentId],
+    references: [categories.id],
+    relationName: 'subcategories',
+  }),
+  subcategories: many(categories, {
+    relationName: 'subcategories',
+  }),
+  products: many(products),
+}))
+
+export const variationGroupsRelations = relations(variationGroups, ({ many }) => ({
+  variations: many(variations),
+}))
+
+export const variationsRelations = relations(variations, ({ one }) => ({
+  group: one(variationGroups, {
+    fields: [variations.groupId],
+    references: [variationGroups.id],
+  }),
+}))
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+  products: many(products),
+}))
+
+export const brandsRelations = relations(brands, ({ many }) => ({
+  products: many(products),
+}))
+
+export const productsRelations = relations(products, ({ one, many }) => ({
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [products.supplierId],
+    references: [suppliers.id],
+  }),
+  brand: one(brands, {
+    fields: [products.brandId],
+    references: [brands.id],
+  }),
   saleItems: many(saleItems),
   stockMovements: many(stockMovements),
 }))

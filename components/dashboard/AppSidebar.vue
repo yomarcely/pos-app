@@ -47,12 +47,8 @@ const data = {
           url: '/caisse',
         },
         {
-          title: 'Historique',
-          url: '#',
-        },
-        {
           title: 'Synthèse journée',
-          url: '#',
+          url: '/synthese',
         },
       ],
     },
@@ -63,15 +59,15 @@ const data = {
       items: [
         {
           title: 'Listing',
-          url: '#',
+          url: '/produits',
         },
         {
           title: 'Catégories',
-          url: '#',
+          url: '/categories',
         },
         {
           title: 'Variations',
-          url: '#',
+          url: '/variations',
         },
         {
           title: 'Promotions',
