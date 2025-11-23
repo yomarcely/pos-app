@@ -373,9 +373,20 @@ const cancelledSales = computed(() => {
                   <div class="text-xs">
                     <p class="font-semibold mb-1">Articles:</p>
                     <div class="space-y-1">
-                      <div v-for="item in sale.items" :key="item.id" class="flex justify-between">
-                        <span>{{ item.productName }} <span v-if="item.variation" class="text-muted-foreground">({{ item.variation }})</span></span>
-                        <span>{{ item.quantity }} x {{ item.unitPrice.toFixed(2) }} € = {{ item.totalTTC.toFixed(2) }} €</span>
+                      <div v-for="item in sale.items" :key="item.id">
+                        <div class="flex justify-between">
+                          <span>
+                            {{ item.productName }}
+                            <span v-if="item.variation" class="text-muted-foreground">({{ item.variation }})</span>
+                            <span v-if="item.discount && item.discount > 0" class="text-orange-600 text-[10px] italic ml-1">
+                              (-{{ item.discount }}{{ item.discountType }})
+                            </span>
+                          </span>
+                          <span>{{ item.quantity }} x {{ item.unitPrice.toFixed(2) }} € = {{ item.totalTTC.toFixed(2) }} €</span>
+                        </div>
+                        <div v-if="item.discount && item.discount > 0 && item.originalPrice" class="flex justify-end text-muted-foreground text-[10px]">
+                          Prix origine: {{ Number(item.originalPrice).toFixed(2) }} €
+                        </div>
                       </div>
                     </div>
                   </div>

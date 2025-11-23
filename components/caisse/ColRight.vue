@@ -94,7 +94,8 @@ async function validerVente() {
           productId: item.id,
           productName: item.name,
           quantity: item.quantity,
-          unitPrice: finalPrice,
+          unitPrice: finalPrice, // Prix après remise
+          originalPrice: item.price, // Prix d'origine
           variation: item.variation || '',
           discount: item.discount,
           discountType: item.discountType,
@@ -153,8 +154,17 @@ ${customerStore.client ? `Client: ${customerStore.clientName}\n` : ''}
 ARTICLES:
 ${cartStore.items.map(item => {
   const finalPrice = cartStore.getFinalPrice(item)
-  return `${item.name} ${item.variation ? `(${item.variation})` : ''}
-  ${item.quantity} x ${finalPrice.toFixed(2)}€ = ${(finalPrice * item.quantity).toFixed(2)}€`
+  const hasDiscount = item.discount && item.discount > 0
+  let lines = `${item.name} ${item.variation ? `(${item.variation})` : ''}`
+
+  if (hasDiscount) {
+    lines += `\n  Prix: ${item.price.toFixed(2)}€ - Remise: ${item.discount}${item.discountType}`
+    lines += `\n  ${item.quantity} x ${finalPrice.toFixed(2)}€ = ${(finalPrice * item.quantity).toFixed(2)}€`
+  } else {
+    lines += `\n  ${item.quantity} x ${finalPrice.toFixed(2)}€ = ${(finalPrice * item.quantity).toFixed(2)}€`
+  }
+
+  return lines
 }).join('\n')}
 
 ────────────────────────────────────

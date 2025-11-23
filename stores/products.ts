@@ -272,7 +272,7 @@ export const useProductsStore = defineStore('products', () => {
   const outOfStockAlerts = computed(() => {
     const alerts: Array<{
       product: Product
-      variations?: Array<{ name: string; stock: number }>
+      variations?: Array<{ id: string; stock: number }>
     }> = []
 
     products.value.forEach(p => {
@@ -280,7 +280,7 @@ export const useProductsStore = defineStore('products', () => {
         // Pour les produits avec variations, ne garder que les variations en rupture (stock = 0)
         const outOfStockVariations = Object.entries(p.stockByVariation)
           .filter(([_, stock]) => stock <= 0)
-          .map(([name, stock]) => ({ name, stock }))
+          .map(([id, stock]) => ({ id, stock }))
 
         if (outOfStockVariations.length > 0) {
           alerts.push({
@@ -322,15 +322,18 @@ export const useProductsStore = defineStore('products', () => {
   const lowStockAlerts = computed(() => {
     const alerts: Array<{
       product: Product
-      variations?: Array<{ name: string; stock: number }>
+      variations?: Array<{ id: string; stock: number }>
     }> = []
 
     products.value.forEach(p => {
       if (p.stockByVariation) {
         // Pour les produits avec variations, ne garder que les variations en stock faible
         const lowStockVariations = Object.entries(p.stockByVariation)
-          .filter(([_, stock]) => stock > 0 && stock < 5)
-          .map(([name, stock]) => ({ name, stock }))
+          .filter(([id, stock]) => {
+            const minStockForVariation = p.minStockByVariation?.[id] ?? p.minStock ?? 5
+            return stock > 0 && stock <= minStockForVariation
+          })
+          .map(([id, stock]) => ({ id, stock }))
 
         if (lowStockVariations.length > 0) {
           alerts.push({
@@ -341,7 +344,8 @@ export const useProductsStore = defineStore('products', () => {
       } else {
         // Pour les produits sans variation
         const stock = p.stock ?? 0
-        if (stock > 0 && stock < 5) {
+        const minStock = p.minStock ?? 5
+        if (stock > 0 && stock <= minStock) {
           alerts.push({ product: p })
         }
       }

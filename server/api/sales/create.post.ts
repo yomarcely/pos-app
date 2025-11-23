@@ -31,7 +31,8 @@ interface CreateSaleRequest {
     productId: number
     productName: string
     quantity: number
-    unitPrice: number
+    originalPrice?: number // Prix d'origine avant remise
+    unitPrice: number // Prix final après remise
     variation?: string
     discount: number
     discountType: '%' | '€'
@@ -181,12 +182,9 @@ export default defineEventHandler(async (event) => {
     // ==========================================
 
     const saleItemsData = body.items.map(item => {
-      const discount = item.discountType === '%'
-        ? (item.unitPrice * item.quantity * item.discount) / 100
-        : item.discount
-
-      const totalHT = (item.unitPrice * item.quantity - discount) / (1 + item.tva / 100)
-      const totalTTC = item.unitPrice * item.quantity - discount
+      // Le unitPrice est déjà le prix final après remise
+      const totalTTC = item.unitPrice * item.quantity
+      const totalHT = totalTTC / (1 + item.tva / 100)
 
       return {
         saleId: newSale.id,
@@ -194,6 +192,7 @@ export default defineEventHandler(async (event) => {
         productName: item.productName,
         variation: item.variation || null,
         quantity: item.quantity,
+        originalPrice: item.originalPrice?.toString() || null,
         unitPrice: item.unitPrice.toString(),
         discount: item.discount.toString(),
         discountType: item.discountType,

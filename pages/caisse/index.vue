@@ -3,15 +3,18 @@ import { onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 
 const sellersStore = useSellersStore()
 const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
+const variationStore = useVariationGroupsStore()
 
 onMounted(() => {
   productsStore.loadProducts()
   customerStore.loadCustomers()
   sellersStore.loadSellers()
+  variationStore.loadGroups()
 })
 </script>
 
@@ -34,8 +37,5 @@ onMounted(() => {
         <CaisseColRight />
       </aside>
     </div>
-
-    <!-- 🔔 Alertes de stock (flottant en bas à droite) -->
-    <CaisseStockAlerts />
   </div>
 </template>

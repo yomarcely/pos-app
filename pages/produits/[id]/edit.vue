@@ -2,14 +2,19 @@
   <div class="p-6 space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Nouveau produit</h1>
-        <p class="text-muted-foreground mt-1">
-          Créez un nouveau produit dans votre catalogue
-        </p>
+      <div class="flex items-center gap-4">
+        <Button variant="ghost" size="icon" @click="goBack">
+          <ArrowLeft class="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 class="text-3xl font-bold">Modifier le produit</h1>
+          <p class="text-muted-foreground mt-1">
+            Modifiez les informations de ce produit
+          </p>
+        </div>
       </div>
       <div class="flex gap-2">
-        <Button variant="outline" @click="navigateTo('/produits')">
+        <Button variant="outline" @click="goBack">
           <X class="w-4 h-4 mr-2" />
           Annuler
         </Button>
@@ -379,30 +384,30 @@
         <Card>
           <CardHeader>
             <CardTitle>Gestion du stock</CardTitle>
-            <CardDescription>Définissez le stock initial et le seuil d'alerte</CardDescription>
+            <CardDescription>Consultez le stock actuel et modifiez le seuil d'alerte</CardDescription>
           </CardHeader>
           <CardContent class="space-y-6">
             <div v-if="!form.hasVariations">
-              <!-- Stock initial simple -->
+              <!-- Stock simple (lecture seule) -->
               <div class="space-y-2">
-                <Label for="initial-stock">Stock initial</Label>
+                <Label for="current-stock">Stock actuel</Label>
                 <Input
-                  id="initial-stock"
-                  v-model.number="form.initialStock"
+                  id="current-stock"
+                  :model-value="form.stock"
                   type="number"
-                  min="0"
-                  placeholder="0"
+                  disabled
+                  class="bg-muted"
                 />
                 <p class="text-xs text-muted-foreground">
-                  Quantité en stock lors de la création du produit
+                  Le stock ne peut être modifié que depuis la page de gestion des stocks
                 </p>
               </div>
 
-              <!-- Stock minimum -->
+              <!-- Stock minimum (modifiable) -->
               <div class="space-y-2">
-                <Label for="min-stock">Stock minimum (alerte)</Label>
+                <Label for="min-stock-edit">Stock minimum (alerte)</Label>
                 <Input
-                  id="min-stock"
+                  id="min-stock-edit"
                   v-model.number="form.minStock"
                   type="number"
                   min="0"
@@ -415,7 +420,7 @@
             </div>
 
             <div v-else>
-              <!-- Stock par variation -->
+              <!-- Stock par variation (lecture seule) -->
               <div v-if="selectedVariationsList.length === 0" class="text-center py-8 text-muted-foreground">
                 <Info class="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Aucune variation sélectionnée.</p>
@@ -424,25 +429,25 @@
 
               <div v-else class="space-y-4">
                 <p class="text-sm text-muted-foreground">
-                  Définissez le stock initial et le seuil d'alerte pour chaque variation
+                  Consultez le stock actuel et modifiez le seuil d'alerte pour chaque variation
                 </p>
                 <div v-for="variation in selectedVariationsList" :key="variation.id" class="border rounded-lg p-4 space-y-3">
                   <h4 class="font-medium">{{ variation.name }}</h4>
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-2">
-                      <Label :for="`stock-${variation.id}`">Stock initial</Label>
+                      <Label :for="`stock-${variation.id}`">Stock actuel</Label>
                       <Input
                         :id="`stock-${variation.id}`"
-                        v-model.number="form.initialStockByVariation[variation.id]"
+                        :model-value="form.stockByVariation[variation.id.toString()] || 0"
                         type="number"
-                        min="0"
-                        placeholder="0"
+                        disabled
+                        class="bg-muted"
                       />
                     </div>
                     <div class="space-y-2">
-                      <Label :for="`min-stock-${variation.id}`">Stock minimum</Label>
+                      <Label :for="`min-stock-edit-${variation.id}`">Stock minimum</Label>
                       <Input
-                        :id="`min-stock-${variation.id}`"
+                        :id="`min-stock-edit-${variation.id}`"
                         v-model.number="form.minStockByVariation[variation.id]"
                         type="number"
                         min="0"
@@ -620,7 +625,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { X, Save, Upload, ImageIcon, Trash2, Info, Layers, Plus } from 'lucide-vue-next'
+import { X, Save, Upload, ImageIcon, Trash2, Info, Layers, Plus, ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -634,7 +639,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
+const route = useRoute()
+const productId = computed(() => route.params.id as string)
 const activeTab = ref('general')
+const isLoading = ref(true)
 
 interface Variation {
   id: number
@@ -702,9 +710,9 @@ const form = ref({
   barcode: '',
   supplierCode: '',
   barcodeByVariation: {} as Record<number, string>,
-  initialStock: 0,
+  stock: 0,
   minStock: 5,
-  initialStockByVariation: {} as Record<number, number>,
+  stockByVariation: {} as Record<string, number>,
   minStockByVariation: {} as Record<number, number>,
 })
 
@@ -961,7 +969,52 @@ async function loadBrands() {
   }
 }
 
+// Charger le produit existant
+async function loadProduct() {
+  try {
+    isLoading.value = true
+    const response = await $fetch(`/api/products/${productId.value}`) as any
+    const product = response.product
+
+    // Remplir le formulaire avec les données du produit
+    form.value.name = product.name
+    form.value.description = product.description || ''
+    form.value.image = product.image
+    form.value.barcode = product.barcode || ''
+    form.value.supplierCode = product.supplierCode || ''
+    form.value.categoryId = product.categoryId
+    form.value.supplierId = product.supplierId ? product.supplierId.toString() : null
+    form.value.brandId = product.brandId ? product.brandId.toString() : null
+    form.value.purchasePrice = product.purchasePrice || ''
+    form.value.priceTTC = product.price || ''
+    form.value.tva = product.tva?.toString() || '20'
+    form.value.hasVariations = !!(product.variationGroupIds && product.variationGroupIds.length > 0)
+    form.value.selectedVariations = product.variationGroupIds || []
+    form.value.barcodeByVariation = product.barcodeByVariation || {}
+    form.value.stock = product.stock || 0
+    form.value.minStock = product.minStock || 5
+    form.value.stockByVariation = product.stockByVariation || {}
+    form.value.minStockByVariation = product.minStockByVariation || {}
+
+    // Calculer le coefficient si on a prix d'achat et prix TTC
+    if (product.purchasePrice && product.price) {
+      coefficient.value = (product.price / product.purchasePrice).toFixed(2)
+    }
+  } catch (error: any) {
+    console.error('Erreur lors du chargement du produit:', error)
+    toast.error('Erreur lors du chargement du produit')
+    await navigateTo('/produits')
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // Sauvegarder le produit
+// Fonction pour revenir à la page précédente
+function goBack() {
+  window.history.back()
+}
+
 async function saveProduct() {
   try {
     // Validation du formulaire
@@ -978,17 +1031,19 @@ async function saveProduct() {
     }
 
     // Préparer les données pour l'API
-    // Initialiser stockByVariation et minStockByVariation avec les valeurs du formulaire
-    let initialStockByVariation: Record<string, number> | null = null
-    let initialMinStockByVariation: Record<string, number> | null = null
+    // Gérer stockByVariation et minStockByVariation : conserver les stocks existants, ajouter les nouvelles variations à 0
+    let updatedStockByVariation: Record<string, number> | null = null
+    let updatedMinStockByVariation: Record<string, number> | null = null
 
     if (form.value.hasVariations && form.value.selectedVariations.length > 0) {
-      initialStockByVariation = {}
-      initialMinStockByVariation = {}
+      updatedStockByVariation = {}
+      updatedMinStockByVariation = {}
       form.value.selectedVariations.forEach(variationId => {
-        const varKey = variationId.toString()
-        initialStockByVariation![varKey] = form.value.initialStockByVariation[variationId] || 0
-        initialMinStockByVariation![varKey] = form.value.minStockByVariation[variationId] || 5
+        const variationKey = variationId.toString()
+        // Conserver le stock existant ou initialiser à 0
+        updatedStockByVariation![variationKey] = form.value.stockByVariation[variationKey] ?? 0
+        // Prendre le minStock de l'utilisateur
+        updatedMinStockByVariation![variationKey] = form.value.minStockByVariation[variationId] || 5
       })
     }
 
@@ -1006,28 +1061,28 @@ async function saveProduct() {
       purchasePrice: form.value.purchasePrice,
       tva: form.value.tva,
       manageStock: form.value.manageStock,
-      stock: form.value.hasVariations ? 0 : form.value.initialStock, // Stock initial
-      minStock: form.value.hasVariations ? 5 : form.value.minStock, // Stock minimum
+      minStock: form.value.hasVariations ? undefined : form.value.minStock, // Stock minimum pour produit simple
+      // Note: stock n'est pas envoyé, il est conservé côté serveur
       hasVariations: form.value.hasVariations,
       variationGroupIds: form.value.hasVariations ? form.value.selectedVariations : null,
-      stockByVariation: initialStockByVariation,
-      minStockByVariation: initialMinStockByVariation,
+      stockByVariation: updatedStockByVariation,
+      minStockByVariation: updatedMinStockByVariation,
     }
 
-    // Appel API
-    const response = await $fetch('/api/products/create', {
-      method: 'POST',
+    // Appel API pour modifier le produit
+    await $fetch(`/api/products/${productId.value}`, {
+      method: 'PUT',
       body: productData,
     })
 
-    toast.success('Produit créé avec succès !')
+    toast.success('Produit modifié avec succès !')
 
-    // Rediriger vers la liste des produits
-    await navigateTo('/produits')
+    // Revenir à la page précédente au lieu de toujours aller sur /produits
+    goBack()
   }
   catch (error: any) {
     console.error('Erreur lors de la sauvegarde du produit:', error)
-    toast.error(error.data?.message || 'Erreur lors de la création du produit')
+    toast.error(error.data?.message || 'Erreur lors de la modification du produit')
   }
 }
 
@@ -1064,11 +1119,25 @@ watch(variationCheckedState, (newState) => {
 onMounted(async () => {
   await Promise.all([loadCategories(), loadVariationGroups(), loadSuppliers(), loadBrands()])
 
+  // Charger le produit existant
+  await loadProduct()
+
   // Initialiser variationCheckedState après le chargement
   variationGroups.value.forEach(group => {
     group.variations.forEach(variation => {
       variationCheckedState[variation.id] = form.value.selectedVariations.includes(variation.id)
     })
   })
+
+  // Déduire automatiquement le groupe sélectionné si des variations sont déjà assignées
+  if (form.value.selectedVariations.length > 0) {
+    const firstVariationId = form.value.selectedVariations[0]
+    const group = variationGroups.value.find(g =>
+      g.variations.some(v => v.id === firstVariationId)
+    )
+    if (group) {
+      selectedGroupId.value = group.id
+    }
+  }
 })
 </script>

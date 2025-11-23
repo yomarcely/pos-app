@@ -102,7 +102,8 @@
                 <tr
                   v-for="product in products"
                   :key="product.id"
-                  class="hover:bg-muted/50 transition-colors"
+                  class="hover:bg-muted/50 transition-colors cursor-pointer"
+                  @click="editProduct(product)"
                 >
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center gap-3">
@@ -125,7 +126,7 @@
                     <span v-else class="text-sm text-muted-foreground">-</span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap font-medium">
-                    {{ formatPrice(calculatePriceTTC(product.price, product.tva)) }}
+                    {{ formatPrice(product.price) }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span
@@ -136,7 +137,7 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div class="flex items-center justify-end gap-2">
+                    <div class="flex items-center justify-end gap-2" @click.stop>
                       <Button variant="ghost" size="sm" @click="viewProduct(product)">
                         <Eye class="w-4 h-4" />
                       </Button>
@@ -161,7 +162,7 @@
         v-for="product in products"
         :key="product.id"
         class="hover:shadow-lg transition-shadow overflow-hidden cursor-pointer"
-        @click="viewProduct(product)"
+        @click="editProduct(product)"
       >
         <CardContent class="p-0">
           <!-- Image -->
@@ -200,7 +201,7 @@
             <p v-if="product.barcode" class="text-xs text-muted-foreground mb-1 truncate">{{ product.barcode }}</p>
             <div class="flex items-center justify-between">
               <div class="text-sm font-bold">
-                {{ formatPrice(calculatePriceTTC(product.price, product.tva)) }}
+                {{ formatPrice(product.price) }}
               </div>
               <div class="flex items-center gap-0.5">
                 <Button
@@ -338,10 +339,6 @@ async function loadCategories() {
 }
 
 // Helper functions
-function calculatePriceTTC(priceHT: number, tva: number): number {
-  return priceHT * (1 + tva / 100)
-}
-
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',

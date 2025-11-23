@@ -69,37 +69,22 @@ export function globalEuroAllocationCents(
   return allocMap
 }
 
-// Prix TTC unitaire final (applique remise ligne + globale)
+// Prix TTC unitaire final (applique uniquement remise ligne, la remise globale est désormais appliquée directement sur les produits)
 export function getFinalPrice(
   it: ProductInCart,
   items: ProductInCart[],
   global: GlobalDiscount
 ): number {
-  let unit = unitTtcAfterLineDiscount(it)
-
-  if (global.type === '%') {
-    unit = unit * (1 - (global.value || 0) / 100)
-  } else if (global.type === '€') {
-    const alloc = globalEuroAllocationCents(items, global)[lineKey(it)] || 0
-    const perUnitEuro = fromCents(alloc) / (it.quantity || 1)
-    unit = unit - perUnitEuro
-  }
+  // On ignore maintenant la remise globale car elle est appliquée directement sur les produits
+  const unit = unitTtcAfterLineDiscount(it)
   return Math.max(0, round2(unit))
 }
 
 // TTC/HT/TVA calculés par ligne (centimes), TVA = TTC - HT
+// La remise globale n'est plus utilisée car elle est appliquée directement sur les produits
 export function totalTTC(items: ProductInCart[], global: GlobalDiscount): number {
   const sumLines = items.reduce((s, it) => {
-    const baseLineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    let lineCents = baseLineCents
-
-    if (global.type === '€') {
-      const alloc = globalEuroAllocationCents(items, global)[lineKey(it)] || 0
-      lineCents = Math.max(0, baseLineCents - alloc)
-    } else if (global.type === '%') {
-      const pct = Math.max(0, global.value || 0) / 100
-      lineCents = Math.max(0, Math.round(lineCents * (1 - pct)))
-    }
+    const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
     return s + lineCents
   }, 0)
 
@@ -108,16 +93,7 @@ export function totalTTC(items: ProductInCart[], global: GlobalDiscount): number
 
 export function totalHT(items: ProductInCart[], global: GlobalDiscount): number {
   const sumHtCents = items.reduce((s, it) => {
-    const baseLineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    let lineTtcCents = baseLineCents
-
-    if (global.type === '€') {
-      const alloc = globalEuroAllocationCents(items, global)[lineKey(it)] || 0
-      lineTtcCents = Math.max(0, baseLineCents - alloc)
-    } else if (global.type === '%') {
-      const pct = Math.max(0, global.value || 0) / 100
-      lineTtcCents = Math.max(0, Math.round(lineTtcCents * (1 - pct)))
-    }
+    const lineTtcCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
 
     const tvaRate = it.tva ?? 20
     const lineHt = fromCents(lineTtcCents) / (1 + tvaRate / 100)

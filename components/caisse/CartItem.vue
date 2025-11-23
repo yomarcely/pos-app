@@ -25,16 +25,32 @@ const emit = defineEmits<{
 }>()
 
 const stock = computed(() => {
-    if (props.product.variationGroupIds?.length) {
-        const key = props.product.variation
-        return Number(props.product.stockByVariation?.[key] ?? 0)
+    if (props.product.variationGroupIds?.length && props.product.variation) {
+        // Trouver l'ID de la variation à partir de son nom
+        const variationId = getVariationIdByName(props.product.variation)
+        if (variationId !== null) {
+            return Number(props.product.stockByVariation?.[variationId.toString()] ?? 0)
+        }
+        return 0
     }
     return Number(props.product.stock ?? 0)
 })
 
 const stockColor = computed(() => {
     if (stock.value <= 0) return 'bg-red-500'
-    if (stock.value < 5) return 'bg-orange-400'
+
+    // Obtenir le minStock pour ce produit/variation
+    let minStock = 5 // Valeur par défaut
+    if (props.product.variationGroupIds?.length && props.product.variation) {
+        const variationId = getVariationIdByName(props.product.variation)
+        if (variationId !== null) {
+            minStock = props.product.minStockByVariation?.[variationId.toString()] ?? props.product.minStock ?? 5
+        }
+    } else {
+        minStock = props.product.minStock ?? 5
+    }
+
+    if (stock.value <= minStock) return 'bg-orange-400'
     return 'bg-green-500'
 })
 
@@ -108,6 +124,32 @@ const isBelowPurchasePrice = computed(() => {
     const achat = props.product.purchasePrice ?? 0
     return finalPrice.value < achat
 })
+
+// Fonction pour obtenir le nom d'une variation par son ID
+function getVariationNameById(variationId: number): string {
+    // Parcourir tous les groupes de variations
+    for (const group of variationGroups) {
+        // Chercher la variation dans ce groupe
+        const variation = group.variations.find((v: { id: number, name: string }) => v.id === variationId)
+        if (variation) {
+            return variation.name
+        }
+    }
+    return `Variation ${variationId}` // Fallback si non trouvée
+}
+
+// Fonction pour obtenir l'ID d'une variation par son nom
+function getVariationIdByName(variationName: string): number | null {
+    // Parcourir tous les groupes de variations
+    for (const group of variationGroups) {
+        // Chercher la variation dans ce groupe
+        const variation = group.variations.find((v: { id: number, name: string }) => v.name === variationName)
+        if (variation) {
+            return variation.id
+        }
+    }
+    return null // Retourner null si non trouvée
+}
 </script>
 
 <template>
@@ -120,7 +162,7 @@ const isBelowPurchasePrice = computed(() => {
 
         <!-- 📦 Quantité + image -->
         <div class="flex flex-col items-center gap-2 w-25">
-            <NumberField :model-value="product.quantity" :min="1" :max="stock"
+            <NumberField :model-value="product.quantity" :min="1"
                 @update:model-value="val => cartStore.updateQuantity(product.id, product.variation, Number(val))">
                 <NumberFieldContent>
                     <NumberFieldDecrement />
@@ -128,15 +170,15 @@ const isBelowPurchasePrice = computed(() => {
                     <NumberFieldIncrement />
                 </NumberFieldContent>
             </NumberField>
-            <RouterLink :to="`/produits/${product.id}`">
-                <img :src="product.image" :alt="product.name" class="w-12 h-12 rounded" />
+            <RouterLink :to="`/produits/${product.id}/edit`">
+                <img :src="product.image || '/placeholder-product.png'" :alt="product.name" class="w-12 h-12 rounded" />
             </RouterLink>
         </div>
 
         <!-- 🧾 Détails -->
         <div class="flex-1 space-y-1 text-sm">
             <div class="flex items-center gap-2">
-                <RouterLink :to="`/produits/${product.id}`"
+                <RouterLink :to="`/produits/${product.id}/edit`"
                     class="font-semibold text-primary hover:underline transition">
                     {{ product.name }}
                 </RouterLink>
@@ -147,25 +189,25 @@ const isBelowPurchasePrice = computed(() => {
                 </span>
             </div>
 
-            <!-- Groupes de variation -->
-            <div v-if="product.variationGroupIds?.length" class="flex gap-2 mt-1">
-                <div v-for="groupId in product.variationGroupIds" :key="groupId" class="flex-1">
-                    <Select :model-value="product.variation" @update:model-value="val => {
-                        if (typeof val === 'string') {
-                            cartStore.updateVariation(product.id, product.variation, val)
-                        }
-                    }">
-                        <SelectTrigger>
-                            <SelectValue :placeholder="groupId" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem v-for="option in variationGroups.find(v => v.id === groupId)?.options || []"
-                                :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+            <!-- Variations du produit -->
+            <div v-if="product.variationGroupIds?.length" class="mt-1">
+                <Select :model-value="product.variation" @update:model-value="val => {
+                    if (typeof val === 'string') {
+                        cartStore.updateVariation(product.id, product.variation, val)
+                    }
+                }">
+                    <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une variation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem
+                            v-for="variationId in product.variationGroupIds"
+                            :key="variationId"
+                            :value="getVariationNameById(variationId)">
+                            {{ getVariationNameById(variationId) }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             <!-- Remise -->

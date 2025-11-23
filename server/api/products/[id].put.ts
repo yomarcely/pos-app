@@ -1,8 +1,28 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
+import { eq } from 'drizzle-orm'
+
+/**
+ * ==========================================
+ * API: Modifier un produit
+ * ==========================================
+ *
+ * PUT /api/products/:id
+ *
+ * Modifie un produit existant
+ */
 
 export default defineEventHandler(async (event) => {
   try {
+    const id = getRouterParam(event, 'id')
+
+    if (!id) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'ID du produit manquant',
+      })
+    }
+
     const body = await readBody(event)
     const {
       name,
@@ -41,7 +61,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Préparer les données du produit
+    // Préparer les données du produit (sans toucher au stock)
     const productData = {
       name: name.trim(),
       description: description?.trim() || null,
@@ -55,35 +75,41 @@ export default defineEventHandler(async (event) => {
       price: parseFloat(price).toString(),
       purchasePrice: purchasePrice ? parseFloat(purchasePrice).toString() : null,
       tva: tva ? parseFloat(tva).toString() : '20',
-      stock: manageStock ? (stock ? parseInt(stock) : 0) : 0,
-      minStock: minStock ? parseInt(minStock) : 5,
+      minStock: minStock !== undefined ? parseInt(minStock) : undefined,
       variationGroupIds: hasVariations && variationGroupIds ? variationGroupIds : null,
       stockByVariation: hasVariations && stockByVariation ? stockByVariation : null,
       minStockByVariation: hasVariations && minStockByVariation ? minStockByVariation : null,
+      // Note: stock n'est PAS modifié ici, il est géré uniquement via l'API de gestion de stock
     }
 
-    // Créer le produit
-    const [newProduct] = await db
-      .insert(products)
-      .values(productData)
+    // Mettre à jour le produit
+    const [updatedProduct] = await db
+      .update(products)
+      .set(productData)
+      .where(eq(products.id, parseInt(id)))
       .returning()
+
+    if (!updatedProduct) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'Produit non trouvé',
+      })
+    }
 
     return {
       success: true,
-      product: newProduct,
+      product: updatedProduct,
     }
-  }
-  catch (error: any) {
-    console.error('Erreur lors de la création du produit:', error)
+  } catch (error: any) {
+    console.error('Erreur lors de la modification du produit:', error)
 
-    // Gérer les erreurs spécifiques
     if (error.statusCode) {
       throw error
     }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Erreur lors de la création du produit',
+      statusMessage: error.message || 'Erreur lors de la modification du produit',
     })
   }
 })

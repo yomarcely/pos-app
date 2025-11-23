@@ -11,17 +11,18 @@ import type { Product } from '@/types'
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '@/stores/products'
 import { useCartStore } from '@/stores/cart'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 
 const productsStore = useProductsStore()
 const cartStore = useCartStore()
+const variationStore = useVariationGroupsStore()
 
 const { products: Products } = storeToRefs(productsStore)
 const { items: cart, selectedProduct } = storeToRefs(cartStore)
+const { groups: variationGroups } = storeToRefs(variationStore)
 
 const barcodeInput = ref('')
 const bottomRef = ref<HTMLElement | null>(null)
-
-const selectedLocal = ref<Product | null>(null)
 
 function scrollToBottom() {
   nextTick(() => {
@@ -29,11 +30,47 @@ function scrollToBottom() {
   })
 }
 
+// Fonction pour obtenir le nom d'une variation par son ID
+function getVariationNameById(variationId: number): string {
+  for (const group of variationGroups.value) {
+    const variation = group.variations.find(v => v.id === variationId)
+    if (variation) {
+      return variation.name
+    }
+  }
+  return `Variation ${variationId}`
+}
+
 function searchByBarcode() {
-  const found = Products.value.find(p => p.barcode === barcodeInput.value)
+  const scannedBarcode = barcodeInput.value.trim()
+  if (!scannedBarcode) return
+
+  // 1. Chercher d'abord dans les codes-barres principaux des produits
+  let found = Products.value.find(p => p.barcode === scannedBarcode)
   if (found) {
     handleProductAdd(found)
+    barcodeInput.value = ''
+    return
   }
+
+  // 2. Chercher dans les codes-barres par variation
+  for (const product of Products.value) {
+    if (product.barcodeByVariation) {
+      // barcodeByVariation est un objet { "variationId": "barcode" }
+      for (const [variationId, barcode] of Object.entries(product.barcodeByVariation)) {
+        if (barcode === scannedBarcode) {
+          // Trouvé ! Ajouter le produit avec cette variation spécifique
+          const variationName = getVariationNameById(parseInt(variationId))
+          cartStore.addToCart(product, variationName)
+          scrollToBottom()
+          barcodeInput.value = ''
+          return
+        }
+      }
+    }
+  }
+
+  // 3. Aucun produit trouvé
   barcodeInput.value = ''
 }
 
@@ -49,9 +86,15 @@ function onProductSelected(p: Product | null) {
 
 function handleProductAdd(product: Product) {
   // Si le produit a des variations, choisir automatiquement la première
-  if (product.variationGroupIds && product.variationGroupIds.length > 0 && product.stockByVariation) {
-    const firstVariation = Object.keys(product.stockByVariation)[0] || ''
-    cartStore.addToCart(product, firstVariation)
+  if (product.variationGroupIds && product.variationGroupIds.length > 0) {
+    // Prendre le premier ID de variation et le convertir en nom
+    const firstVariationId = product.variationGroupIds[0]
+    if (firstVariationId !== undefined) {
+      const firstVariationName = getVariationNameById(firstVariationId)
+      cartStore.addToCart(product, firstVariationName)
+    } else {
+      cartStore.addToCart(product, '')
+    }
   } else {
     // Sinon, ajouter directement
     cartStore.addToCart(product, '')
@@ -68,9 +111,6 @@ function removeFromCart(id: number, variation: string) {
   cartStore.removeFromCart(id, variation)
 }
 </script>
-vue
-Copier le code
-
 
 <template>
   <div class="w-full flex justify-center gap-4">
@@ -78,7 +118,7 @@ Copier le code
     <div class="relative">
       <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
       <Input v-model="barcodeInput" placeholder="Scanner code-barres" class="w-full px-3 text-sm pl-10"
-        @keyup.enter="searchByBarcode" />
+        @keydown.enter="searchByBarcode" />
     </div>
 
     <!-- 🔍 Recherche produit -->

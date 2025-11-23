@@ -3,7 +3,6 @@ import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
 import { useProductsStore } from '@/stores/products'
-import { useToast } from '@/composables/useToast'
 
 import {
   getFinalPrice,
@@ -13,7 +12,6 @@ import {
 } from '@/utils/cartUtils'
 
 export const useCartStore = defineStore('cart', () => {
-  const toast = useToast()
 
   // --- ÉTAT ---
   const items = ref<ProductInCart[]>([])
@@ -53,25 +51,7 @@ export const useCartStore = defineStore('cart', () => {
     const cartData = pendingCart.value[index]
     if (!cartData) return
 
-    const productsStore = useProductsStore()
-
-    // Vérifier que tous les produits ont encore assez de stock
-    const stockIssues: string[] = []
-    for (const item of cartData.items) {
-      if (!productsStore.hasEnoughStock(item.id, item.variation, item.quantity)) {
-        const availableStock = productsStore.getAvailableStock(item.id, item.variation)
-        stockIssues.push(
-          `${item.name} ${item.variation ? `(${item.variation})` : ''}: demandé ${item.quantity}, disponible ${availableStock}`
-        )
-      }
-    }
-
-    if (stockIssues.length > 0) {
-      toast.warning('Stock insuffisant pour certains produits', stockIssues.join('\n'))
-      return
-    }
-
-    // Appliquer les données du panier
+    // Appliquer les données du panier (sans vérification de stock car on permet les stocks négatifs)
     items.value = cartData.items
     globalDiscount.value = cartData.globalDiscount
     globalDiscountType.value = cartData.globalDiscountType
@@ -205,6 +185,51 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscountType.value = type
   }
 
+  /**
+   * Applique la remise globale sur chaque produit du panier
+   * et réinitialise la remise globale à 0
+   */
+  function applyGlobalDiscountToItems() {
+    if (items.value.length === 0 || globalDiscount.value === 0) return
+
+    if (globalDiscountType.value === '%') {
+      // Pour une remise en %, on applique le même pourcentage sur chaque produit
+      items.value.forEach(item => {
+        item.discount = globalDiscount.value
+        item.discountType = '%'
+      })
+    } else {
+      // Pour une remise en €, on répartit proportionnellement au prix de chaque ligne
+      // 1. Calculer le total du panier (sans remise)
+      const total = items.value.reduce((sum, item) => {
+        const unitPrice = item.discountType === '%'
+          ? item.price * (1 - item.discount / 100)
+          : item.price - item.discount
+        return sum + (unitPrice * item.quantity)
+      }, 0)
+
+      if (total <= 0) return
+
+      // 2. Calculer la remise proportionnelle pour chaque produit
+      items.value.forEach(item => {
+        const unitPrice = item.discountType === '%'
+          ? item.price * (1 - item.discount / 100)
+          : item.price - item.discount
+        const lineTotal = unitPrice * item.quantity
+        const proportion = lineTotal / total
+        const itemDiscount = Math.round(globalDiscount.value * proportion * 100) / 100
+
+        // Appliquer la remise en € sur ce produit
+        item.discount = itemDiscount
+        item.discountType = '€'
+      })
+    }
+
+    // Réinitialiser la remise globale
+    globalDiscount.value = 0
+    globalDiscountType.value = '%'
+  }
+
   function updateVariation(
     productId: number,
     oldVariation: string,
@@ -259,7 +284,7 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscount,
     globalDiscountType,
     pendingCart,
-    
+
     // getters
     getFinalPrice: (product: ProductInCart) =>
       getFinalPrice(product, items.value, {
@@ -270,7 +295,7 @@ export const useCartStore = defineStore('cart', () => {
     totalHT: totalHtComputed,
     totalTVA: totalTvaComputed,
     itemCount,
-    
+
     // actions
     addToCart,
     removeFromCart,
@@ -278,6 +303,7 @@ export const useCartStore = defineStore('cart', () => {
     updateQuantity,
     updateDiscount,
     updateGlobalDiscount,
+    applyGlobalDiscountToItems,
     updateVariation,
     addPendingCart,
     recoverPendingCart,

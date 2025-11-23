@@ -145,6 +145,14 @@ function openClientHistory() {
           </SelectContent>
         </Select>
       </div>
+      <Button
+        variant="secondary"
+        class="w-full mt-2"
+        @click="cartStore.applyGlobalDiscountToItems()"
+        :disabled="cartStore.items.length === 0 || cartStore.globalDiscount === 0"
+      >
+        Appliquer la remise
+      </Button>
     </div>
 
     <!-- Mise en attente / Reprise -->

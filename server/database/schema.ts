@@ -100,7 +100,8 @@ export const saleItems = pgTable('sale_items', {
 
   // Quantité et prix
   quantity: integer('quantity').notNull(),
-  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).notNull(),
+  originalPrice: decimal('original_price', { precision: 10, scale: 2 }), // Prix d'origine avant remise
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).notNull(), // Prix final après remise
 
   // Remise ligne
   discount: decimal('discount', { precision: 10, scale: 2 }).default('0'),
@@ -234,7 +235,8 @@ export const products = pgTable('products', {
   id: serial('id').primaryKey(),
 
   name: varchar('name', { length: 255 }).notNull(),
-  barcode: varchar('barcode', { length: 50 }),
+  barcode: varchar('barcode', { length: 50 }), // Code-barres pour produit simple
+  barcodeByVariation: jsonb('barcode_by_variation'), // { "variation_id": "barcode" }
 
   // Catégorie
   categoryId: integer('category_id').references(() => categories.id),
@@ -253,10 +255,12 @@ export const products = pgTable('products', {
 
   // Stock
   stock: integer('stock').default(0),
-  stockByVariation: jsonb('stock_by_variation'), // { "noir": 10, "bleu": 5 }
+  stockByVariation: jsonb('stock_by_variation'), // { "variation_id": stock_count }
+  minStock: integer('min_stock').default(5), // Stock minimum pour alerte
+  minStockByVariation: jsonb('min_stock_by_variation'), // { "variation_id": min_stock }
 
-  // Variations
-  variationGroupIds: jsonb('variation_group_ids'), // ["color", "size"]
+  // Variations - IDs des variations sélectionnées (ex: [3, 5, 7] pour Rouge, S, 0.15Ω)
+  variationGroupIds: jsonb('variation_group_ids'), // Renommé mais contient maintenant les IDs des variations, pas des groupes
 
   // Métadonnées
   image: text('image'),

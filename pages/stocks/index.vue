@@ -5,6 +5,7 @@ definePageMeta({
 
 import { ref, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 import type { Product } from '@/types'
 import {
   Table,
@@ -24,7 +25,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
@@ -37,31 +37,31 @@ import {
 import { Package, TrendingUp, AlertCircle, PackageX, History, ChevronDown, ChevronRight, Trash2 } from 'lucide-vue-next'
 
 const productsStore = useProductsStore()
+const variationGroupsStore = useVariationGroupsStore()
 
 onMounted(() => {
   productsStore.loadProducts()
+  variationGroupsStore.loadGroups()
 })
+
+// Fonction pour obtenir le nom d'une variation par son ID
+function getVariationNameById(variationId: number): string {
+  for (const group of variationGroupsStore.groups) {
+    const variation = group.variations.find(v => v.id === variationId)
+    if (variation) {
+      return variation.name
+    }
+  }
+  return `Variation ${variationId}`
+}
 
 // Computed pour obtenir les variations disponibles du produit sélectionné
 const availableVariations = computed(() => {
   if (!selectedProduct.value?.stockByVariation) return []
-  return Object.keys(selectedProduct.value.stockByVariation)
-})
-
-// Computed pour obtenir le stock actuel (global ou par variation)
-const currentStock = computed(() => {
-  if (!selectedProduct.value) return 0
-
-  if (selectedVariation.value && selectedProduct.value.stockByVariation) {
-    return selectedProduct.value.stockByVariation[selectedVariation.value] ?? 0
-  }
-
-  if (selectedProduct.value.stockByVariation) {
-    // Si pas de variation sélectionnée, afficher le total
-    return Object.values(selectedProduct.value.stockByVariation).reduce((sum, s) => sum + s, 0)
-  }
-
-  return selectedProduct.value.stock ?? 0
+  return Object.keys(selectedProduct.value.stockByVariation).map(id => ({
+    id: parseInt(id),
+    name: getVariationNameById(parseInt(id))
+  }))
 })
 
 // Filtres
@@ -84,7 +84,7 @@ const selectedProduct = ref<Product | null>(null)
 const adjustmentQuantity = ref(0)
 const adjustmentType = ref<'add' | 'set'>('add')
 const isAdjustDialogOpen = ref(false)
-const selectedVariation = ref('')
+const adjustmentsByVariation = ref<Record<string, number>>({})
 
 // Historique
 const isHistoryDialogOpen = ref(false)
@@ -136,6 +136,36 @@ async function deleteMovement(movementId: number) {
   }
 }
 
+// Compter le nombre total de variations en stock faible
+const lowStockVariationsCount = computed(() => {
+  let count = 0
+  productsStore.lowStockAlerts.forEach(alert => {
+    if (alert.variations && alert.variations.length > 0) {
+      // Si le produit a des variations, compter le nombre de variations en stock faible
+      count += alert.variations.length
+    } else {
+      // Si le produit n'a pas de variations, compter 1
+      count += 1
+    }
+  })
+  return count
+})
+
+// Compter le nombre total de variations en rupture
+const outOfStockVariationsCount = computed(() => {
+  let count = 0
+  productsStore.outOfStockAlerts.forEach(alert => {
+    if (alert.variations && alert.variations.length > 0) {
+      // Si le produit a des variations, compter le nombre de variations en rupture
+      count += alert.variations.length
+    } else {
+      // Si le produit n'a pas de variations, compter 1
+      count += 1
+    }
+  })
+  return count
+})
+
 const filteredProducts = computed(() => {
   let filtered = productsStore.products
 
@@ -166,7 +196,15 @@ function openAdjustDialog(product: Product) {
   selectedProduct.value = product
   adjustmentQuantity.value = 0
   adjustmentType.value = 'add'
-  selectedVariation.value = ''
+
+  // Initialiser les ajustements par variation à 0
+  if (product.variationGroupIds?.length && product.stockByVariation) {
+    adjustmentsByVariation.value = {}
+    Object.keys(product.stockByVariation).forEach(varId => {
+      adjustmentsByVariation.value[varId] = 0
+    })
+  }
+
   isAdjustDialogOpen.value = true
 }
 
@@ -176,26 +214,47 @@ async function applyAdjustment() {
   const product = selectedProduct.value
 
   try {
-    // Appeler l'API pour mettre à jour le stock
-    const response = await $fetch('/api/products/update-stock', {
-      method: 'POST',
-      body: {
-        productId: product.id,
-        variation: selectedVariation.value || undefined,
-        quantity: adjustmentQuantity.value,
-        adjustmentType: adjustmentType.value,
-        reason: 'inventory_adjustment',
-        userId: 1, // TODO: Récupérer l'utilisateur connecté
-      },
-    })
-
-    if (response.success) {
-      // Recharger les produits depuis la base de données
-      productsStore.loaded = false
-      await productsStore.loadProducts()
-
-      console.log('✅ Stock mis à jour:', response.stock)
+    // Si le produit a des variations, traiter chaque variation
+    if (product.variationGroupIds?.length) {
+      const promises = []
+      for (const [varId, quantity] of Object.entries(adjustmentsByVariation.value)) {
+        if (quantity !== 0) { // Ne traiter que les variations avec une quantité non nulle
+          promises.push(
+            $fetch('/api/products/update-stock', {
+              method: 'POST',
+              body: {
+                productId: product.id,
+                variation: varId,
+                quantity,
+                adjustmentType: adjustmentType.value,
+                reason: 'inventory_adjustment',
+                userId: 1,
+              },
+            })
+          )
+        }
+      }
+      await Promise.all(promises)
+    } else {
+      // Produit simple sans variation
+      await $fetch('/api/products/update-stock', {
+        method: 'POST',
+        body: {
+          productId: product.id,
+          variation: undefined,
+          quantity: adjustmentQuantity.value,
+          adjustmentType: adjustmentType.value,
+          reason: 'inventory_adjustment',
+          userId: 1,
+        },
+      })
     }
+
+    // Recharger les produits depuis la base de données
+    productsStore.loaded = false
+    await productsStore.loadProducts()
+
+    console.log('✅ Stock mis à jour')
 
     isAdjustDialogOpen.value = false
     selectedProduct.value = null
@@ -207,29 +266,55 @@ async function applyAdjustment() {
 
 function getStockBadge(product: Product) {
   let totalStock = 0
-  
+  let totalMinStock = 0
+
   if (product.stockByVariation) {
     totalStock = Object.values(product.stockByVariation).reduce((sum, s) => sum + s, 0)
+
+    // Calculer le minStock total pour les produits avec variations
+    if (product.minStockByVariation) {
+      totalMinStock = Object.values(product.minStockByVariation).reduce((sum, s) => sum + s, 0)
+    } else {
+      // Si pas de minStockByVariation, utiliser minStock du produit ou 5 par défaut
+      totalMinStock = (product.minStock ?? 5) * Object.keys(product.stockByVariation).length
+    }
   } else {
     totalStock = product.stock ?? 0
+    totalMinStock = product.minStock ?? 5
   }
 
-  if (totalStock === 0) {
-    return { variant: 'destructive' as const, label: 'Rupture' }
-  } else if (totalStock < 5) {
+  // Traiter les stocks négatifs et nuls comme des ruptures, mais afficher la quantité
+  if (totalStock <= 0) {
+    return { variant: 'destructive' as const, label: `Rupture (${totalStock})` }
+  } else if (totalStock <= totalMinStock) {
     return { variant: 'secondary' as const, label: `Stock faible (${totalStock})` }
   } else {
     return { variant: 'default' as const, label: `En stock (${totalStock})` }
   }
 }
 
+function getVariationStockBadge(product: Product, varId: string, varStock: number) {
+  const minStock = product.minStockByVariation?.[varId] ?? product.minStock ?? 5
+
+  // Traiter les stocks négatifs et nuls comme des ruptures, mais afficher la quantité
+  if (varStock <= 0) {
+    return { variant: 'destructive' as const, label: `Rupture (${varStock})` }
+  } else if (varStock <= minStock) {
+    return { variant: 'secondary' as const, label: `Stock faible (${varStock})` }
+  } else {
+    return { variant: 'default' as const, label: `${varStock}` }
+  }
+}
+
 function getProductValue(product: Product): number {
   let totalStock = 0
-  
+
   if (product.stockByVariation) {
-    totalStock = Object.values(product.stockByVariation).reduce((sum, s) => sum + s, 0)
+    // Ne compter que les stocks positifs pour la valeur
+    totalStock = Object.values(product.stockByVariation).reduce((sum, s) => sum + Math.max(0, s), 0)
   } else {
-    totalStock = product.stock ?? 0
+    // Ne compter que les stocks positifs pour la valeur
+    totalStock = Math.max(0, product.stock ?? 0)
   }
 
   return totalStock * (product.purchasePrice ?? product.price)
@@ -264,7 +349,7 @@ function getProductValue(product: Product): number {
           <AlertCircle class="w-5 h-5 text-orange-600" />
           <h3 class="text-sm font-medium">Stock faible</h3>
         </div>
-        <p class="text-2xl font-bold mt-2">{{ productsStore.lowStockAlerts.length }}</p>
+        <p class="text-2xl font-bold mt-2">{{ lowStockVariationsCount }}</p>
       </div>
 
       <!-- Rupture -->
@@ -273,7 +358,7 @@ function getProductValue(product: Product): number {
           <PackageX class="w-5 h-5 text-red-600" />
           <h3 class="text-sm font-medium">Rupture</h3>
         </div>
-        <p class="text-2xl font-bold mt-2">{{ productsStore.outOfStockAlerts.length }}</p>
+        <p class="text-2xl font-bold mt-2">{{ outOfStockVariationsCount }}</p>
       </div>
     </div>
 
@@ -333,9 +418,13 @@ function getProductValue(product: Product): number {
                   </button>
                   <div v-else class="w-6"></div>
 
-                  <img :src="product.image" :alt="product.name" class="w-10 h-10 rounded object-cover" />
+                  <NuxtLink :to="`/produits/${product.id}/edit`" class="shrink-0">
+                    <img :src="product.image || '/placeholder-product.png'" :alt="product.name" class="w-10 h-10 rounded object-cover hover:opacity-80 transition-opacity cursor-pointer" />
+                  </NuxtLink>
                   <div>
-                    <div class="font-medium">{{ product.name }}</div>
+                    <NuxtLink :to="`/produits/${product.id}/edit`" class="font-medium hover:underline">
+                      {{ product.name }}
+                    </NuxtLink>
                     <div v-if="product.variationGroupIds?.length" class="text-xs text-muted-foreground">
                       {{ Object.keys(product.stockByVariation || {}).length }} variation(s)
                     </div>
@@ -363,19 +452,19 @@ function getProductValue(product: Product): number {
             <!-- Sous-lignes pour chaque variation (affichées seulement si déployé) -->
             <TableRow
               v-if="expandedProducts.has(product.id)"
-              v-for="[varName, varStock] in Object.entries(product.stockByVariation || {})"
-              :key="`${product.id}-${varName}`"
+              v-for="[varId, varStock] in Object.entries(product.stockByVariation || {})"
+              :key="`${product.id}-${varId}`"
               class="bg-muted/30"
             >
               <TableCell class="pl-16">
-                <span class="text-sm text-muted-foreground">↳ {{ varName }}</span>
+                <span class="text-sm text-muted-foreground">↳ {{ getVariationNameById(parseInt(varId)) }}</span>
               </TableCell>
               <TableCell class="text-center">
                 <Badge
-                  :variant="varStock === 0 ? 'destructive' : (varStock < 5 ? 'secondary' : 'default')"
+                  :variant="getVariationStockBadge(product, varId, varStock).variant"
                   class="text-xs"
                 >
-                  {{ varStock === 0 ? 'Rupture' : (varStock < 5 ? `Stock faible (${varStock})` : `${varStock}`) }}
+                  {{ getVariationStockBadge(product, varId, varStock).label }}
                 </Badge>
               </TableCell>
               <TableCell></TableCell>
@@ -400,25 +489,6 @@ function getProductValue(product: Product): number {
         </DialogHeader>
 
         <div class="space-y-4 py-4">
-          <!-- Sélection variation si nécessaire -->
-          <div v-if="selectedProduct?.variationGroupIds?.length">
-            <Label>Variation</Label>
-            <Select v-model="selectedVariation">
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner une variation" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="variation in availableVariations"
-                  :key="variation"
-                  :value="variation"
-                >
-                  {{ variation }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <!-- Type d'ajustement -->
           <div>
             <Label>Type d'ajustement</Label>
@@ -433,8 +503,30 @@ function getProductValue(product: Product): number {
             </Select>
           </div>
 
-          <!-- Quantité -->
-          <div>
+          <!-- Produit avec variations : un champ par variation -->
+          <div v-if="selectedProduct?.variationGroupIds?.length" class="space-y-3">
+            <Label>Ajustements par variation</Label>
+            <div
+              v-for="variation in availableVariations"
+              :key="variation.id"
+              class="border rounded-lg p-3 space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-sm">{{ variation.name }}</span>
+                <Badge variant="outline" class="text-xs">
+                  Stock actuel: {{ selectedProduct.stockByVariation?.[variation.id.toString()] ?? 0 }}
+                </Badge>
+              </div>
+              <Input
+                v-model.number="adjustmentsByVariation[variation.id.toString()]"
+                type="number"
+                :placeholder="adjustmentType === 'add' ? 'Quantité à ajouter' : 'Nouveau stock'"
+              />
+            </div>
+          </div>
+
+          <!-- Produit simple : un seul champ -->
+          <div v-else>
             <Label>{{ adjustmentType === 'add' ? 'Quantité à ajouter' : 'Nouveau stock' }}</Label>
             <Input
               v-model.number="adjustmentQuantity"
@@ -442,18 +534,11 @@ function getProductValue(product: Product): number {
               min="0"
               placeholder="0"
             />
-          </div>
-
-          <!-- Stock actuel -->
-          <div v-if="selectedProduct" class="rounded-lg bg-muted p-3">
-            <p class="text-sm text-muted-foreground">
-              Stock actuel
-              <span v-if="selectedVariation"> ({{ selectedVariation }})</span>
-              <span v-else-if="selectedProduct.variationGroupIds?.length"> (total)</span>
-            </p>
-            <p class="text-lg font-semibold">
-              {{ currentStock }}
-            </p>
+            <!-- Stock actuel -->
+            <div v-if="selectedProduct" class="rounded-lg bg-muted p-3 mt-3">
+              <p class="text-sm text-muted-foreground">Stock actuel</p>
+              <p class="text-lg font-semibold">{{ selectedProduct.stock ?? 0 }}</p>
+            </div>
           </div>
         </div>
 
