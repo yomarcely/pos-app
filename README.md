@@ -1,75 +1,71 @@
-# Nuxt Minimal Starter
+# POS App (Nuxt 4 + PostgreSQL)
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Application de point de vente moderne construite avec Nuxt 4 et Vue 3. Elle combine une interface de caisse riche (gestion des produits, variations, stocks et alertes) et un backend PostgreSQL conforme aux contraintes NF525/RGPD décrites dans [`BACKEND_README.md`](./BACKEND_README.md).
 
-## Setup
+## 🚀 Fonctionnalités
+- Tableau de bord avec raccourcis vers la caisse, le catalogue, la synthèse et les stocks, plus des alertes en temps réel sur les ruptures ou faibles niveaux de stock.
+- Catalogue produits avec groupes de variations (taille, couleur, etc.), gestion des catégories et suivi détaillé des mouvements de stock pour l'audit.
+- Ventes chaînées et signées pour répondre aux exigences NF525 (inaltérabilité, traçabilité, archivage) et outils RGPD (consentement, anonymisation, export client) décrits dans le schéma Drizzle.
+- API REST Nuxt server routes pour les produits, catégories, fournisseurs, clients, ventes et variations.
+- Thème clair/sombre via `@nuxtjs/color-mode`, composants UI ShadCN et icônes Lucide.
 
-Make sure to install dependencies:
+## 🧰 Stack technique
+- **Nuxt 4 / Vue 3 / TypeScript** pour l'interface et le routing.
+- **Pinia** pour l'état (ex. `stores/products.ts` gère les stocks et l'historique des mouvements).
+- **Tailwind CSS 4** (plugin Vite) + **shadcn-nuxt** pour la couche UI.
+- **Drizzle ORM** + **postgres** pour la base de données (migrations générées par `drizzle-kit`).
 
+## 📦 Structure principale
+- `pages/` : vues métier (caisse, produits, stocks, synthèse, etc.).
+- `stores/` : logique d'état (produits, variations, etc.).
+- `server/api/` : routes API REST.
+- `server/database/` : schéma Drizzle et scripts de migration/seed.
+- `layouts/` : gabarits dont le layout `dashboard` utilisé sur la page d'accueil interne.
+
+## 🗄️ Configuration de la base de données
+La connexion PostgreSQL est construite à partir de `DATABASE_URL` ou, par défaut, des variables suivantes :
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=pos_app
+DB_SSL=false
+```
+
+Créez un fichier `.env` à la racine avec ces clés (ou renseignez `DATABASE_URL`).
+
+## ▶️ Mise en route locale
+1) **Installer les dépendances**
 ```bash
-# npm
-npm install
-
-# pnpm
 pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
+2) **Initialiser la base** (PostgreSQL doit être démarré)
 ```bash
-# npm
-npm run dev
+pnpm db:generate   # génère les migrations Drizzle à partir du schéma
+pnpm db:migrate    # applique les migrations
+pnpm db:seed       # optionnel : données de test
+```
 
-# pnpm
+3) **Lancer le serveur de dev**
+```bash
 pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
 ```
+L'application est disponible sur http://localhost:3000.
 
-## Production
-
-Build the application for production:
-
+## 🧪 Tests
+Les tests unitaires s'exécutent avec Vitest :
 ```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
+pnpm test
 ```
 
-Locally preview production build:
+## 🏗️ Scripts utiles
+- `pnpm build` : build de production Nuxt.
+- `pnpm preview` : prévisualisation du build.
+- `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:push` / `pnpm db:drop` : gestion des migrations.
+- `pnpm db:studio` : lance Drizzle Studio.
 
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## 🔗 Conformité et architecture backend
+Le document [`BACKEND_README.md`](./BACKEND_README.md) détaille les exigences NF525, RGPD et l'architecture hybride (local + cloud). Vous y trouverez la modélisation complète (ventes, lignes, clients, stocks, audit, synchronisation) et les recommandations de déploiement PostgreSQL.
