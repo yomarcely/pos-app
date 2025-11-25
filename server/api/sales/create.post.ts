@@ -153,164 +153,160 @@ export default defineEventHandler(async (event) => {
     const signature = generateTicketSignature(currentHash, privateKey)
 
     // ==========================================
-    // 5. ENREGISTRER LA VENTE EN BDD
+    // 5. TRANSACTION: ENREGISTRER LA VENTE + OPÉRATIONS LIÉES
     // ==========================================
 
-    const [newSale] = await db
-      .insert(sales)
-      .values({
-        ticketNumber,
-        saleDate: new Date(),
-        totalHT: body.totals.totalHT.toString(),
-        totalTVA: body.totals.totalTVA.toString(),
-        totalTTC: body.totals.totalTTC.toString(),
-        globalDiscount: body.globalDiscount.value.toString(),
-        globalDiscountType: body.globalDiscount.type,
-        sellerId: body.seller.id,
-        customerId: body.customer?.id || null,
-        payments: body.payments,
-        previousHash,
-        currentHash,
-        signature,
-        status: 'completed',
-        syncStatus: 'pending',
+    const { newSale, saleItemsData, stockUpdateLogs } = await db.transaction(async (tx) => {
+      // 5.1 Enregistrer la vente
+      const [createdSale] = await tx
+        .insert(sales)
+        .values({
+          ticketNumber,
+          saleDate: new Date(),
+          totalHT: body.totals.totalHT.toString(),
+          totalTVA: body.totals.totalTVA.toString(),
+          totalTTC: body.totals.totalTTC.toString(),
+          globalDiscount: body.globalDiscount.value.toString(),
+          globalDiscountType: body.globalDiscount.type,
+          sellerId: body.seller.id,
+          customerId: body.customer?.id || null,
+          payments: body.payments,
+          previousHash,
+          currentHash,
+          signature,
+          status: 'completed',
+          syncStatus: 'pending',
+        })
+        .returning()
+
+      // 5.2 Enregistrer les lignes de vente
+      const saleItemsData = body.items.map(item => {
+        // Le unitPrice est déjà le prix final après remise
+        const totalTTC = item.unitPrice * item.quantity
+        const totalHT = totalTTC / (1 + item.tva / 100)
+
+        return {
+          saleId: createdSale.id,
+          productId: item.productId,
+          productName: item.productName,
+          variation: item.variation || null,
+          quantity: item.quantity,
+          originalPrice: item.originalPrice?.toString() || null,
+          unitPrice: item.unitPrice.toString(),
+          discount: item.discount.toString(),
+          discountType: item.discountType,
+          tva: item.tva.toString(),
+          totalHT: totalHT.toFixed(2),
+          totalTTC: totalTTC.toFixed(2),
+        }
       })
-      .returning()
 
-    // ==========================================
-    // 6. ENREGISTRER LES LIGNES DE VENTE
-    // ==========================================
+      await tx.insert(saleItems).values(saleItemsData)
 
-    const saleItemsData = body.items.map(item => {
-      // Le unitPrice est déjà le prix final après remise
-      const totalTTC = item.unitPrice * item.quantity
-      const totalHT = totalTTC / (1 + item.tva / 100)
+      // 5.3 Mettre à jour le stock et enregistrer les mouvements
+      const stockMovementsData = []
+      const stockUpdateLogs: string[] = []
 
-      return {
-        saleId: newSale.id,
-        productId: item.productId,
-        productName: item.productName,
-        variation: item.variation || null,
-        quantity: item.quantity,
-        originalPrice: item.originalPrice?.toString() || null,
-        unitPrice: item.unitPrice.toString(),
-        discount: item.discount.toString(),
-        discountType: item.discountType,
-        tva: item.tva.toString(),
-        totalHT: totalHT.toFixed(2),
-        totalTTC: totalTTC.toFixed(2),
-      }
-    })
-
-    await db.insert(saleItems).values(saleItemsData)
-
-    // ==========================================
-    // 7. METTRE À JOUR LE STOCK ET ENREGISTRER LES MOUVEMENTS
-    // ==========================================
-
-    const stockMovementsData = []
-
-    for (const item of body.items) {
-      // Récupérer le produit pour obtenir le stock actuel
-      const [product] = await db
-        .select()
-        .from(products)
-        .where(eq(products.id, item.productId))
-        .limit(1)
-
-      if (!product) {
-        console.warn(`Produit ${item.productId} non trouvé, stock non mis à jour`)
-        continue
-      }
-
-      let oldStock = 0
-      let newStock = 0
-
-      // Mise à jour du stock selon le type (avec ou sans variation)
-      if (item.variation && product.stockByVariation) {
-        const stockByVar = product.stockByVariation as Record<string, number>
-        oldStock = stockByVar[item.variation] || 0
-        newStock = oldStock - item.quantity
-
-        // Mettre à jour le stock de la variation
-        stockByVar[item.variation] = newStock
-
-        await db
-          .update(products)
-          .set({
-            stockByVariation: stockByVar,
-            updatedAt: new Date(),
-          })
+      for (const item of body.items) {
+        // Récupérer le produit pour obtenir le stock actuel
+        const [product] = await tx
+          .select()
+          .from(products)
           .where(eq(products.id, item.productId))
-      } else {
-        oldStock = product.stock || 0
-        newStock = oldStock - item.quantity
+          .limit(1)
 
-        // Mettre à jour le stock principal
-        await db
-          .update(products)
-          .set({
-            stock: newStock,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, item.productId))
+        if (!product) {
+          console.warn(`Produit ${item.productId} non trouvé, stock non mis à jour`)
+          continue
+        }
+
+        let oldStock = 0
+        let newStock = 0
+
+        // Mise à jour du stock selon le type (avec ou sans variation)
+        if (item.variation && product.stockByVariation) {
+          const stockByVar = product.stockByVariation as Record<string, number>
+          oldStock = stockByVar[item.variation] || 0
+          newStock = oldStock - item.quantity
+
+          // Mettre à jour le stock de la variation
+          stockByVar[item.variation] = newStock
+
+          await tx
+            .update(products)
+            .set({
+              stockByVariation: stockByVar,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, item.productId))
+        } else {
+          oldStock = product.stock || 0
+          newStock = oldStock - item.quantity
+
+          // Mettre à jour le stock principal
+          await tx
+            .update(products)
+            .set({
+              stock: newStock,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, item.productId))
+        }
+
+        // Enregistrer le mouvement de stock
+        stockMovementsData.push({
+          productId: item.productId,
+          variation: item.variation || null,
+          quantity: -item.quantity, // Négatif car sortie de stock
+          oldStock,
+          newStock,
+          reason: 'sale' as const,
+          saleId: createdSale.id,
+          userId: body.seller.id,
+        })
+
+        stockUpdateLogs.push(`✅ Stock mis à jour pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''}: ${oldStock} → ${newStock}`)
       }
 
-      // Enregistrer le mouvement de stock
-      stockMovementsData.push({
-        productId: item.productId,
-        variation: item.variation || null,
-        quantity: -item.quantity, // Négatif car sortie de stock
-        oldStock,
-        newStock,
-        reason: 'sale' as const,
-        saleId: newSale.id,
+      if (stockMovementsData.length > 0) {
+        await tx.insert(stockMovements).values(stockMovementsData)
+      }
+
+      // 5.4 Log d'audit
+      await tx.insert(auditLogs).values({
         userId: body.seller.id,
+        userName: body.seller.name,
+        entityType: 'sale',
+        entityId: createdSale.id,
+        action: 'create',
+        changes: {
+          ticketNumber,
+          totalTTC: body.totals.totalTTC,
+          items: body.items.length,
+        },
+        metadata: {
+          hash: currentHash,
+          signature,
+        },
+        ipAddress: getRequestIP(event) || null,
       })
 
-      console.log(`✅ Stock mis à jour pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''}: ${oldStock} → ${newStock}`)
-    }
+      // 5.5 Ajouter à la queue de sync cloud
+      await tx.insert(syncQueue).values({
+        entityType: 'sale',
+        entityId: createdSale.id,
+        action: 'create',
+        data: {
+          sale: createdSale,
+          items: saleItemsData,
+        },
+        status: 'pending',
+      })
 
-    if (stockMovementsData.length > 0) {
-      await db.insert(stockMovements).values(stockMovementsData)
-    }
-
-    // ==========================================
-    // 8. LOG D'AUDIT
-    // ==========================================
-
-    await db.insert(auditLogs).values({
-      userId: body.seller.id,
-      userName: body.seller.name,
-      entityType: 'sale',
-      entityId: newSale.id,
-      action: 'create',
-      changes: {
-        ticketNumber,
-        totalTTC: body.totals.totalTTC,
-        items: body.items.length,
-      },
-      metadata: {
-        hash: currentHash,
-        signature,
-      },
-      ipAddress: getRequestIP(event) || null,
+      return { newSale: createdSale, saleItemsData, stockUpdateLogs }
     })
 
-    // ==========================================
-    // 9. AJOUTER À LA QUEUE DE SYNC CLOUD
-    // ==========================================
-
-    await db.insert(syncQueue).values({
-      entityType: 'sale',
-      entityId: newSale.id,
-      action: 'create',
-      data: {
-        sale: newSale,
-        items: saleItemsData,
-      },
-      status: 'pending',
-    })
+    stockUpdateLogs.forEach(log => console.log(log))
 
     // ==========================================
     // 10. RETOURNER LA RÉPONSE

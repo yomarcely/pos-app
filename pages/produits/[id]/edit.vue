@@ -382,80 +382,145 @@
       <!-- Onglet 4: Stock -->
       <TabsContent value="stock">
         <Card>
-          <CardHeader>
-            <CardTitle>Gestion du stock</CardTitle>
-            <CardDescription>Consultez le stock actuel et modifiez le seuil d'alerte</CardDescription>
+          <CardHeader class="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Gestion du stock</CardTitle>
+              <CardDescription>Ajustez le stock et consultez l'historique</CardDescription>
+            </div>
+            <Button variant="outline" @click="openStockHistory">
+              <History class="w-4 h-4 mr-2" />
+              Historique
+            </Button>
           </CardHeader>
           <CardContent class="space-y-6">
             <div v-if="!form.hasVariations">
-              <!-- Stock simple (lecture seule) -->
-              <div class="space-y-2">
-                <Label for="current-stock">Stock actuel</Label>
-                <Input
-                  id="current-stock"
-                  :model-value="form.stock"
-                  type="number"
-                  disabled
-                  class="bg-muted"
-                />
-                <p class="text-xs text-muted-foreground">
-                  Le stock ne peut être modifié que depuis la page de gestion des stocks
-                </p>
-              </div>
+              <!-- Stock simple avec ajustement -->
+              <div class="space-y-4">
+                <!-- Affichage stock actuel et valeur -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label class="text-lg">Stock actuel</Label>
+                    <p class="text-3xl font-bold mt-2">{{ form.stock || 0 }}</p>
+                  </div>
+                  <div>
+                    <Label class="text-lg">Valeur stock</Label>
+                    <p class="text-3xl font-bold mt-2">
+                      {{ ((form.stock || 0) * (parseFloat(form.purchasePrice as string) || parseFloat(form.priceTTC as string) || 0)).toFixed(2) }} €
+                    </p>
+                  </div>
+                </div>
 
-              <!-- Stock minimum (modifiable) -->
-              <div class="space-y-2">
-                <Label for="min-stock-edit">Stock minimum (alerte)</Label>
-                <Input
-                  id="min-stock-edit"
-                  v-model.number="form.minStock"
-                  type="number"
-                  min="0"
-                  placeholder="5"
-                />
-                <p class="text-xs text-muted-foreground">
-                  Vous serez alerté lorsque le stock descendra en dessous de ce seuil
-                </p>
+                <!-- Type d'ajustement -->
+                <div class="space-y-2">
+                  <Label>Type d'ajustement</Label>
+                  <select
+                    v-model="stockAdjustmentType"
+                    class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="add">Ajouter au stock</option>
+                    <option value="remove">Retirer du stock</option>
+                    <option value="set">Définir le stock</option>
+                  </select>
+                </div>
+
+                <!-- Quantité -->
+                <div class="space-y-2">
+                  <Label for="stock-adjustment">
+                    {{ stockAdjustmentType === 'set' ? 'Nouveau stock' : 'Quantité' }}
+                  </Label>
+                  <Input
+                    id="stock-adjustment"
+                    v-model.number="stockAdjustmentQuantity"
+                    type="number"
+                    :min="stockAdjustmentType === 'remove' ? 1 : 0"
+                    placeholder="0"
+                  />
+                </div>
+
+                <!-- Stock minimum -->
+                <div class="space-y-2">
+                  <Label for="min-stock-edit">Stock minimum (alerte)</Label>
+                  <Input
+                    id="min-stock-edit"
+                    v-model.number="form.minStock"
+                    type="number"
+                    min="0"
+                    placeholder="5"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Vous serez alerté lorsque le stock descendra en dessous de ce seuil
+                  </p>
+                </div>
+
+                <Button @click="applyStockAdjustment" class="w-full">
+                  Appliquer l'ajustement
+                </Button>
               </div>
             </div>
 
             <div v-else>
-              <!-- Stock par variation (lecture seule) -->
+              <!-- Stock par variation avec ajustements -->
               <div v-if="selectedVariationsList.length === 0" class="text-center py-8 text-muted-foreground">
                 <Info class="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Aucune variation sélectionnée.</p>
                 <p class="text-sm">Sélectionnez des variations dans l'onglet "Variations".</p>
               </div>
 
-              <div v-else class="space-y-4">
-                <p class="text-sm text-muted-foreground">
-                  Consultez le stock actuel et modifiez le seuil d'alerte pour chaque variation
-                </p>
-                <div v-for="variation in selectedVariationsList" :key="variation.id" class="border rounded-lg p-4 space-y-3">
-                  <h4 class="font-medium">{{ variation.name }}</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                      <Label :for="`stock-${variation.id}`">Stock actuel</Label>
+              <div v-else class="space-y-6">
+                <!-- Type d'ajustement global -->
+                <div class="space-y-2">
+                  <Label>Type d'ajustement</Label>
+                  <select
+                    v-model="stockAdjustmentType"
+                    class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="add">Ajouter au stock</option>
+                    <option value="remove">Retirer du stock</option>
+                    <option value="set">Définir le stock</option>
+                  </select>
+                </div>
+
+                <!-- Grille des variations -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div
+                    v-for="variation in selectedVariationsList"
+                    :key="variation.id"
+                    class="border rounded-lg p-4 space-y-3"
+                  >
+                    <div class="font-medium text-center">{{ variation.name }}</div>
+                    <div class="text-center">
+                      <Label class="text-xs text-muted-foreground">Stock actuel</Label>
+                      <p class="text-2xl font-bold">
+                        {{ form.stockByVariation?.[variation.id.toString()] || 0 }}
+                      </p>
+                    </div>
+                    <div>
+                      <Label class="text-xs">
+                        {{ stockAdjustmentType === 'set' ? 'Nouveau stock' : 'Quantité' }}
+                      </Label>
                       <Input
-                        :id="`stock-${variation.id}`"
-                        :model-value="form.stockByVariation[variation.id.toString()] || 0"
+                        v-model.number="variationAdjustments[variation.id.toString()]"
                         type="number"
-                        disabled
-                        class="bg-muted"
+                        placeholder="0"
+                        class="mt-1 text-center"
                       />
                     </div>
-                    <div class="space-y-2">
-                      <Label :for="`min-stock-edit-${variation.id}`">Stock minimum</Label>
+                    <div>
+                      <Label class="text-xs">Stock minimum</Label>
                       <Input
-                        :id="`min-stock-edit-${variation.id}`"
                         v-model.number="form.minStockByVariation[variation.id]"
                         type="number"
                         min="0"
                         placeholder="5"
+                        class="mt-1 text-center"
                       />
                     </div>
                   </div>
                 </div>
+
+                <Button @click="applyVariationStockAdjustments" class="w-full">
+                  Appliquer les ajustements
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -617,6 +682,253 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Dialog Historique des stocks -->
+    <Dialog v-model:open="showStockHistoryDialog">
+      <DialogContent class="max-w-6xl max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle>Historique des mouvements de stock</DialogTitle>
+          <DialogDescription>
+            Consultez tous les mouvements de stock pour ce produit
+          </DialogDescription>
+        </DialogHeader>
+
+        <!-- Filtres et toggle vue -->
+        <div class="flex flex-col md:flex-row gap-4 py-4">
+          <!-- Toggle vue Chronologique / Catégorie -->
+          <div class="flex gap-2">
+            <Button
+              :variant="historyViewMode === 'chronological' ? 'default' : 'outline'"
+              @click="historyViewMode = 'chronological'"
+            >
+              Chronologique
+            </Button>
+            <Button
+              :variant="historyViewMode === 'category' ? 'default' : 'outline'"
+              @click="historyViewMode = 'category'"
+            >
+              Par catégorie
+            </Button>
+          </div>
+
+          <!-- Filtre par variation (si produit avec variations) -->
+          <div v-if="form.hasVariations && selectedVariationsList.length > 0" class="flex-1">
+            <select
+              v-model="selectedHistoryVariation"
+              class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+            >
+              <option value="">Toutes les variations</option>
+              <option
+                v-for="variation in selectedVariationsList"
+                :key="variation.id"
+                :value="variation.id.toString()"
+              >
+                {{ variation.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Vue Chronologique -->
+        <div v-if="historyViewMode === 'chronological'" class="max-h-[500px] overflow-y-auto">
+          <div v-if="filteredStockHistory.length === 0" class="text-center py-8 text-muted-foreground">
+            <Package class="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Aucun mouvement de stock{{ selectedHistoryVariation ? ' pour cette variation' : ' pour ce produit' }}</p>
+          </div>
+
+          <table v-else class="w-full">
+            <thead class="bg-muted/50 sticky top-0">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                <th class="px-4 py-2 text-left text-xs font-medium">Type</th>
+                <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                <th class="px-4 py-2 text-right text-xs font-medium">Stock avant</th>
+                <th class="px-4 py-2 text-right text-xs font-medium">Stock après</th>
+                <th class="px-4 py-2 text-left text-xs font-medium">Référence</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <tr v-for="movement in filteredStockHistory" :key="movement.id" class="hover:bg-muted/30">
+                <td class="px-4 py-2 text-sm">{{ formatDate(movement.createdAt) }}</td>
+                <td class="px-4 py-2 text-sm">
+                  <Badge :variant="getReasonVariant(movement.reason)">
+                    {{ getReasonLabel(movement.reason) }}
+                  </Badge>
+                </td>
+                <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(movement.variation) }}</td>
+                <td class="px-4 py-2 text-sm text-right font-medium" :class="movement.quantity > 0 ? 'text-green-600' : 'text-red-600'">
+                  {{ movement.quantity > 0 ? '+' : '' }}{{ movement.quantity }}
+                </td>
+                <td class="px-4 py-2 text-sm text-right">{{ movement.previousStock ?? movement.oldStock ?? '-' }}</td>
+                <td class="px-4 py-2 text-sm text-right font-medium">{{ movement.newStock }}</td>
+                <td class="px-4 py-2 text-sm text-muted-foreground">
+                  {{ getMovementReference(movement) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Vue par Catégorie -->
+        <div v-else class="max-h-[500px] overflow-y-auto space-y-6">
+          <div v-if="filteredStockHistory.length === 0" class="text-center py-8 text-muted-foreground">
+            <Package class="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Aucun mouvement de stock{{ selectedHistoryVariation ? ' pour cette variation' : ' pour ce produit' }}</p>
+          </div>
+
+          <div v-else>
+            <!-- Ventes -->
+            <div v-if="movementsByCategory.sales.length > 0" class="space-y-3">
+              <h3 class="font-semibold text-lg flex items-center gap-2">
+                Ventes
+                <Badge variant="secondary">{{ movementsByCategory.sales.length }}</Badge>
+              </h3>
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                      <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Référence</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <tr v-for="m in movementsByCategory.sales" :key="m.id">
+                      <td class="px-4 py-2 text-sm">{{ formatDate(m.createdAt) }}</td>
+                      <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(m.variation) }}</td>
+                      <td class="px-4 py-2 text-sm text-right text-red-600 font-medium">{{ m.quantity }}</td>
+                      <td class="px-4 py-2 text-sm">{{ getMovementReference(m) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Réceptions fournisseurs -->
+            <div v-if="movementsByCategory.receipts.length > 0" class="space-y-3">
+              <h3 class="font-semibold text-lg flex items-center gap-2">
+                Réceptions fournisseurs
+                <Badge variant="secondary">{{ movementsByCategory.receipts.length }}</Badge>
+              </h3>
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                      <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Référence</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <tr v-for="m in movementsByCategory.receipts" :key="m.id">
+                      <td class="px-4 py-2 text-sm">{{ formatDate(m.createdAt) }}</td>
+                      <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(m.variation) }}</td>
+                      <td class="px-4 py-2 text-sm text-right text-green-600 font-medium">+{{ m.quantity }}</td>
+                      <td class="px-4 py-2 text-sm">{{ getMovementReference(m) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Ajustements -->
+            <div v-if="movementsByCategory.adjustments.length > 0" class="space-y-3">
+              <h3 class="font-semibold text-lg flex items-center gap-2">
+                Ajustements
+                <Badge variant="secondary">{{ movementsByCategory.adjustments.length }}</Badge>
+              </h3>
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                      <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Stock avant</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Stock après</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <tr v-for="m in movementsByCategory.adjustments" :key="m.id">
+                      <td class="px-4 py-2 text-sm">{{ formatDate(m.createdAt) }}</td>
+                      <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(m.variation) }}</td>
+                      <td class="px-4 py-2 text-sm text-right font-medium" :class="m.quantity > 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
+                      </td>
+                      <td class="px-4 py-2 text-sm text-right">{{ m.previousStock ?? m.oldStock ?? '-' }}</td>
+                      <td class="px-4 py-2 text-sm text-right font-medium">{{ m.newStock }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Entrées/Sorties -->
+            <div v-if="movementsByCategory.entries.length > 0" class="space-y-3">
+              <h3 class="font-semibold text-lg flex items-center gap-2">
+                Entrées / Sorties
+                <Badge variant="secondary">{{ movementsByCategory.entries.length }}</Badge>
+              </h3>
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                      <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Stock avant</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Stock après</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <tr v-for="m in movementsByCategory.entries" :key="m.id">
+                      <td class="px-4 py-2 text-sm">{{ formatDate(m.createdAt) }}</td>
+                      <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(m.variation) }}</td>
+                      <td class="px-4 py-2 text-sm text-right font-medium" :class="m.quantity > 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
+                      </td>
+                      <td class="px-4 py-2 text-sm text-right">{{ m.previousStock ?? m.oldStock ?? '-' }}</td>
+                      <td class="px-4 py-2 text-sm text-right font-medium">{{ m.newStock }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pertes -->
+            <div v-if="movementsByCategory.losses.length > 0" class="space-y-3">
+              <h3 class="font-semibold text-lg flex items-center gap-2">
+                Pertes
+                <Badge variant="secondary">{{ movementsByCategory.losses.length }}</Badge>
+              </h3>
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium">Date</th>
+                      <th v-if="!selectedHistoryVariation" class="px-4 py-2 text-left text-xs font-medium">Variation</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Quantité</th>
+                      <th class="px-4 py-2 text-right text-xs font-medium">Stock après</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <tr v-for="m in movementsByCategory.losses" :key="m.id">
+                      <td class="px-4 py-2 text-sm">{{ formatDate(m.createdAt) }}</td>
+                      <td v-if="!selectedHistoryVariation" class="px-4 py-2 text-sm">{{ getVariationName(m.variation) }}</td>
+                      <td class="px-4 py-2 text-sm text-right text-red-600 font-medium">{{ m.quantity }}</td>
+                      <td class="px-4 py-2 text-sm text-right font-medium">{{ m.newStock }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -625,7 +937,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { X, Save, Upload, ImageIcon, Trash2, Info, Layers, Plus, ArrowLeft } from 'lucide-vue-next'
+import { X, Save, Upload, ImageIcon, Trash2, Info, Layers, Plus, ArrowLeft, History, Package } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -676,6 +988,24 @@ interface Brand {
   name: string
 }
 
+interface StockMovement {
+  id: number
+  productId: number
+  variation?: string
+  quantity: number
+  previousStock?: number
+  oldStock?: number
+  newStock: number
+  reason: string
+  userId: number
+  createdAt: string
+  saleId?: number
+  receiptNumber?: string
+  movementId?: number
+  movementNumber?: string
+  movementComment?: string
+}
+
 // State
 const categories = ref<Category[]>([])
 const variationGroups = ref<VariationGroup[]>([])
@@ -692,6 +1022,13 @@ const showAddSupplierDialog = ref(false)
 const newSupplierName = ref('')
 const showAddBrandDialog = ref(false)
 const newBrandName = ref('')
+const showStockHistoryDialog = ref(false)
+const historyViewMode = ref<'chronological' | 'category'>('chronological')
+const stockHistory = ref<StockMovement[]>([])
+const selectedHistoryVariation = ref<string>('')
+const stockAdjustmentType = ref<'add' | 'remove' | 'set'>('add')
+const stockAdjustmentQuantity = ref<number>(0)
+const variationAdjustments = ref<Record<string, number>>({})
 
 const form = ref({
   name: '',
@@ -730,6 +1067,203 @@ const selectedGroup = computed(() => {
 
 // State pour gérer l'état des checkboxes individuellement
 const variationCheckedState = reactive<Record<number, boolean>>({})
+
+// Computed pour filtrer l'historique selon la variation sélectionnée
+const filteredStockHistory = computed(() => {
+  if (!selectedHistoryVariation.value) {
+    return stockHistory.value
+  }
+  return stockHistory.value.filter(m => m.variation === selectedHistoryVariation.value)
+})
+
+// Computed pour grouper les mouvements par catégorie
+const movementsByCategory = computed(() => {
+  const categories = {
+    sales: [] as StockMovement[],
+    receipts: [] as StockMovement[],
+    adjustments: [] as StockMovement[],
+    entries: [] as StockMovement[],
+    losses: [] as StockMovement[],
+  }
+
+  filteredStockHistory.value.forEach(movement => {
+    switch (movement.reason) {
+      case 'sale':
+        categories.sales.push(movement)
+        break
+      case 'reception':
+        categories.receipts.push(movement)
+        break
+      case 'inventory_adjustment':
+        categories.adjustments.push(movement)
+        break
+      case 'entry':
+      case 'exit':
+        categories.entries.push(movement)
+        break
+      case 'loss':
+        categories.losses.push(movement)
+        break
+    }
+  })
+
+  return categories
+})
+
+// Fonctions helper pour l'historique
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function getReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    sale: 'Vente',
+    reception: 'Réception',
+    inventory_adjustment: 'Ajustement',
+    adjustment: 'Ajustement',
+    entry: 'Entrée',
+    exit: 'Sortie',
+    loss: 'Perte',
+  }
+  return labels[reason] || reason
+}
+
+function getReasonVariant(reason: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+    sale: 'destructive',
+    reception: 'default',
+    inventory_adjustment: 'secondary',
+    adjustment: 'secondary',
+    entry: 'default',
+    exit: 'destructive',
+    loss: 'destructive',
+  }
+  return variants[reason] || 'outline'
+}
+
+function getVariationName(variation?: string): string {
+  if (!variation) return '-'
+
+  for (const group of variationGroups.value) {
+    const foundVariation = group.variations.find(v => v.id.toString() === variation)
+    if (foundVariation) {
+      return foundVariation.name
+    }
+  }
+  return variation
+}
+
+function getMovementReference(movement: StockMovement): string {
+  if (movement.saleId) {
+    return `Vente #${movement.saleId}`
+  }
+  if (movement.movementNumber) {
+    return movement.movementNumber
+  }
+  if (movement.receiptNumber) {
+    return `Réception ${movement.receiptNumber}`
+  }
+  return `Mouvement #${movement.id}`
+}
+
+// Fonction pour ouvrir l'historique
+async function openStockHistory() {
+  showStockHistoryDialog.value = true
+  selectedHistoryVariation.value = '' // Réinitialiser le filtre
+
+  try {
+    const response = await $fetch(`/api/products/${productId.value}/stock-history`) as any
+    stockHistory.value = response.movements || []
+  } catch (error) {
+    console.error('Erreur lors du chargement de l\'historique:', error)
+    toast.error('Erreur lors du chargement de l\'historique')
+  }
+}
+
+// Fonction pour appliquer l'ajustement de stock simple
+async function applyStockAdjustment() {
+  if (!stockAdjustmentQuantity.value || stockAdjustmentQuantity.value === 0) {
+    toast.error('Veuillez entrer une quantité')
+    return
+  }
+
+  try {
+    const response = await $fetch('/api/movements/create', {
+      method: 'POST',
+      body: {
+        type: 'adjustment',
+        comment: 'Ajustement depuis la fiche produit',
+        userId: 1,
+        items: [{
+          productId: parseInt(productId.value),
+          quantity: stockAdjustmentQuantity.value,
+          adjustmentType: stockAdjustmentType.value,
+        }],
+      },
+    }) as any
+
+    toast.success(`Mouvement ${response.movement.movementNumber} créé avec succès`)
+
+    // Recharger le produit pour obtenir le stock mis à jour
+    await loadProduct()
+
+    // Réinitialiser le formulaire
+    stockAdjustmentQuantity.value = 0
+  } catch (error: any) {
+    console.error('Erreur lors de l\'ajustement du stock:', error)
+    toast.error(error.data?.message || 'Erreur lors de l\'ajustement du stock')
+  }
+}
+
+// Fonction pour appliquer les ajustements de stock par variation
+async function applyVariationStockAdjustments() {
+  const adjustmentsToApply = Object.entries(variationAdjustments.value).filter(
+    ([, quantity]) => quantity && quantity !== 0
+  )
+
+  if (adjustmentsToApply.length === 0) {
+    toast.error('Aucun ajustement à appliquer')
+    return
+  }
+
+  try {
+    // Créer un mouvement groupé avec tous les ajustements
+    const items = adjustmentsToApply.map(([variationId, quantity]) => ({
+      productId: parseInt(productId.value),
+      variation: variationId,
+      quantity: quantity,
+      adjustmentType: stockAdjustmentType.value,
+    }))
+
+    const response = await $fetch('/api/movements/create', {
+      method: 'POST',
+      body: {
+        type: 'adjustment',
+        comment: 'Ajustement depuis la fiche produit',
+        userId: 1,
+        items,
+      },
+    }) as any
+
+    toast.success(`Mouvement ${response.movement.movementNumber} créé avec succès`)
+
+    // Recharger le produit pour obtenir le stock mis à jour
+    await loadProduct()
+
+    // Réinitialiser les ajustements
+    variationAdjustments.value = {}
+  } catch (error: any) {
+    console.error('Erreur lors de l\'ajustement du stock:', error)
+    toast.error(error.data?.message || 'Erreur lors de l\'ajustement du stock')
+  }
+}
 
 // Fonction pour calculer le prix TTC depuis prix d'achat et coefficient
 function updatePriceFromPurchaseAndCoef() {
@@ -879,7 +1413,7 @@ async function saveNewSupplier() {
   if (!newSupplierName.value.trim()) return
 
   try {
-    const newSupplier = await $fetch('/api/suppliers/create', {
+    const newSupplier = await $fetch<Supplier>('/api/suppliers/create', {
       method: 'POST',
       body: {
         name: newSupplierName.value.trim(),
@@ -894,7 +1428,9 @@ async function saveNewSupplier() {
     await loadSuppliers()
 
     // Sélectionner automatiquement le nouveau fournisseur
-    form.value.supplierId = newSupplier.id.toString()
+    if (newSupplier) {
+      form.value.supplierId = newSupplier.id.toString()
+    }
   } catch (error: any) {
     console.error('Erreur lors de la création du fournisseur:', error)
     toast.error(error.data?.message || 'Erreur lors de la création du fournisseur')
@@ -911,7 +1447,7 @@ async function saveNewBrand() {
   if (!newBrandName.value.trim()) return
 
   try {
-    const newBrand = await $fetch('/api/brands/create', {
+    const newBrand = await $fetch<Brand>('/api/brands/create', {
       method: 'POST',
       body: {
         name: newBrandName.value.trim(),
@@ -926,7 +1462,9 @@ async function saveNewBrand() {
     await loadBrands()
 
     // Sélectionner automatiquement la nouvelle marque
-    form.value.brandId = newBrand.id.toString()
+    if (newBrand) {
+      form.value.brandId = newBrand.id.toString()
+    }
   } catch (error: any) {
     console.error('Erreur lors de la création de la marque:', error)
     toast.error(error.data?.message || 'Erreur lors de la création de la marque')
@@ -993,8 +1531,9 @@ async function loadProduct() {
     form.value.barcodeByVariation = product.barcodeByVariation || {}
     form.value.stock = product.stock || 0
     form.value.minStock = product.minStock || 5
-    form.value.stockByVariation = product.stockByVariation || {}
-    form.value.minStockByVariation = product.minStockByVariation || {}
+    // Forcer la réactivité en créant un nouvel objet
+    form.value.stockByVariation = { ...(product.stockByVariation || {}) }
+    form.value.minStockByVariation = { ...(product.minStockByVariation || {}) }
 
     // Calculer le coefficient si on a prix d'achat et prix TTC
     if (product.purchasePrice && product.price) {

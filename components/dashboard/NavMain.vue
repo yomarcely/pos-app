@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
   Collapsible,
   CollapsibleContent,
@@ -8,7 +9,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -16,7 +16,8 @@ import {
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
 import { ChevronRight, type LucideIcon } from 'lucide-vue-next'
-defineProps<{
+
+const props = defineProps<{
   items: {
     title: string
     url: string
@@ -28,38 +29,53 @@ defineProps<{
     }[]
   }[]
 }>()
+
+// Créer un ref pour suivre l'état ouvert/fermé de chaque menu
+const openStates = ref<Record<string, boolean>>(
+  props.items.reduce((acc, item) => {
+    acc[item.title] = item.isActive || false
+    return acc
+  }, {} as Record<string, boolean>)
+)
 </script>
 <template>
   <SidebarGroup>
     <SidebarGroupLabel>Platform</SidebarGroupLabel>
     <SidebarMenu>
-      <Collapsible v-for="item in items" :key="item.title" as-child :default-open="item.isActive">
+      <Collapsible
+        v-for="item in items"
+        :key="item.title"
+        v-model:open="openStates[item.title]"
+        class="group/collapsible"
+      >
         <SidebarMenuItem>
-          <SidebarMenuButton as-child :tooltip="item.title">
+          <CollapsibleTrigger v-if="item.items?.length" as-child>
+            <SidebarMenuButton :tooltip="item.title">
+              <component :is="item.icon" />
+              <span>{{ item.title }}</span>
+              <ChevronRight
+                class="ml-auto transition-transform duration-200"
+                :class="{ 'rotate-90': openStates[item.title] }"
+              />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <SidebarMenuButton v-else as-child :tooltip="item.title">
             <a :href="item.url">
               <component :is="item.icon" />
               <span>{{ item.title }}</span>
             </a>
           </SidebarMenuButton>
-          <template v-if="item.items?.length">
-            <CollapsibleTrigger as-child>
-              <SidebarMenuAction class="data-[state=open]:rotate-90">
-                <ChevronRight />
-                <span class="sr-only">Toggle</span>
-              </SidebarMenuAction>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
-                  <SidebarMenuSubButton as-child>
-                    <a :href="subItem.url">
-                      <span>{{ subItem.title }}</span>
-                    </a>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </template>
+          <CollapsibleContent v-if="item.items?.length">
+            <SidebarMenuSub>
+              <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
+                <SidebarMenuSubButton as-child>
+                  <a :href="subItem.url">
+                    <span>{{ subItem.title }}</span>
+                  </a>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            </SidebarMenuSub>
+          </CollapsibleContent>
         </SidebarMenuItem>
       </Collapsible>
     </SidebarMenu>

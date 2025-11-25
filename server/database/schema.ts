@@ -338,8 +338,36 @@ export const sellers = pgTable('sellers', {
 // ==========================================
 // 11. MOUVEMENTS DE STOCK (AUDIT)
 // ==========================================
+
+// Table principale des mouvements (opérations groupées)
+export const movements = pgTable('movements', {
+  id: serial('id').primaryKey(),
+
+  // Numéro du mouvement (ex: REC-001, ADJ-001, LOSS-001)
+  movementNumber: varchar('movement_number', { length: 50 }).notNull().unique(),
+
+  // Type de mouvement
+  type: varchar('type', { length: 50 }).notNull(), // reception, adjustment, loss, transfer
+
+  // Commentaire/motif optionnel
+  comment: text('comment'),
+
+  // Utilisateur
+  userId: integer('user_id'), // Futur : références vers table users
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  typeIdx: index('movements_type_idx').on(table.type),
+  createdAtIdx: index('movements_created_at_idx').on(table.createdAt),
+  movementNumberIdx: index('movements_movement_number_idx').on(table.movementNumber),
+}))
+
+// Lignes de détail des mouvements de stock (par produit/variation)
 export const stockMovements = pgTable('stock_movements', {
   id: serial('id').primaryKey(),
+
+  // Référence vers le mouvement parent
+  movementId: integer('movement_id').references(() => movements.id, { onDelete: 'cascade' }),
 
   productId: integer('product_id').notNull().references(() => products.id),
   variation: varchar('variation', { length: 100 }),
@@ -359,6 +387,7 @@ export const stockMovements = pgTable('stock_movements', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   productIdIdx: index('stock_movements_product_id_idx').on(table.productId),
+  movementIdIdx: index('stock_movements_movement_id_idx').on(table.movementId),
   reasonIdx: index('stock_movements_reason_idx').on(table.reason),
   createdAtIdx: index('stock_movements_created_at_idx').on(table.createdAt),
 }))

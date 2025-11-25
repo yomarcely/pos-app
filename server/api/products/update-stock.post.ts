@@ -42,121 +42,133 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    if (body.quantity < 0) {
+    // Permettre les quantités négatives en mode 'add' pour retirer du stock
+    // En mode 'set', accepter toute valeur (même 0 ou négative) pour définir le stock
+    if (body.adjustmentType === 'set' && body.quantity < 0) {
       throw createError({
         statusCode: 400,
-        message: 'La quantité ne peut pas être négative',
+        message: 'Le stock ne peut pas être défini à une valeur négative',
       })
     }
 
-    // Récupérer le produit
-    const [product] = await db
-      .select()
-      .from(products)
-      .where(eq(products.id, body.productId))
-      .limit(1)
+    const transactionResult = await db.transaction(async (tx) => {
+      // Récupérer le produit
+      const [product] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, body.productId))
+        .limit(1)
 
-    if (!product) {
-      throw createError({
-        statusCode: 404,
-        message: 'Produit non trouvé',
-      })
-    }
-
-    let oldStock = 0
-    let newStock = 0
-    let quantityDelta = 0
-
-    // Mise à jour du stock selon le type (avec ou sans variation)
-    if (body.variation && product.stockByVariation) {
-      const stockByVar = product.stockByVariation as Record<string, number>
-      oldStock = stockByVar[body.variation] || 0
-
-      if (body.adjustmentType === 'add') {
-        newStock = oldStock + body.quantity
-        quantityDelta = body.quantity
-      } else {
-        newStock = body.quantity
-        quantityDelta = body.quantity - oldStock
+      if (!product) {
+        throw createError({
+          statusCode: 404,
+          message: 'Produit non trouvé',
+        })
       }
 
-      // Mettre à jour le stock de la variation
-      stockByVar[body.variation] = newStock
+      let oldStock = 0
+      let newStock = 0
+      let quantityDelta = 0
 
-      await db
-        .update(products)
-        .set({
-          stockByVariation: stockByVar,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, body.productId))
-    } else {
-      oldStock = product.stock || 0
+      // Mise à jour du stock selon le type (avec ou sans variation)
+      if (body.variation && product.stockByVariation) {
+        const stockByVar = product.stockByVariation as Record<string, number>
+        oldStock = stockByVar[body.variation] || 0
 
-      if (body.adjustmentType === 'add') {
-        newStock = oldStock + body.quantity
-        quantityDelta = body.quantity
+        if (body.adjustmentType === 'add') {
+          newStock = oldStock + body.quantity
+          quantityDelta = body.quantity
+        } else {
+          newStock = body.quantity
+          quantityDelta = body.quantity - oldStock
+        }
+
+        // Mettre à jour le stock de la variation
+        stockByVar[body.variation] = newStock
+
+        await tx
+          .update(products)
+          .set({
+            stockByVariation: stockByVar,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, body.productId))
       } else {
-        newStock = body.quantity
-        quantityDelta = body.quantity - oldStock
+        oldStock = product.stock || 0
+
+        if (body.adjustmentType === 'add') {
+          newStock = oldStock + body.quantity
+          quantityDelta = body.quantity
+        } else {
+          newStock = body.quantity
+          quantityDelta = body.quantity - oldStock
+        }
+
+        // Mettre à jour le stock principal
+        await tx
+          .update(products)
+          .set({
+            stock: newStock,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, body.productId))
       }
 
-      // Mettre à jour le stock principal
-      await db
-        .update(products)
-        .set({
-          stock: newStock,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, body.productId))
-    }
-
-    // Enregistrer le mouvement de stock
-    const [movement] = await db.insert(stockMovements).values({
-      productId: body.productId,
-      variation: body.variation || null,
-      quantity: quantityDelta,
-      oldStock,
-      newStock,
-      reason: body.reason,
-      userId: body.userId || null,
-    }).returning()
-
-    console.log(`✅ Stock mis à jour pour produit ${body.productId}${body.variation ? ` (${body.variation})` : ''}: ${oldStock} → ${newStock}`)
-
-    // Enregistrer la création de l'ajustement dans l'audit log (NF525)
-    await db.insert(auditLogs).values({
-      userId: body.userId || null,
-      userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
-      entityType: 'stock_movement',
-      entityId: movement.id,
-      action: 'create',
-      changes: {
+      // Enregistrer le mouvement de stock
+      const [movement] = await tx.insert(stockMovements).values({
         productId: body.productId,
-        productName: product.name,
         variation: body.variation || null,
         quantity: quantityDelta,
-        adjustmentType: body.adjustmentType,
-        reason: body.reason,
-      },
-      metadata: {
         oldStock,
         newStock,
-        quantityInput: body.quantity,
-      },
-      ipAddress: getRequestIP(event) || null,
+        reason: body.reason,
+        userId: body.userId || null,
+      }).returning()
+
+      // Enregistrer la création de l'ajustement dans l'audit log (NF525)
+      await tx.insert(auditLogs).values({
+        userId: body.userId || null,
+        userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
+        entityType: 'stock_movement',
+        entityId: movement.id,
+        action: 'create',
+        changes: {
+          productId: body.productId,
+          productName: product.name,
+          variation: body.variation || null,
+          quantity: quantityDelta,
+          adjustmentType: body.adjustmentType,
+          reason: body.reason,
+        },
+        metadata: {
+          oldStock,
+          newStock,
+          quantityInput: body.quantity,
+        },
+        ipAddress: getRequestIP(event) || null,
+      })
+
+      return {
+        oldStock,
+        newStock,
+        quantityDelta,
+        movementId: movement.id,
+      }
     })
 
-    console.log(`📝 Ajustement enregistré dans l'audit log (mouvement ${movement.id})`)
+    console.log(`✅ Stock mis à jour pour produit ${body.productId}${body.variation ? ` (${body.variation})` : ''}: ${transactionResult.oldStock} → ${transactionResult.newStock}`)
+
+    // Enregistrer la création de l'ajustement dans l'audit log (NF525)
+    console.log(`📝 Ajustement enregistré dans l'audit log (mouvement ${transactionResult.movementId})`)
 
     return {
       success: true,
       stock: {
         productId: body.productId,
         variation: body.variation,
-        oldStock,
-        newStock,
-        delta: quantityDelta,
+        oldStock: transactionResult.oldStock,
+        newStock: transactionResult.newStock,
+        delta: transactionResult.quantityDelta,
       },
     }
   } catch (error) {

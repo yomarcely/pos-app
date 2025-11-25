@@ -364,15 +364,18 @@ export const useProductsStore = defineStore('products', () => {
 
   /**
    * Valeur totale du stock
+   * Ne compte que les stocks positifs pour ne pas avoir de valeur négative
    */
   const totalStockValue = computed(() => {
     return products.value.reduce((total, p) => {
       let productStock = 0
-      
+
       if (p.stockByVariation) {
-        productStock = Object.values(p.stockByVariation).reduce((sum, s) => sum + s, 0)
+        // Ne compter que les stocks positifs pour la valeur
+        productStock = Object.values(p.stockByVariation).reduce((sum, s) => sum + Math.max(0, s), 0)
       } else {
-        productStock = p.stock ?? 0
+        // Ne compter que les stocks positifs pour la valeur
+        productStock = Math.max(0, p.stock ?? 0)
       }
 
       return total + (productStock * (p.purchasePrice ?? p.price))

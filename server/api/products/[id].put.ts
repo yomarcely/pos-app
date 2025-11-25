@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
+import { validateVariationPayload } from '~/server/utils/validateVariationPayload'
 
 /**
  * ==========================================
@@ -61,6 +62,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    const validatedVariations = validateVariationPayload({
+      hasVariations,
+      variationGroupIds,
+      stockByVariation,
+      minStockByVariation,
+    })
+
     // Préparer les données du produit (sans toucher au stock)
     const productData = {
       name: name.trim(),
@@ -76,9 +84,9 @@ export default defineEventHandler(async (event) => {
       purchasePrice: purchasePrice ? parseFloat(purchasePrice).toString() : null,
       tva: tva ? parseFloat(tva).toString() : '20',
       minStock: minStock !== undefined ? parseInt(minStock) : undefined,
-      variationGroupIds: hasVariations && variationGroupIds ? variationGroupIds : null,
-      stockByVariation: hasVariations && stockByVariation ? stockByVariation : null,
-      minStockByVariation: hasVariations && minStockByVariation ? minStockByVariation : null,
+      variationGroupIds: validatedVariations.variationGroupIds,
+      stockByVariation: validatedVariations.stockByVariation,
+      minStockByVariation: validatedVariations.minStockByVariation,
       // Note: stock n'est PAS modifié ici, il est géré uniquement via l'API de gestion de stock
     }
 

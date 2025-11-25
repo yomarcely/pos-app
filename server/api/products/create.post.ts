@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
+import { validateVariationPayload } from '~/server/utils/validateVariationPayload'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -41,6 +42,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    const validatedVariations = validateVariationPayload({
+      hasVariations,
+      variationGroupIds,
+      stockByVariation,
+      minStockByVariation,
+    })
+
     // Préparer les données du produit
     const productData = {
       name: name.trim(),
@@ -57,9 +65,9 @@ export default defineEventHandler(async (event) => {
       tva: tva ? parseFloat(tva).toString() : '20',
       stock: manageStock ? (stock ? parseInt(stock) : 0) : 0,
       minStock: minStock ? parseInt(minStock) : 5,
-      variationGroupIds: hasVariations && variationGroupIds ? variationGroupIds : null,
-      stockByVariation: hasVariations && stockByVariation ? stockByVariation : null,
-      minStockByVariation: hasVariations && minStockByVariation ? minStockByVariation : null,
+      variationGroupIds: validatedVariations.variationGroupIds,
+      stockByVariation: validatedVariations.stockByVariation,
+      minStockByVariation: validatedVariations.minStockByVariation,
     }
 
     // Créer le produit

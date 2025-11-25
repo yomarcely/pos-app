@@ -50,6 +50,10 @@ const data = {
           title: 'Synthèse journée',
           url: '/synthese',
         },
+        {
+          title: 'Historique clôtures',
+          url: '/clotures',
+        },
       ],
     },
     {
@@ -104,16 +108,8 @@ const data = {
       icon: MoveRight,
       items: [
         {
-          title: 'Mouvements libre',
-          url: '#',
-        },
-        {
-          title: 'Ajustements',
-          url: '#',
-        },
-        {
-          title: 'Commandes fournisseurs',
-          url: '#',
+          title: 'Mouvements',
+          url: '/mouvements',
         },
         {
           title: 'Réceptions fournisseurs',
@@ -124,8 +120,12 @@ const data = {
           url: '#',
         },
         {
-          title: 'État des stocks',
+          title: 'Historique',
           url: '#',
+        },
+        {
+          title: 'État des stocks',
+          url: '/stocks',
         },
       ],
     },

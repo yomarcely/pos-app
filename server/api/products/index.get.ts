@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { products, categories } from '~/server/database/schema'
+import { products, categories, brands, suppliers } from '~/server/database/schema'
 import { sql, eq, and } from 'drizzle-orm'
 
 /**
@@ -23,6 +23,8 @@ export default defineEventHandler(async (event) => {
     const search = query.search as string | undefined
     const categoryId = query.categoryId ? Number(query.categoryId) : undefined
     const includeArchived = query.includeArchived === 'true'
+    const supplierId = query.supplierId ? Number(query.supplierId) : undefined
+    const brandId = query.brandId ? Number(query.brandId) : undefined
 
     // Construction de la requête avec filtres
     const conditions: any[] = []
@@ -45,6 +47,14 @@ export default defineEventHandler(async (event) => {
       conditions.push(eq(products.categoryId, categoryId))
     }
 
+    if (supplierId) {
+      conditions.push(eq(products.supplierId, supplierId))
+    }
+
+    if (brandId) {
+      conditions.push(eq(products.brandId, brandId))
+    }
+
     // Récupérer les produits avec leur catégorie
     const allProducts = await db
       .select({
@@ -54,6 +64,10 @@ export default defineEventHandler(async (event) => {
         barcodeByVariation: products.barcodeByVariation,
         categoryId: products.categoryId,
         categoryName: categories.name,
+        supplierId: products.supplierId,
+        supplierName: suppliers.name,
+        brandId: products.brandId,
+        brandName: brands.name,
         price: products.price,
         purchasePrice: products.purchasePrice,
         tva: products.tva,
@@ -70,6 +84,8 @@ export default defineEventHandler(async (event) => {
       })
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(products.name)
 
@@ -94,6 +110,10 @@ export default defineEventHandler(async (event) => {
       isArchived: product.isArchived,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
+      supplierId: product.supplierId,
+      supplierName: (product as any).supplierName || null,
+      brandId: product.brandId,
+      brandName: product.brandName || null,
     }))
 
     return {

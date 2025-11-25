@@ -2,7 +2,7 @@
 import { cn } from '@/lib/utils'
 import { useEventListener, useMediaQuery, useVModel } from '@vueuse/core'
 import { TooltipProvider } from 'reka-ui'
-import { computed, type HTMLAttributes, type Ref, ref } from 'vue'
+import { computed, type HTMLAttributes, type Ref, ref, onMounted } from 'vue'
 import { provideSidebarContext, SIDEBAR_COOKIE_MAX_AGE, SIDEBAR_COOKIE_NAME, SIDEBAR_KEYBOARD_SHORTCUT, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON } from './utils'
 
 const props = withDefaults(defineProps<{
@@ -21,8 +21,12 @@ const emits = defineEmits<{
 const isMobile = useMediaQuery('(max-width: 768px)')
 const openMobile = ref(false)
 
+// Lire le cookie au montage pour initialiser correctement l'état
+const sidebarCookie = useCookie(SIDEBAR_COOKIE_NAME)
+const initialOpen = sidebarCookie.value === 'true' ? true : (sidebarCookie.value === 'false' ? false : props.defaultOpen)
+
 const open = useVModel(props, 'open', emits, {
-  defaultValue: props.defaultOpen ?? false,
+  defaultValue: initialOpen ?? false,
   passive: (props.open === undefined) as false,
 }) as Ref<boolean>
 

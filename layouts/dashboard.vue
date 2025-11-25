@@ -18,11 +18,9 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-
-const defaultOpen = false
 </script>
 <template>
-  <SidebarProvider :defaultOpen="defaultOpen">
+  <SidebarProvider>
     <AppSidebar />
     <SidebarInset>
       <header class="flex h-16 shrink-0 items-center gap-2">
