@@ -11,42 +11,7 @@
     </div>
 
     <!-- Type de mouvement -->
-    <Card>
-      <CardHeader>
-        <CardTitle>Type de mouvement</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="grid grid-cols-3 gap-4">
-          <Button
-            :variant="movementType === 'entry' ? 'default' : 'outline'"
-            size="lg"
-            @click="movementType = 'entry'"
-            class="h-20 flex flex-col gap-2"
-          >
-            <PackagePlus class="w-6 h-6" />
-            <span>Entrée / Sortie</span>
-          </Button>
-          <Button
-            :variant="movementType === 'adjustment' ? 'default' : 'outline'"
-            size="lg"
-            @click="movementType = 'adjustment'"
-            class="h-20 flex flex-col gap-2"
-          >
-            <Settings class="w-6 h-6" />
-            <span>Ajustement</span>
-          </Button>
-          <Button
-            :variant="movementType === 'loss' ? 'default' : 'outline'"
-            size="lg"
-            @click="movementType = 'loss'"
-            class="h-20 flex flex-col gap-2"
-          >
-            <AlertTriangle class="w-6 h-6" />
-            <span>Pertes</span>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <MovementTypeSelector v-model="movementType" />
 
     <!-- Motif/Commentaire -->
     <Card>
@@ -62,353 +27,63 @@
       </CardContent>
     </Card>
 
-    <!-- Sélection des produits -->
-    <Card>
-      <CardHeader>
-        <CardTitle>Sélection des produits</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <!-- Champ de recherche -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="md:col-span-2 relative">
-            <Label>Rechercher par nom ou code-barres</Label>
-            <div class="flex gap-2 mt-1">
-              <div class="relative flex-1">
-                <Input
-                  v-model="searchQuery"
-                  placeholder="Nom du produit ou code-barres..."
-                  @input="debouncedSearch"
-                  @keydown.enter="selectFirstSuggestion"
-                  @keydown.esc="searchSuggestions = []"
-                  @focus="handleSearchFocus"
-                />
+    <!-- Recherche de produits -->
+    <ProductSearchWithSuggestions
+      v-model:search-query="searchQuery"
+      :suggestions="searchSuggestions"
+      @search="searchProduct"
+      @select-first="selectFirstSuggestion"
+      @clear-suggestions="searchSuggestions = []"
+      @focus="handleSearchFocus"
+      @select-product="selectProductFromSuggestion"
+      @open-catalog="openProductSelector"
+    />
 
-                <!-- Suggestions dropdown -->
-                <div
-                  v-if="searchSuggestions.length > 0"
-                  class="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-lg max-h-[300px] overflow-y-auto"
-                >
-                  <div
-                    v-for="product in searchSuggestions"
-                    :key="product.id"
-                    class="flex items-center gap-3 p-3 hover:bg-muted cursor-pointer border-b last:border-b-0"
-                    @click="selectProductFromSuggestion(product)"
-                  >
-                    <div v-if="product.image" class="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                      <img :src="product.image" :alt="product.name" class="w-full h-full object-cover" />
-                    </div>
-                    <div v-else class="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                      <Package class="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <p class="font-medium truncate">{{ product.name }}</p>
-                      <p class="text-sm text-muted-foreground">{{ product.barcode || 'Sans code-barres' }}</p>
-                    </div>
-                    <div class="text-right flex-shrink-0">
-                      <p class="text-sm font-medium">Stock: {{ getTotalStock(product) }}</p>
-                      <p class="text-xs text-muted-foreground">{{ product.categoryName || 'Sans catégorie' }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <Button @click="searchProduct">
-                <Search class="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-          <div>
-            <Label>&nbsp;</Label>
-            <Button variant="outline" class="w-full mt-1" @click="openProductSelector">
-              <Package class="w-4 h-4 mr-2" />
-              Parcourir le catalogue
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Liste des produits sélectionnés -->
-    <Card v-if="selectedProducts.length > 0">
-      <CardHeader>
-        <CardTitle>Produits sélectionnés ({{ selectedProducts.length }})</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead class="bg-muted/50 border-b">
-              <tr>
-                <th class="px-4 py-2 text-left text-sm font-medium">Produit</th>
-                <th class="px-4 py-2 text-center text-sm font-medium">Stock actuel</th>
-                <th class="px-4 py-2 text-center text-sm font-medium">
-                  {{ movementType === 'entry' ? 'Quantité' : movementType === 'adjustment' ? 'Nouveau stock' : 'Perte' }}
-                </th>
-                <th class="px-4 py-2 text-center text-sm font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y">
-              <template v-for="item in selectedProducts" :key="item.product.id">
-                <!-- Produit sans variation -->
-                <tr v-if="!hasVariations(item.product)" class="hover:bg-muted/50">
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-3">
-                      <div v-if="item.product.image" class="w-10 h-10 rounded-lg overflow-hidden bg-muted">
-                        <img :src="item.product.image" :alt="item.product.name" class="w-full h-full object-cover" />
-                      </div>
-                      <div v-else class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                        <Package class="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p class="font-medium">{{ item.product.name }}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-muted">
-                      {{ item.currentStock }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3">
-                    <Input
-                      v-model.number="item.quantity"
-                      type="number"
-                      :min="movementType === 'loss' ? 1 : undefined"
-                      class="w-24 mx-auto text-center"
-                    />
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    <Button variant="ghost" size="sm" @click="removeProduct(item.product.id)">
-                      <Trash2 class="w-4 h-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-
-                <!-- Produit avec variations -->
-                <template v-else>
-                  <!-- Ligne principale du produit -->
-                  <tr class="bg-muted/30">
-                    <td class="px-4 py-3" colspan="3">
-                      <div class="flex items-center gap-3">
-                        <div v-if="item.product.image" class="w-10 h-10 rounded-lg overflow-hidden bg-muted">
-                          <img :src="item.product.image" :alt="item.product.name" class="w-full h-full object-cover" />
-                        </div>
-                        <div v-else class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                          <Package class="w-5 h-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p class="font-medium">{{ item.product.name }}</p>
-                          <p class="text-xs text-muted-foreground">Produit avec variations</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <Button variant="ghost" size="sm" @click="removeProduct(item.product.id)">
-                        <Trash2 class="w-4 h-4 text-destructive" />
-                      </Button>
-                    </td>
-                  </tr>
-
-                  <!-- Lignes des variations -->
-                  <tr
-                    v-for="variation in getProductVariations(item.product)"
-                    :key="`${item.product.id}-${variation.id}`"
-                    class="hover:bg-muted/50"
-                  >
-                    <td class="px-4 py-3 pl-16">
-                      <p class="text-sm">{{ variation.name }}</p>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <span class="px-2 py-1 rounded-full text-xs font-medium bg-muted">
-                        {{ item.product.stockByVariation?.[variation.id.toString()] ?? 0 }}
-                      </span>
-                    </td>
-                    <td class="px-4 py-3">
-                      <Input
-                        v-model.number="item.quantitiesByVariation![variation.id.toString()]"
-                        type="number"
-                        :min="movementType === 'loss' ? 1 : undefined"
-                        class="w-24 mx-auto text-center"
-                      />
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <!-- Espace vide pour aligner avec le bouton supprimer du produit -->
-                    </td>
-                  </tr>
-                </template>
-              </template>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Boutons d'action -->
-        <div class="flex justify-end gap-2 mt-4">
-          <Button variant="outline" @click="clearAll">
-            Annuler
-          </Button>
-          <Button @click="validateMovement" :disabled="selectedProducts.length === 0">
-            Valider le mouvement
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <!-- Table des produits sélectionnés -->
+    <SelectedProductsTable
+      :selected-products="selectedProducts"
+      :movement-type="movementType"
+      :all-variations="allVariations"
+      @update-quantity="updateProductQuantity"
+      @remove-product="removeProduct"
+      @clear-all="clearAll"
+      @validate="validateMovement"
+    />
 
     <!-- Dialog sélecteur de produits -->
-    <Dialog v-model:open="isProductSelectorOpen">
-      <DialogContent class="w-[1100px] max-w-[1100px] h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>Sélectionner un produit</DialogTitle>
-        </DialogHeader>
-
-        <!-- Filtres -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 py-4">
-          <div>
-            <Label>Recherche</Label>
-            <Input
-              v-model="catalogSearchQuery"
-              placeholder="Nom ou code-barres..."
-              @input="debouncedCatalogSearch"
-            />
-          </div>
-          <div>
-            <Label>Catégorie</Label>
-            <select
-              v-model="selectedCategoryFilter"
-              class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              @change="loadCatalogProducts"
-            >
-              <option :value="null">Toutes les catégories</option>
-              <option v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-          <div>
-            <Label>Fournisseur</Label>
-            <select
-              v-model="selectedSupplierFilter"
-              class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              @change="loadCatalogProducts"
-            >
-              <option :value="null">Tous les fournisseurs</option>
-              <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
-                {{ supplier.name }}
-              </option>
-            </select>
-          </div>
-          <div>
-            <Label>Marque</Label>
-            <select
-              v-model="selectedBrandFilter"
-              class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              @change="loadCatalogProducts"
-            >
-              <option :value="null">Toutes les marques</option>
-              <option v-for="brand in brands" :key="brand.id" :value="brand.id">
-                {{ brand.name }}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Liste des produits -->
-        <div class="border rounded-lg overflow-hidden flex flex-col h-[calc(80vh-220px)]">
-          <div v-if="loadingCatalog" class="flex justify-center py-12">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-
-          <div v-else class="flex-1 overflow-y-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-muted/50">
-                <tr>
-                  <th class="px-4 py-2 text-left w-14">Image</th>
-                  <th class="px-4 py-2 text-left">Produit</th>
-                  <th class="px-4 py-2 text-center w-24">Stock</th>
-                  <th class="px-4 py-2 text-left">Catégorie</th>
-                  <th class="px-4 py-2 text-left">Fournisseur</th>
-                  <th class="px-4 py-2 text-left">Marque</th>
-                  <th class="px-4 py-2 text-center w-28">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="catalogProducts.length === 0">
-                  <td colspan="7" class="px-4 py-6 text-center text-muted-foreground">
-                    Aucun produit trouvé
-                  </td>
-                </tr>
-                <tr
-                  v-for="product in catalogProducts"
-                  :key="product.id"
-                  class="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer"
-                  @click="addProductFromCatalog(product)"
-                >
-                  <td class="px-4 py-3">
-                    <div v-if="product.image" class="w-12 h-12 rounded-md overflow-hidden bg-muted">
-                      <img :src="product.image" :alt="product.name" class="w-full h-full object-cover" />
-                    </div>
-                    <div v-else class="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
-                      <Package class="w-5 h-5 text-muted-foreground" />
-                    </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <p class="font-medium">{{ product.name }}</p>
-                    <p v-if="product.barcode" class="text-xs text-muted-foreground">CB: {{ product.barcode }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-muted">
-                      {{ getTotalStock(product) }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-sm text-muted-foreground">
-                    {{ product.categoryName || '—' }}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-muted-foreground">
-                    {{ product.supplierName || '—' }}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-muted-foreground">
-                    {{ product.brandName || '—' }}
-                  </td>
-                  <td class="px-4 py-3 text-center" @click.stop>
-                    <Button size="sm" variant="outline" @click="addProductFromCatalog(product)">
-                      Ajouter
-                    </Button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="isProductSelectorOpen = false">
-            Fermer
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ProductCatalogDialog
+      v-model:open="isProductSelectorOpen"
+      v-model:search-query="catalogSearchQuery"
+      v-model:selected-category="selectedCategoryFilter"
+      v-model:selected-supplier="selectedSupplierFilter"
+      v-model:selected-brand="selectedBrandFilter"
+      :products="catalogProducts"
+      :categories="categories"
+      :suppliers="suppliers"
+      :brands="brands"
+      :loading="loadingCatalog"
+      @select-product="addProductFromCatalog"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import {
-  PackagePlus,
-  Settings,
-  AlertTriangle,
-  Search,
-  Package,
-  Trash2,
-} from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useToast } from '@/composables/useToast'
+import MovementTypeSelector from '@/components/mouvements/MovementTypeSelector.vue'
+import ProductSearchWithSuggestions from '@/components/mouvements/ProductSearchWithSuggestions.vue'
+import ProductCatalogDialog from '@/components/mouvements/ProductCatalogDialog.vue'
+import SelectedProductsTable from '@/components/mouvements/SelectedProductsTable.vue'
+import type {
+  Product,
+  SelectedProduct,
+  Variation,
+  Category,
+  Supplier,
+  Brand,
+  MovementType
+} from '@/types/mouvements'
 
 definePageMeta({
   layout: 'dashboard'
@@ -416,54 +91,8 @@ definePageMeta({
 
 const toast = useToast()
 
-interface Product {
-  id: number
-  name: string
-  barcode: string
-  categoryId: number | null
-  categoryName: string | null
-  supplierId: number | null
-  supplierName?: string | null
-  brandId: number | null
-  brandName?: string | null
-  price: number
-  purchasePrice?: number
-  stock: number
-  stockByVariation?: Record<string, number>
-  variationGroupIds?: Array<number | string>
-  image: string | null
-}
-
-interface SelectedProduct {
-  product: Product
-  variation?: string
-  currentStock: number
-  quantity: number
-  quantitiesByVariation?: Record<string, number>
-}
-
-interface Variation {
-  id: number | string
-  name: string
-}
-
-interface Category {
-  id: number
-  name: string
-}
-
-interface Supplier {
-  id: number
-  name: string
-}
-
-interface Brand {
-  id: number
-  name: string
-}
-
 // State
-const movementType = ref<'entry' | 'adjustment' | 'loss'>('entry')
+const movementType = ref<MovementType>('entry')
 const searchQuery = ref('')
 const selectedProducts = ref<SelectedProduct[]>([])
 const comment = ref('')
@@ -516,7 +145,7 @@ function hasVariations(product: Product): boolean {
 
 // Debounced search for suggestions
 let searchTimeout: NodeJS.Timeout
-const debouncedSearch = () => {
+watch(searchQuery, () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(async () => {
     if (searchQuery.value.trim().length < 2) {
@@ -533,15 +162,20 @@ const debouncedSearch = () => {
       console.error('Erreur lors de la recherche:', error)
     }
   }, 300)
-}
+})
 
 // Debounced search for catalog
-const debouncedCatalogSearch = () => {
+watch(catalogSearchQuery, () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
     loadCatalogProducts()
   }, 300)
-}
+})
+
+// Watch filters
+watch([selectedCategoryFilter, selectedSupplierFilter, selectedBrandFilter], () => {
+  loadCatalogProducts()
+})
 
 // Handle search focus
 function handleSearchFocus() {
@@ -583,7 +217,7 @@ async function searchProduct() {
       return
     }
 
-    if (products.length === 1) {
+    if (products.length === 1 && products[0]) {
       addProductFromCatalog(products[0])
       searchQuery.value = ''
     } else {
@@ -651,7 +285,7 @@ async function loadCategories() {
 // Charger les fournisseurs
 async function loadSuppliers() {
   try {
-    const response = await $fetch('/api/suppliers')
+    const response: any = await $fetch('/api/suppliers')
     suppliers.value = Array.isArray(response) ? response : response.suppliers || []
   } catch (error) {
     console.error('Erreur lors du chargement des fournisseurs:', error)
@@ -755,6 +389,18 @@ function addProductFromCatalog(product: Product) {
 
   toast.success('Produit ajouté')
   isProductSelectorOpen.value = false
+}
+
+// Update product quantity
+function updateProductQuantity(productId: number, variationId: string | null, quantity: number) {
+  const item = selectedProducts.value.find(p => p.product.id === productId)
+  if (!item) return
+
+  if (variationId && item.quantitiesByVariation) {
+    item.quantitiesByVariation[variationId] = quantity
+  } else {
+    item.quantity = quantity
+  }
 }
 
 // Retirer un produit
