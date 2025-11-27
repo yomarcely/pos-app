@@ -16,7 +16,6 @@ import {
   sellers,
   stockMovements,
   suppliers,
-  syncQueue,
   variationGroups,
   variations,
 } from './schema'
@@ -68,8 +67,7 @@ async function resetDatabase(executor: DbExecutor) {
       sellers,
       audit_logs,
       closures,
-      archives,
-      sync_queue
+      archives
     RESTART IDENTITY CASCADE
   `)
 }

@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, syncQueue, products } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, products } from '~/server/database/schema'
 import { desc, gte, lt, and, eq } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -175,7 +175,6 @@ export default defineEventHandler(async (event) => {
           currentHash,
           signature,
           status: 'completed',
-          syncStatus: 'pending',
         })
         .returning()
 
@@ -289,18 +288,6 @@ export default defineEventHandler(async (event) => {
           signature,
         },
         ipAddress: getRequestIP(event) || null,
-      })
-
-      // 5.5 Ajouter à la queue de sync cloud
-      await tx.insert(syncQueue).values({
-        entityType: 'sale',
-        entityId: createdSale.id,
-        action: 'create',
-        data: {
-          sale: createdSale,
-          items: saleItemsData,
-        },
-        status: 'pending',
       })
 
       return { newSale: createdSale, saleItemsData, stockUpdateLogs }

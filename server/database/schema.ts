@@ -71,17 +71,12 @@ export const sales = pgTable('sales', {
   closureId: integer('closure_id').references(() => closures.id),
   closedAt: timestamp('closed_at', { withTimezone: true }),
 
-  // Sync cloud
-  syncStatus: varchar('sync_status', { length: 20 }).default('pending'), // pending, synced, failed
-  syncedAt: timestamp('synced_at', { withTimezone: true }),
-
   // Audit
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   ticketNumberIdx: index('sales_ticket_number_idx').on(table.ticketNumber),
   saleDateIdx: index('sales_sale_date_idx').on(table.saleDate),
-  syncStatusIdx: index('sales_sync_status_idx').on(table.syncStatus),
   closureIdIdx: index('sales_closure_id_idx').on(table.closureId),
 }))
 
@@ -487,29 +482,6 @@ export const archives = pgTable('archives', {
 }, (table) => ({
   periodStartIdx: index('archives_period_start_idx').on(table.periodStart),
   archiveTypeIdx: index('archives_archive_type_idx').on(table.archiveType),
-}))
-
-// ==========================================
-// 15. SYNC QUEUE (Offline -> Cloud)
-// ==========================================
-export const syncQueue = pgTable('sync_queue', {
-  id: serial('id').primaryKey(),
-
-  entityType: varchar('entity_type', { length: 50 }).notNull(),
-  entityId: integer('entity_id').notNull(),
-  action: varchar('action', { length: 20 }).notNull(), // create, update, delete
-
-  data: jsonb('data').notNull(),
-
-  status: varchar('status', { length: 20 }).notNull().default('pending'), // pending, synced, failed
-  attempts: integer('attempts').default(0),
-  lastError: text('last_error'),
-
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  syncedAt: timestamp('synced_at', { withTimezone: true }),
-}, (table) => ({
-  statusIdx: index('sync_queue_status_idx').on(table.status),
-  createdAtIdx: index('sync_queue_created_at_idx').on(table.createdAt),
 }))
 
 // ==========================================

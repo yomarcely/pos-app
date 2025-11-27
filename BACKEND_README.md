@@ -2,7 +2,7 @@
 
 ## 📋 Vue d'ensemble
 
-Ce backend est conçu pour être **conforme NF525** (certification anti-fraude TVA) et **RGPD**, avec un système de **synchronisation hybride** (local + cloud).
+Ce backend est conçu pour être **conforme NF525** (certification anti-fraude TVA) et **RGPD**, avec une base de données **PostgreSQL hébergée sur Supabase** pour une architecture SaaS multi-tenant.
 
 ---
 
@@ -60,7 +60,7 @@ Ticket N+1 (previousHash: DEF456, currentHash: GHI789)
 6. **stock_movements** : Historique mouvements de stock (audit)
 7. **audit_logs** : Logs de toutes les actions (NF525 + RGPD)
 8. **archives** : Métadonnées des archives périodiques
-9. **sync_queue** : File d'attente pour synchronisation cloud
+9. **closures** : Clôtures journalières des ventes
 
 ### Relations
 
@@ -73,47 +73,39 @@ sales (1) ←→ (N) stock_movements
 
 ---
 
-## 🌐 Architecture Hybride (Local + Cloud)
+## 🌐 Architecture Cloud (Supabase)
 
-### Mode Offline (Local)
+### Hébergement sur Supabase
 
-- PostgreSQL installé localement sur le PC du magasin
-- Toutes les ventes sont enregistrées en local
-- **Avantage** : Fonctionne sans Internet
-- **Inconvénient** : Pas de backup automatique
+- PostgreSQL hébergé sur Supabase pour une disponibilité maximale
+- **Architecture SaaS** : Multi-tenant avec isolation des données par tenant
+- **Avantages** :
+  - ✅ Backup automatique et haute disponibilité
+  - ✅ Scalabilité automatique
+  - ✅ Sécurité renforcée avec Row Level Security (RLS)
+  - ✅ API REST et Realtime intégrées
+  - ✅ Pas besoin de gérer l'infrastructure
 
-### Mode Online (Cloud)
-
-- PostgreSQL hébergé sur un serveur distant
-- Synchronisation en temps réel
-- **Avantage** : Backup automatique, accès multi-magasins
-- **Inconvénient** : Nécessite une connexion Internet stable
-
-### Mode Hybride (Recommandé)
-
-- PostgreSQL local + synchronisation périodique vers le cloud
-- En cas de perte de connexion, l'application continue de fonctionner
-- Dès le retour d'Internet, les données sont synchronisées
-
-#### Configuration
+### Configuration
 
 ```env
-# Local
-DB_HOST=localhost
+# Supabase PostgreSQL
+DATABASE_URL=postgresql://user:password@db.xxx.supabase.co:5432/postgres
+# ou
+DB_HOST=db.xxx.supabase.co
 DB_PORT=5432
-
-# Cloud
-SYNC_ENABLED=true
-SYNC_API_URL=https://api.votredomaine.com
-SYNC_INTERVAL=300000  # 5 minutes
+DB_USER=postgres
+DB_PASSWORD=your-password
+DB_NAME=postgres
+DB_SSL=true
 ```
 
-#### Table `sync_queue`
+### Multi-tenant
 
-Toutes les opérations (ventes, modifications) sont ajoutées à cette table avec :
-- `status`: `pending` → `synced` | `failed`
-- `attempts`: Nombre de tentatives
-- `lastError`: Erreur de synchronisation
+Pour une architecture SaaS, chaque organisation/magasin aura ses propres données isolées via :
+- Une colonne `tenant_id` sur les tables principales
+- Row Level Security (RLS) de Supabase pour l'isolation des données
+- Authentification via Supabase Auth
 
 ---
 
@@ -376,19 +368,20 @@ Error: Chain verification failed
 
 **Solution** : Ne **JAMAIS** modifier manuellement une vente en BDD. Utiliser uniquement les API.
 
-### Sync cloud échoue
+### Connexion à Supabase échoue
 
 ```
-Sync failed: Network error
+Connection error: ECONNREFUSED
 ```
 
-**Solution** : Vérifier la configuration `SYNC_API_URL` et la connexion Internet.
+**Solution** : Vérifier la `DATABASE_URL` Supabase et que `DB_SSL=true` est bien configuré.
 
 ---
 
 ## 📞 Support
 
 - **Documentation Drizzle** : [orm.drizzle.team](https://orm.drizzle.team)
+- **Documentation Supabase** : [supabase.com/docs](https://supabase.com/docs)
 - **NF525** : [economie.gouv.fr/dgfip/professionnels](https://www.economie.gouv.fr/dgfip/professionnels/logiciels-de-caisse)
 - **RGPD** : [cnil.fr](https://www.cnil.fr)
 - **INFOCERT** : [infocert.fr](https://www.infocert.fr)
@@ -397,11 +390,12 @@ Sync failed: Network error
 
 ## 📝 TODO
 
-- [ ] Implémenter le système de sync automatique
-- [ ] Créer un script de seed pour les données de test
+- [x] ~~Implémenter le système de sync automatique~~ (Supprimé - hébergement Supabase direct)
+- [x] Créer un script de seed pour les données de test
+- [ ] Implémenter le multi-tenant avec Row Level Security (RLS)
 - [ ] Ajouter l'archivage automatique (cron job)
 - [ ] Implémenter l'API d'export RGPD
-- [ ] Ajouter l'authentification JWT pour les API
+- [ ] Intégrer Supabase Auth pour l'authentification
 - [ ] Créer un dashboard d'administration
 - [ ] Tests unitaires et d'intégration
 - [ ] Documentation Swagger/OpenAPI
