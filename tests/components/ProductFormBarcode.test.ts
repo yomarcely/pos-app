@@ -43,8 +43,11 @@ describe('ProductFormBarcode', () => {
     await inputs[1]!.setValue('123456')
 
     const emits = wrapper.emitted()
-    expect(emits['update:supplierCode']?.[0]?.[0]).toBe('SUPP-1')
-    expect(emits['update:barcode']?.[0]?.[0]).toBe('123456')
+    const supplierCodeEmit = emits['update:supplierCode'] as any[] | undefined
+    const barcodeEmit = emits['update:barcode'] as any[] | undefined
+
+    expect(supplierCodeEmit?.[0]?.[0]).toBe('SUPP-1')
+    expect(barcodeEmit?.[0]?.[0]).toBe('123456')
   })
 
   it('gère les codes-barres par variation', async () => {
@@ -59,11 +62,12 @@ describe('ProductFormBarcode', () => {
 
     // Simule la synchro parent en réinjectant les props après chaque emit
     await wrapper.find('#barcode-1').setValue('AAA')
-    const firstEmit = (wrapper.emitted()['update:barcodeByVariation'] || []).at(-1)?.[0]
+    const firstEmit = ((wrapper.emitted()['update:barcodeByVariation'] as any[]) || []).at(-1)?.[0]
     await wrapper.setProps({ barcodeByVariation: firstEmit })
 
     await wrapper.find('#barcode-2').setValue('BBB')
-    const latest = (wrapper.emitted()['update:barcodeByVariation'] || []).at(-1)?.[0] as Record<number, string> | undefined
+    const barcodeEmits = wrapper.emitted()['update:barcodeByVariation'] as any[] | undefined
+    const latest = barcodeEmits?.at(-1)?.[0] as Record<number, string> | undefined
     expect(latest?.[1]).toBe('AAA')
     expect(latest?.[2]).toBe('BBB')
   })
