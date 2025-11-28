@@ -25,9 +25,7 @@
     />
 
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
+    <LoadingSpinner v-if="loading" text="Chargement des produits..." />
 
     <!-- Vue en liste (tableau) -->
     <ProductsTableView
@@ -66,6 +64,7 @@ import ProductsSearchBar from '@/components/produits/ProductsSearchBar.vue'
 import ProductsTableView from '@/components/produits/ProductsTableView.vue'
 import ProductsGridView from '@/components/produits/ProductsGridView.vue'
 import ProductsEmptyState from '@/components/produits/ProductsEmptyState.vue'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import type { Product, Category } from '@/types/produits'
 
 const toast = useToast()

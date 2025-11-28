@@ -15,9 +15,7 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
+    <LoadingSpinner v-if="loading" text="Chargement des variations..." />
 
     <!-- Liste des groupes -->
     <div v-else class="space-y-4">
@@ -72,11 +70,12 @@
           </CardContent>
         </Card>
 
-      <div v-if="variationGroups.length === 0" class="text-center py-12">
-        <Layers class="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-        <p class="text-muted-foreground text-lg">Aucun groupe de variation</p>
-        <p class="text-muted-foreground text-sm">Créez votre premier groupe pour commencer</p>
-      </div>
+      <EmptyState
+        v-if="variationGroups.length === 0"
+        :icon="Layers"
+        title="Aucun groupe de variation"
+        description="Créez votre premier groupe pour commencer"
+      />
     </div>
 
     <!-- Dialog: Créer un groupe -->
@@ -224,6 +223,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()

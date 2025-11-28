@@ -26,9 +26,7 @@
     </div>
 
     <!-- Loading state -->
-    <div v-if="loadingProduct" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
+    <LoadingSpinner v-if="loadingProduct" text="Chargement du produit..." />
 
     <!-- Onglets -->
     <Tabs v-else v-model="activeTab" class="w-full">
@@ -308,6 +306,7 @@ import ProductFormVariations from '@/components/produits/form/ProductFormVariati
 import ProductFormPricing from '@/components/produits/form/ProductFormPricing.vue'
 import ProductFormBarcode from '@/components/produits/form/ProductFormBarcode.vue'
 import CategoryTreeItem from '@/components/categories/CategoryTreeItem.vue'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 
 const toast = useToast()
 const route = useRoute()

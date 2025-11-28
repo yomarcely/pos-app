@@ -47,9 +47,7 @@
     </Card>
 
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
+    <LoadingSpinner v-if="loading" text="Chargement des clôtures..." />
 
     <!-- Tableau des clôtures -->
     <Card v-else-if="closures.length > 0">
@@ -140,13 +138,12 @@
     </Card>
 
     <!-- État vide -->
-    <div v-else-if="!loading && closures.length === 0" class="text-center py-12">
-      <CalendarDays class="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-      <p class="text-muted-foreground text-lg">Aucune clôture trouvée</p>
-      <p class="text-muted-foreground text-sm">
-        {{ startDate || endDate ? 'Essayez de modifier les filtres de date' : 'Aucune journée n\'a encore été clôturée' }}
-      </p>
-    </div>
+    <EmptyState
+      v-else-if="!loading && closures.length === 0"
+      :icon="CalendarDays"
+      title="Aucune clôture trouvée"
+      :description="startDate || endDate ? 'Essayez de modifier les filtres de date' : 'Aucune journée n\'a encore été clôturée'"
+    />
 
     <!-- Dialog détails clôture -->
     <Dialog v-model:open="isDetailsDialogOpen">
@@ -247,6 +244,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 definePageMeta({
   layout: 'dashboard'
