@@ -143,6 +143,13 @@ function hasVariations(product: Product): boolean {
   )
 }
 
+function getTotalStock(product: Product): number {
+  if (product.stockByVariation && Object.keys(product.stockByVariation).length > 0) {
+    return Object.values(product.stockByVariation).reduce((sum, qty) => sum + Number(qty || 0), 0)
+  }
+  return product.stock || 0
+}
+
 // Debounced search for suggestions
 let searchTimeout: NodeJS.Timeout
 watch(searchQuery, () => {
@@ -511,14 +518,6 @@ async function validateMovement() {
     console.error('Erreur lors de l\'enregistrement:', error)
     toast.error(error.data?.message || 'Erreur lors de l\'enregistrement')
   }
-}
-
-// Helper function
-function getTotalStock(product: Product): number {
-  if (product.stockByVariation && Object.keys(product.stockByVariation).length > 0) {
-    return Object.values(product.stockByVariation).reduce((sum, qty) => sum + Number(qty || 0), 0)
-  }
-  return product.stock || 0
 }
 
 watch(movementType, (newType) => {

@@ -74,7 +74,7 @@
 import { Package, Edit, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { Product } from '@/types/produits'
+import type { Product } from '@/types'
 
 defineProps<{
   products: Product[]

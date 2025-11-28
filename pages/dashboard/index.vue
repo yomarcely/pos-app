@@ -56,14 +56,12 @@ const buttons = [
     { label: 'Statistiques', icon: BarChart, path: '/stats', color: 'bg-red-500 hover:bg-red-600' },
 ]
 
-// Fonction pour obtenir le nom d'une variation par son ID
-function getVariationNameById(variationId: string): string {
-    const id = parseInt(variationId)
+// Fonction pour obtenir le nom d'une variation par son ID (string ou number)
+function getVariationNameById(variationId: string | number): string {
+    const targetId = String(variationId)
     for (const group of variationStore.groups) {
-        const variation = group.variations.find((v: { id: number, name: string }) => v.id === id)
-        if (variation) {
-            return variation.name
-        }
+        const variation = group.variations.find(v => String(v.id) === targetId)
+        if (variation) return variation.name
     }
     return `Variation ${variationId}`
 }

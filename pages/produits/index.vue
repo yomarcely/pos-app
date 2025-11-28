@@ -65,7 +65,7 @@ import ProductsTableView from '@/components/produits/ProductsTableView.vue'
 import ProductsGridView from '@/components/produits/ProductsGridView.vue'
 import ProductsEmptyState from '@/components/produits/ProductsEmptyState.vue'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
-import type { Product, Category } from '@/types/produits'
+import type { Product, Category } from '@/types'
 
 const toast = useToast()
 

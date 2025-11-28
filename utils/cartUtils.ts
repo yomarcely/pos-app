@@ -26,26 +26,40 @@ export function unitTtcAfterLineDiscount(it: ProductInCart): number {
   return Math.max(0, round2(priceAfter))
 }
 
-// Allocation de la remise globale en € au prorata (centimes distribués)
-export function globalEuroAllocationCents(
+function buildLines(items: ProductInCart[]) {
+  return items.map(it => {
+    const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
+    return {
+      key: lineKey(it),
+      lineCents,
+      tvaRate: it.tva ?? 20,
+      quantity: it.quantity,
+    }
+  })
+}
+
+// Allocation de la remise globale (%, €) au prorata (centimes distribués)
+function globalDiscountAllocationCents(
   items: ProductInCart[],
   global: GlobalDiscount
-): Record<string, number> {              // ✅ typer le Record
-  if (global.type !== '€' || global.value <= 0 || items.length === 0) return {}
+): Record<string, number> {
+  if (global.value <= 0 || items.length === 0) return {}
 
-  const lines = items.map(it => {
-    const key = lineKey(it)
-    const lineTtcCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    return { key, it, lineTtcCents }
-  })
-
-  const basketTtcCents = lines.reduce((s, l) => s + l.lineTtcCents, 0)
+  const lines = buildLines(items)
+  const basketTtcCents = lines.reduce((s, l) => s + l.lineCents, 0)
   if (basketTtcCents <= 0) return {}
 
-  const targetDiscountCents = Math.min(toCents(global.value), basketTtcCents)
+  const targetDiscountCents = Math.min(
+    global.type === '€'
+      ? toCents(global.value)
+      : Math.round((basketTtcCents * global.value) / 100),
+    basketTtcCents
+  )
+
+  if (targetDiscountCents <= 0) return {}
 
   const provisional = lines.map(l => {
-    const exactShare = (l.lineTtcCents * targetDiscountCents) / basketTtcCents
+    const exactShare = (l.lineCents * targetDiscountCents) / basketTtcCents
     const floorCents = Math.floor(exactShare)
     const remainder = exactShare - floorCents
     return { ...l, floorCents, remainder }
@@ -60,7 +74,7 @@ export function globalEuroAllocationCents(
       : (a.key < b.key ? -1 : 1)
   )
 
-  const allocMap: Record<string, number> = {}   // ✅ typer ici aussi
+  const allocMap: Record<string, number> = {}
   for (const p of provisional) {
     let give = p.floorCents
     if (residual > 0) { give += 1; residual -= 1 }
@@ -69,34 +83,54 @@ export function globalEuroAllocationCents(
   return allocMap
 }
 
-// Prix TTC unitaire final (applique uniquement remise ligne, la remise globale est désormais appliquée directement sur les produits)
+// Allocation spécifique € (conserve l'API existante)
+export function globalEuroAllocationCents(
+  items: ProductInCart[],
+  global: GlobalDiscount
+): Record<string, number> {
+  if (global.type !== '€') return {}
+  return globalDiscountAllocationCents(items, global)
+}
+
+// Prix TTC unitaire final (applique remise de ligne + remise globale)
 export function getFinalPrice(
   it: ProductInCart,
   items: ProductInCart[],
   global: GlobalDiscount
 ): number {
-  // On ignore maintenant la remise globale car elle est appliquée directement sur les produits
-  const unit = unitTtcAfterLineDiscount(it)
+  const allocation = globalDiscountAllocationCents(items, global)
+  const key = lineKey(it)
+  const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
+  const netLineCents = Math.max(0, lineCents - (allocation[key] ?? 0))
+
+  const unit = fromCents(netLineCents) / it.quantity
   return Math.max(0, round2(unit))
 }
 
 // TTC/HT/TVA calculés par ligne (centimes), TVA = TTC - HT
-// La remise globale n'est plus utilisée car elle est appliquée directement sur les produits
 export function totalTTC(items: ProductInCart[], global: GlobalDiscount): number {
+  const allocation = globalDiscountAllocationCents(items, global)
+
   const sumLines = items.reduce((s, it) => {
+    const key = lineKey(it)
     const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    return s + lineCents
+    const netLineCents = Math.max(0, lineCents - (allocation[key] ?? 0))
+    return s + netLineCents
   }, 0)
 
   return fromCents(sumLines)
 }
 
 export function totalHT(items: ProductInCart[], global: GlobalDiscount): number {
+  const allocation = globalDiscountAllocationCents(items, global)
+
   const sumHtCents = items.reduce((s, it) => {
+    const key = lineKey(it)
     const lineTtcCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
+    const netLineCents = Math.max(0, lineTtcCents - (allocation[key] ?? 0))
 
     const tvaRate = it.tva ?? 20
-    const lineHt = fromCents(lineTtcCents) / (1 + tvaRate / 100)
+    const lineHt = fromCents(netLineCents) / (1 + tvaRate / 100)
     return s + toCents(round2(lineHt)) // arrondi par ligne
   }, 0)
 
