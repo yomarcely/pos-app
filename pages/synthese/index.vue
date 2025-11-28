@@ -15,32 +15,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Calendar,
-  Euro,
-  ShoppingCart,
-  Receipt,
-  TrendingUp,
-  TrendingDown,
-  ChevronDown,
-  ChevronRight,
-  Trash2,
   Lock,
   LockOpen,
 } from 'lucide-vue-next'
+import DailySummaryStats from '@/components/synthese/DailySummaryStats.vue'
+import SaleTicketItem from '@/components/synthese/SaleTicketItem.vue'
 
 // État
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 const dailyData = ref<any>(null)
 const loading = ref(false)
-const expandedSales = ref<Set<number>>(new Set())
 const isClosed = ref(false)
 const closureData = ref<any>(null)
 
@@ -81,15 +69,6 @@ watch(selectedDate, () => {
 })
 
 loadDailyData()
-
-// Toggle expansion d'une vente
-function toggleSaleExpansion(saleId: number) {
-  if (expandedSales.value.has(saleId)) {
-    expandedSales.value.delete(saleId)
-  } else {
-    expandedSales.value.add(saleId)
-  }
-}
 
 // Ouvrir le dialog d'annulation
 function openCancelDialog(sale: any) {
@@ -235,76 +214,13 @@ const cancelledSales = computed(() => {
 
     <!-- Contenu principal -->
     <div v-else-if="dailyData" class="space-y-4">
-      <!-- ==========================================
-           STATISTIQUES COMPACTES
-           ========================================== -->
-      <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <!-- Total TTC -->
-        <div class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <Euro class="h-4 w-4 text-blue-600" />
-              <span class="text-sm font-medium">Total TTC</span>
-            </div>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ dailyData.summary.totalTTC.toFixed(2) }} €</p>
-          <p class="text-xs text-muted-foreground">HT: {{ dailyData.summary.totalHT.toFixed(2) }} € · TVA: {{ dailyData.summary.totalTVA.toFixed(2) }} €</p>
-        </div>
+      <!-- Statistiques -->
+      <DailySummaryStats
+        :summary="dailyData.summary"
+        :payment-methods="paymentMethodsArray"
+      />
 
-        <!-- Tickets -->
-        <div class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center gap-2">
-            <Receipt class="h-4 w-4 text-green-600" />
-            <span class="text-sm font-medium">Tickets</span>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ dailyData.summary.ticketCount }}</p>
-          <p class="text-xs text-muted-foreground">{{ dailyData.summary.returnCount }} annulation(s)</p>
-        </div>
-
-        <!-- Produits vendus -->
-        <div class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center gap-2">
-            <ShoppingCart class="h-4 w-4 text-purple-600" />
-            <span class="text-sm font-medium">Produits</span>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ dailyData.summary.totalQuantity }}</p>
-          <p class="text-xs text-muted-foreground">Moy: {{ dailyData.summary.avgBasketQuantity }} / ticket</p>
-        </div>
-
-        <!-- Panier moyen -->
-        <div class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center gap-2">
-            <TrendingUp class="h-4 w-4 text-emerald-600" />
-            <span class="text-sm font-medium">Panier moyen</span>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ dailyData.summary.avgBasketValue.toFixed(2) }} €</p>
-          <p class="text-xs text-muted-foreground">{{ dailyData.summary.avgBasketQuantity }} produits</p>
-        </div>
-
-        <!-- Remises -->
-        <div class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center gap-2">
-            <TrendingDown class="h-4 w-4 text-orange-600" />
-            <span class="text-sm font-medium">Remises</span>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ dailyData.summary.discountCount }}</p>
-          <p class="text-xs text-muted-foreground">{{ dailyData.summary.totalDiscountValue.toFixed(2) }} €</p>
-        </div>
-
-        <!-- Paiements -->
-        <div v-for="payment in paymentMethodsArray" :key="payment.mode" class="border rounded-lg p-3 bg-card">
-          <div class="flex items-center gap-2">
-            <Euro class="h-4 w-4 text-slate-600" />
-            <span class="text-sm font-medium">{{ payment.mode }}</span>
-          </div>
-          <p class="text-2xl font-bold mt-1">{{ payment.amount.toFixed(2) }} €</p>
-          <p class="text-xs text-muted-foreground">{{ payment.count }} transaction(s)</p>
-        </div>
-      </div>
-
-      <!-- ==========================================
-           LISTING DES TICKETS
-           ========================================== -->
+      <!-- Liste des tickets -->
       <div class="border rounded-lg p-4 bg-card">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -315,132 +231,22 @@ const cancelledSales = computed(() => {
 
         <div class="space-y-2 max-h-[500px] overflow-y-auto">
           <!-- Ventes actives -->
-          <div v-for="sale in activeSales" :key="sale.id">
-            <Collapsible>
-              <div class="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
-                <div class="flex items-center gap-3 flex-1">
-                  <CollapsibleTrigger @click="toggleSaleExpansion(sale.id)" class="p-1 hover:bg-muted rounded">
-                    <ChevronDown v-if="expandedSales.has(sale.id)" class="w-4 h-4" />
-                    <ChevronRight v-else class="w-4 h-4" />
-                  </CollapsibleTrigger>
-
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-sm">{{ sale.ticketNumber }}</span>
-                      <Badge variant="default" class="text-xs">Actif</Badge>
-                    </div>
-                    <p class="text-xs text-muted-foreground">
-                      {{ new Date(sale.saleDate).toLocaleTimeString('fr-FR') }}
-                    </p>
-                  </div>
-
-                  <div class="text-right">
-                    <p class="font-bold text-sm">{{ sale.totalTTC.toFixed(2) }} €</p>
-                    <p class="text-xs text-muted-foreground">{{ sale.items.length }} art.</p>
-                  </div>
-
-                  <Button
-                    v-if="!isClosed"
-                    variant="ghost"
-                    size="sm"
-                    @click="openCancelDialog(sale)"
-                    class="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                  >
-                    <Trash2 class="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-
-              <CollapsibleContent v-if="expandedSales.has(sale.id)" class="pt-2 px-3 pb-3">
-                <div class="border rounded-lg p-3 bg-muted/30 space-y-2">
-                  <!-- Détails -->
-                  <div class="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <span class="text-muted-foreground">HT:</span>
-                      <span class="font-medium ml-1">{{ sale.totalHT.toFixed(2) }} €</span>
-                    </div>
-                    <div>
-                      <span class="text-muted-foreground">TVA:</span>
-                      <span class="font-medium ml-1">{{ sale.totalTVA.toFixed(2) }} €</span>
-                    </div>
-                    <div v-if="sale.globalDiscount > 0">
-                      <span class="text-muted-foreground">Remise:</span>
-                      <span class="font-medium ml-1">{{ sale.globalDiscount }} {{ sale.globalDiscountType }}</span>
-                    </div>
-                  </div>
-
-                  <!-- Articles -->
-                  <div class="text-xs">
-                    <p class="font-semibold mb-1">Articles:</p>
-                    <div class="space-y-1">
-                      <div v-for="item in sale.items" :key="item.id">
-                        <div class="flex justify-between">
-                          <span>
-                            {{ item.productName }}
-                            <span v-if="item.variation" class="text-muted-foreground">({{ item.variation }})</span>
-                            <span v-if="item.discount && item.discount > 0" class="text-orange-600 text-[10px] italic ml-1">
-                              (-{{ item.discount }}{{ item.discountType }})
-                            </span>
-                          </span>
-                          <span>{{ item.quantity }} x {{ item.unitPrice.toFixed(2) }} € = {{ item.totalTTC.toFixed(2) }} €</span>
-                        </div>
-                        <div v-if="item.discount && item.discount > 0 && item.originalPrice" class="flex justify-end text-muted-foreground text-[10px]">
-                          Prix origine: {{ Number(item.originalPrice).toFixed(2) }} €
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Paiements -->
-                  <div class="flex gap-1">
-                    <Badge v-for="(payment, idx) in sale.payments" :key="idx" variant="secondary" class="text-xs">
-                      {{ payment.mode }}: {{ payment.amount.toFixed(2) }} €
-                    </Badge>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
+          <SaleTicketItem
+            v-for="sale in activeSales"
+            :key="sale.id"
+            :sale="sale"
+            :is-closed="isClosed"
+            @cancel="openCancelDialog"
+          />
 
           <!-- Ventes annulées -->
-          <div v-for="sale in cancelledSales" :key="sale.id">
-            <Collapsible>
-              <div class="flex items-center justify-between p-3 border rounded-lg bg-destructive/5 hover:bg-destructive/10 transition-colors">
-                <div class="flex items-center gap-3 flex-1">
-                  <CollapsibleTrigger @click="toggleSaleExpansion(sale.id)" class="p-1 hover:bg-muted rounded">
-                    <ChevronDown v-if="expandedSales.has(sale.id)" class="w-4 h-4" />
-                    <ChevronRight v-else class="w-4 h-4" />
-                  </CollapsibleTrigger>
-
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-sm line-through text-muted-foreground">{{ sale.ticketNumber }}</span>
-                      <Badge variant="destructive" class="text-xs">Annulé</Badge>
-                    </div>
-                    <p class="text-xs text-destructive">{{ sale.cancellationReason }}</p>
-                  </div>
-
-                  <div class="text-right opacity-50">
-                    <p class="font-bold text-sm line-through">{{ sale.totalTTC.toFixed(2) }} €</p>
-                  </div>
-                </div>
-              </div>
-
-              <CollapsibleContent v-if="expandedSales.has(sale.id)" class="pt-2 px-3 pb-3">
-                <div class="border rounded-lg p-3 bg-muted/30">
-                  <div class="bg-destructive/10 p-2 rounded text-xs text-destructive mb-2">
-                    Annulée le {{ new Date(sale.cancelledAt).toLocaleString('fr-FR') }}
-                  </div>
-                  <div class="text-xs space-y-1 opacity-50">
-                    <div v-for="item in sale.items" :key="item.id" class="flex justify-between">
-                      <span>{{ item.productName }}</span>
-                      <span>{{ item.quantity }} x {{ item.unitPrice.toFixed(2) }} €</span>
-                    </div>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
+          <SaleTicketItem
+            v-for="sale in cancelledSales"
+            :key="sale.id"
+            :sale="sale"
+            :is-closed="isClosed"
+            @cancel="openCancelDialog"
+          />
 
           <!-- Message si aucune vente -->
           <div v-if="dailyData.sales.length === 0" class="text-center py-8 text-muted-foreground text-sm">
