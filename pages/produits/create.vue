@@ -143,77 +143,38 @@
     </Tabs>
 
     <!-- Dialogs -->
-    <Dialog v-model:open="showAddCategoryDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Ajouter une sous-catégorie</DialogTitle>
-          <DialogDescription>Créez une nouvelle sous-catégorie</DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <div class="space-y-2">
-            <Label for="new-category-name">Nom de la catégorie *</Label>
-            <Input
-              id="new-category-name"
-              v-model="newCategoryName"
-              placeholder="Ex: T-shirts"
-              @keyup.enter="saveNewCategory"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showAddCategoryDialog = false">Annuler</Button>
-          <Button @click="saveNewCategory" :disabled="!newCategoryName.trim()">Créer</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      v-model:open="showAddCategoryDialog"
+      v-model="newCategoryName"
+      title="Ajouter une sous-catégorie"
+      description="Créez une nouvelle sous-catégorie"
+      label="Nom de la catégorie"
+      placeholder="Ex: T-shirts"
+      submit-label="Créer"
+      @submit="saveNewCategory"
+    />
 
-    <Dialog v-model:open="showAddSupplierDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Ajouter un fournisseur</DialogTitle>
-          <DialogDescription>Créez un nouveau fournisseur</DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <div class="space-y-2">
-            <Label for="new-supplier-name">Nom du fournisseur *</Label>
-            <Input
-              id="new-supplier-name"
-              v-model="newSupplierName"
-              placeholder="Ex: Acme Corp"
-              @keyup.enter="saveNewSupplier"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showAddSupplierDialog = false">Annuler</Button>
-          <Button @click="saveNewSupplier" :disabled="!newSupplierName.trim()">Créer</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      v-model:open="showAddSupplierDialog"
+      v-model="newSupplierName"
+      title="Ajouter un fournisseur"
+      description="Créez un nouveau fournisseur"
+      label="Nom du fournisseur"
+      placeholder="Ex: Acme Corp"
+      submit-label="Créer"
+      @submit="saveNewSupplier"
+    />
 
-    <Dialog v-model:open="showAddBrandDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Ajouter une marque</DialogTitle>
-          <DialogDescription>Créez une nouvelle marque</DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <div class="space-y-2">
-            <Label for="new-brand-name">Nom de la marque *</Label>
-            <Input
-              id="new-brand-name"
-              v-model="newBrandName"
-              placeholder="Ex: Nike"
-              @keyup.enter="saveNewBrand"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showAddBrandDialog = false">Annuler</Button>
-          <Button @click="saveNewBrand" :disabled="!newBrandName.trim()">Créer</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      v-model:open="showAddBrandDialog"
+      v-model="newBrandName"
+      title="Ajouter une marque"
+      description="Créez une nouvelle marque"
+      label="Nom de la marque"
+      placeholder="Ex: Nike"
+      submit-label="Créer"
+      @submit="saveNewBrand"
+    />
   </div>
 </template>
 
@@ -230,8 +191,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/composables/useToast'
+import FormDialog from '@/components/ui/FormDialog.vue'
 import ProductFormGeneral from '@/components/produits/form/ProductFormGeneral.vue'
 import ProductFormVariations from '@/components/produits/form/ProductFormVariations.vue'
 import ProductFormPricing from '@/components/produits/form/ProductFormPricing.vue'
