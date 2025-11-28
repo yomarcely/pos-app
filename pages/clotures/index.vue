@@ -246,6 +246,7 @@ import {
 } from '@/components/ui/dialog'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { formatPrice, formatDate, formatDateTime } from '@/utils/formatters'
 
 definePageMeta({
   layout: 'dashboard'
@@ -304,30 +305,6 @@ function resetFilters() {
 function viewDetails(closure: Closure) {
   selectedClosure.value = closure
   isDetailsDialogOpen.value = true
-}
-
-// Helper functions
-function formatPrice(price: string | number): string {
-  const numPrice = typeof price === 'string' ? parseFloat(price) : price
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(numPrice)
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-')
-  return `${day}/${month}/${year}`
-}
-
-function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 // Charger au montage
