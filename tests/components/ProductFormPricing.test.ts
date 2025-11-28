@@ -58,11 +58,11 @@ describe('ProductFormPricing', () => {
     await inputs[0]!.setValue('15')
     await inputs[1]!.setValue('7')
 
-    const emits = wrapper.emitted()['update:form'] || []
-    const priceUpdate = emits.find(e => e[0].price === '15')
-    const purchaseUpdate = emits.find(e => e[0].purchasePrice === '7')
-    expect(priceUpdate?.[0].price).toBe('15')
-    expect(purchaseUpdate?.[0].purchasePrice).toBe('7')
+    const emits = (wrapper.emitted()['update:form'] as any[]) || []
+    const priceUpdate = emits.find((e: any) => e[0]?.price === '15')
+    const purchaseUpdate = emits.find((e: any) => e[0]?.purchasePrice === '7')
+    expect(priceUpdate?.[0]?.price).toBe('15')
+    expect(purchaseUpdate?.[0]?.purchasePrice).toBe('7')
   })
 
   it('affiche la marge et le taux', () => {

@@ -41,7 +41,8 @@ describe('ProductsSearchBar', () => {
     const input = wrapper.find('input')
     await input.setValue('abc')
 
-    expect(wrapper.emitted()['update:searchQuery']?.[0]).toEqual(['abc'])
+    const searchQueryEmit = (wrapper.emitted()['update:searchQuery'] as any[]) || []
+    expect(searchQueryEmit[0]).toEqual(['abc'])
     expect(wrapper.emitted().search).toBeTruthy()
   })
 
@@ -50,7 +51,8 @@ describe('ProductsSearchBar', () => {
     const select = wrapper.find('select')
     await select.setValue('1')
 
-    expect(wrapper.emitted()['update:selectedCategoryId']?.[0]).toEqual([1])
+    const categoryEmit = (wrapper.emitted()['update:selectedCategoryId'] as any[]) || []
+    expect(categoryEmit[0]).toEqual([1])
     expect(wrapper.emitted().categoryChange).toBeTruthy()
   })
 
@@ -63,7 +65,7 @@ describe('ProductsSearchBar', () => {
     await listBtn.trigger('click')
     await gridBtn.trigger('click')
 
-    const emitted = wrapper.emitted()['update:viewMode'] || []
-    expect(emitted.map(e => e[0])).toEqual(['list', 'grid'])
+    const emitted = (wrapper.emitted()['update:viewMode'] as any[]) || []
+    expect(emitted.map((e: any) => e[0])).toEqual(['list', 'grid'])
   })
 })

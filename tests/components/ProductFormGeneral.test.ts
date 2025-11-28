@@ -63,9 +63,9 @@ describe('ProductFormGeneral', () => {
     await wrapper.find('input#name').setValue('Produit X')
     await wrapper.find('textarea#description').setValue('Desc')
 
-    const emits = wrapper.emitted()['update:form'] || []
-    expect(emits.at(-2)?.[0].name).toBe('Produit X')
-    expect(emits.at(-1)?.[0].description).toBe('Desc')
+    const emits = (wrapper.emitted()['update:form'] as any[]) || []
+    expect(emits.at(-2)?.[0]?.name).toBe('Produit X')
+    expect(emits.at(-1)?.[0]?.description).toBe('Desc')
   })
 
   it('met à jour fournisseur/marque via Select', async () => {
@@ -100,9 +100,9 @@ describe('ProductFormGeneral', () => {
     await selects[0]!.setValue('1')
     await selects[1]!.setValue('2')
 
-    const emits = wrapper.emitted()['update:form'] || []
-    expect(emits.some(e => e[0].supplierId !== null)).toBe(true)
-    expect(emits.some(e => e[0].brandId !== null)).toBe(true)
+    const emits = (wrapper.emitted()['update:form'] as any[]) || []
+    expect(emits.some((e: any) => e[0]?.supplierId !== null)).toBe(true)
+    expect(emits.some((e: any) => e[0]?.brandId !== null)).toBe(true)
   })
 
   it('supprime une image existante', async () => {
@@ -135,7 +135,7 @@ describe('ProductFormGeneral', () => {
     const buttons = wrapper.findAll('button')
     const removeBtn = buttons.at(-1)!
     await removeBtn.trigger('click')
-    const emitted = wrapper.emitted()['update:form'] || []
+    const emitted = (wrapper.emitted()['update:form'] as any[]) || []
     const last = emitted.at(-1)?.[0]
     expect(last?.image).toBeNull()
   })

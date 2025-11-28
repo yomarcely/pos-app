@@ -58,7 +58,8 @@ describe('ProductFormVariations', () => {
     const wrapper = mountComponent()
     const select = wrapper.find('select')
     await select.setValue('2')
-    expect(wrapper.emitted()['update:selectedGroupId']?.[0]?.[0]).toBe(2)
+    const emitted = (wrapper.emitted()['update:selectedGroupId'] as any[]) || []
+    expect(emitted[0]?.[0]).toBe(2)
   })
 
   it('toggleVariation ajoute/retire les ids sélectionnés', async () => {
@@ -66,7 +67,7 @@ describe('ProductFormVariations', () => {
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
     await checkboxes[1]!.setValue(true) // ajoute Bleu
 
-    const emitted = wrapper.emitted()['update:selectedVariationsIds'] || []
+    const emitted = (wrapper.emitted()['update:selectedVariationsIds'] as any[]) || []
     const last = emitted.at(-1)?.[0] || []
     expect(last.sort()).toEqual([10, 11])
   })
