@@ -4,8 +4,8 @@ import ProductFormVariations from '@/components/produits/form/ProductFormVariati
 
 const SimpleStub = { template: '<div><slot /></div>' }
 const CheckboxStub = {
-  props: ['checked'],
-  template: `<input type="checkbox" :checked="checked" @change="$emit('update:checked', $event.target.checked)" />`
+  props: ['modelValue'],
+  template: `<input type="checkbox" :checked="modelValue" @change="$emit('update:modelValue', $event.target.checked)" />`
 }
 const BadgeStub = { template: '<span><slot /></span>' }
 const IconStub = { template: '<span />' }

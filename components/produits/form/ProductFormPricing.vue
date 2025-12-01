@@ -17,7 +17,7 @@
               :model-value="form.price"
               placeholder="0.00"
               class="pr-8"
-              @update:model-value="$emit('update:form', { ...form, price: $event })"
+              @update:model-value="handlePriceChange"
             />
             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
           </div>
@@ -36,17 +36,32 @@
               :model-value="form.purchasePrice"
               placeholder="0.00"
               class="pr-8"
-              @update:model-value="$emit('update:form', { ...form, purchasePrice: $event })"
+              @update:model-value="handlePurchasePriceChange"
             />
             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
           </div>
         </div>
       </div>
 
+      <!-- Coef -->
+      <div class="space-y-2">
+        <Label for="coef">Coef</Label>
+        <Input
+          id="coef"
+          type="number"
+          step="0.01"
+          min="0"
+          :model-value="coef"
+          placeholder="1.00"
+          @update:model-value="handleCoefChange"
+        />
+        <p class="text-xs text-muted-foreground">Modifier le coef ajuste automatiquement le prix TTC.</p>
+      </div>
+
       <!-- TVA -->
       <div class="space-y-2">
         <Label for="tva">TVA *</Label>
-        <Select :model-value="form.tva" @update:model-value="$emit('update:form', { ...form, tva: $event })">
+        <Select :model-value="form.tva" @update:model-value="$emit('update:form', { ...form, tva: String($event) })">
           <SelectTrigger id="tva">
             <SelectValue placeholder="Sélectionner un taux" />
           </SelectTrigger>
@@ -58,32 +73,6 @@
             <SelectItem value="20">20%</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-
-      <!-- Catégorie -->
-      <div class="space-y-2">
-        <Label for="category">Catégorie</Label>
-        <div class="flex gap-2">
-          <Select :model-value="form.categoryId" @update:model-value="$emit('update:form', { ...form, categoryId: $event })">
-            <SelectTrigger id="category" class="flex-1">
-              <SelectValue placeholder="Sélectionner une catégorie" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="category in categories" :key="category.id" :value="category.id.toString()">
-                {{ category.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            type="button"
-            @click="$emit('add-category')"
-            title="Ajouter une catégorie"
-          >
-            <Plus class="w-4 h-4" />
-          </Button>
-        </div>
       </div>
 
       <!-- Aperçu de la marge -->
@@ -111,31 +100,61 @@ import { computed } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { Plus } from 'lucide-vue-next'
 
 interface PricingForm {
   price: string
   purchasePrice: string
   tva: string
   categoryId: string | null
-}
-
-interface Category {
-  id: number
-  name: string
+  coef?: string | number
 }
 
 const props = defineProps<{
   form: PricingForm
-  categories: Category[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'update:form': [value: PricingForm]
-  'add-category': []
 }>()
+
+const coef = computed({
+  get() {
+    const purchase = parseFloat(props.form.purchasePrice) || 0
+    const priceTTC = parseFloat(props.form.price) || 0
+    if (purchase > 0 && priceTTC > 0) {
+      return Number((priceTTC / purchase).toFixed(2))
+    }
+    return ''
+  },
+  set(value: string | number) {
+    const parsed = typeof value === 'number' ? value : parseFloat(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return
+    }
+    const purchase = parseFloat(props.form.purchasePrice) || 0
+    if (purchase > 0) {
+      const newPrice = purchase * parsed
+      emitUpdate({ price: String(newPrice) })
+    }
+  }
+})
+
+function emitUpdate(partial: Partial<PricingForm>) {
+  emit('update:form', { ...props.form, ...partial })
+}
+
+function handlePurchasePriceChange(value: string | number) {
+  emitUpdate({ purchasePrice: String(value) })
+}
+
+function handlePriceChange(value: string | number) {
+  emitUpdate({ price: String(value) })
+}
+
+function handleCoefChange(value: string | number) {
+  coef.value = value
+}
 
 const margin = computed(() => {
   const price = parseFloat(props.form.price) || 0

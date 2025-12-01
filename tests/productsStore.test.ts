@@ -93,10 +93,10 @@ describe('products store', () => {
 
     const outAlerts = store.outOfStockAlerts
     expect(outAlerts).toHaveLength(1)
-    expect(outAlerts[0]!.variations).toEqual([{ id: 'blue', stock: 0 }])
+    expect(outAlerts[0]!.variations).toEqual([{ id: 'blue', name: 'Variation blue', stock: 0 }])
 
     const lowAlerts = store.lowStockAlerts
     expect(lowAlerts).toHaveLength(1)
-    expect(lowAlerts[0]!.variations).toEqual([{ id: 'red', stock: 1 }])
+    expect(lowAlerts[0]!.variations).toEqual([{ id: 'red', name: 'Variation red', stock: 1 }])
   })
 })

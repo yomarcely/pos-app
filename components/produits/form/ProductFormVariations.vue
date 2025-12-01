@@ -46,8 +46,8 @@
               >
                 <Checkbox
                   :id="`variation-${variation.id}`"
-                  :checked="isVariationSelected(variation.id)"
-                  @update:checked="toggleVariation(variation.id, $event)"
+                  :model-value="isVariationSelected(variation.id)"
+                  @update:model-value="toggleVariation(variation.id, $event)"
                 />
                 <Label
                   :for="`variation-${variation.id}`"
@@ -59,24 +59,6 @@
             </div>
           </div>
 
-          <!-- Récapitulatif des variations sélectionnées -->
-          <div v-if="selectedVariationsIds.length > 0" class="p-4 bg-muted rounded-lg">
-            <p class="text-sm font-medium mb-2">Variations sélectionnées :</p>
-            <div class="flex flex-wrap gap-2">
-              <Badge
-                v-for="id in selectedVariationsIds"
-                :key="id"
-                variant="secondary"
-                class="gap-1"
-              >
-                {{ getVariationName(id) }}
-                <X
-                  class="w-3 h-3 cursor-pointer hover:text-destructive"
-                  @click="toggleVariation(id, false)"
-                />
-              </Badge>
-            </div>
-          </div>
         </div>
       </div>
     </CardContent>
@@ -88,8 +70,7 @@ import { computed } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { Info, Layers, X } from 'lucide-vue-next'
+import { Info, Layers } from 'lucide-vue-next'
 
 interface Variation {
   id: number
@@ -123,9 +104,10 @@ function isVariationSelected(variationId: number): boolean {
   return props.selectedVariationsIds.includes(variationId)
 }
 
-function toggleVariation(variationId: number, checked: boolean) {
+function toggleVariation(variationId: number, checked: boolean | 'indeterminate' | null) {
+  const isChecked = checked === 'indeterminate' ? true : !!checked
   let newIds = [...props.selectedVariationsIds]
-  if (checked) {
+  if (isChecked) {
     if (!newIds.includes(variationId)) {
       newIds.push(variationId)
     }

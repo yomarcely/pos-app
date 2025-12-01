@@ -176,7 +176,7 @@ function getProductVariations(product: any): Variation[] {
       ? props.allVariations.find((v) => v.id === numericId)
       : undefined
 
-    return found || { id, name: `Variation ${id}` }
+    return found || { id: id as string | number, name: `Variation ${id}` }
   })
 }
 </script>

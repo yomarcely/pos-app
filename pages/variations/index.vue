@@ -109,10 +109,10 @@ definePageMeta({
 
 import { Plus, Layers } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
-import FormDialog from '@/components/ui/FormDialog.vue'
-import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import FormDialog from '@/components/common/FormDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import VariationGroupCard from '@/components/variations/VariationGroupCard.vue'
 import { useToast } from '@/composables/useToast'
 
@@ -121,7 +121,7 @@ const toast = useToast()
 interface Variation {
   id: number
   name: string
-  sortOrder: number
+  sortOrder: number | null
 }
 
 interface VariationGroup {

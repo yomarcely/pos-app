@@ -35,7 +35,7 @@
       <div class="space-y-2">
         <Label for="supplier">Fournisseur</Label>
         <div class="flex gap-2">
-          <Select :model-value="form.supplierId" @update:model-value="$emit('update:form', { ...form, supplierId: $event })">
+          <Select :model-value="form.supplierId" @update:model-value="$emit('update:form', { ...form, supplierId: String($event) })">
             <SelectTrigger id="supplier" class="flex-1">
               <SelectValue placeholder="Sélectionner un fournisseur" />
             </SelectTrigger>
@@ -61,7 +61,7 @@
       <div class="space-y-2">
         <Label for="brand">Marque</Label>
         <div class="flex gap-2">
-          <Select :model-value="form.brandId" @update:model-value="$emit('update:form', { ...form, brandId: $event })">
+          <Select :model-value="form.brandId" @update:model-value="$emit('update:form', { ...form, brandId: String($event) })">
             <SelectTrigger id="brand" class="flex-1">
               <SelectValue placeholder="Sélectionner une marque" />
             </SelectTrigger>
@@ -116,7 +116,7 @@
                 type="button"
                 variant="secondary"
                 size="sm"
-                @click="$refs.fileInput.click()"
+                @click="fileInput?.click()"
               >
                 <Upload class="w-4 h-4 mr-2" />
                 Parcourir
@@ -194,7 +194,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 function handleDrop(e: DragEvent) {
   isDragging.value = false
   const files = e.dataTransfer?.files
-  if (files && files.length > 0) {
+  if (files && files.length > 0 && files[0]) {
     handleFile(files[0])
   }
 }
@@ -202,7 +202,7 @@ function handleDrop(e: DragEvent) {
 function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement
   const files = target.files
-  if (files && files.length > 0) {
+  if (files && files.length > 0 && files[0]) {
     handleFile(files[0])
   }
 }

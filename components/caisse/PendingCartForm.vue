@@ -85,7 +85,7 @@ function handleRecover() {
               :key="item.id + '-' + item.variation"
               class="flex items-center justify-between gap-2 border-b pb-2"
             >
-              <img :src="item.image" alt="Produit" class="w-12 h-12 rounded object-cover" />
+              <img v-if="item.image" :src="item.image" alt="Produit" class="w-12 h-12 rounded object-cover" />
               <div class="flex-1">
                 <div class="font-medium text-sm">{{ item.name }}</div>
                 <div class="text-xs text-muted-foreground">x{{ item.quantity }}</div>

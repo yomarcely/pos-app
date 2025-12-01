@@ -35,6 +35,7 @@ describe('Page produits', () => {
     vi.stubGlobal('onMounted', vueOnMounted)
     toastMock.error.mockClear()
     toastMock.success.mockClear()
+    navigateToMock.mockClear()
   })
 
   it('charge produits et catégories au montage, affiche la grille', async () => {
@@ -45,9 +46,6 @@ describe('Page produits', () => {
 
     const wrapper = mount(ProductsPage, {
       global: {
-        config: {
-          globalProperties: { navigateTo: navigateToMock }
-        },
         stubs: {
           Button: ButtonStub,
           ProductsSearchBar: ProductsSearchBarStub,
@@ -71,8 +69,8 @@ describe('Page produits', () => {
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ categories: [], products: [], count: 0 }))
     const wrapper = mount(ProductsPage, {
       global: {
-        config: {
-          globalProperties: { navigateTo: navigateToMock }
+        mocks: {
+          navigateTo: navigateToMock
         },
         stubs: {
           Button: ButtonStub,

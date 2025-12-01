@@ -150,7 +150,7 @@ describe('CartItem', () => {
     })
 
     const select = wrapper.findAll('select')[0]
-    await select.setValue('Bleu')
+    await select!.setValue('Bleu')
     expect(updateVariation).toHaveBeenCalled()
     const lastCall = updateVariation.mock.calls.at(-1)
     expect(lastCall?.[0]).toBe(1)

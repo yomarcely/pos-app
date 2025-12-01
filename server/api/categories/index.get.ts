@@ -53,9 +53,9 @@ function buildTree(flatCategories: any[]): Category[] {
     }
   })
 
-  // Trier par sortOrder
+  // Trier par ordre alphabétique
   const sortCategories = (cats: Category[]) => {
-    cats.sort((a, b) => a.sortOrder - b.sortOrder)
+    cats.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
     cats.forEach(cat => {
       if (cat.children && cat.children.length > 0) {
         sortCategories(cat.children)

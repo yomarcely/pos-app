@@ -87,8 +87,8 @@ const emit = defineEmits<{
   'openCatalog': []
 }>()
 
-function handleInput(value: string) {
-  emit('update:searchQuery', value)
+function handleInput(value: string | number) {
+  emit('update:searchQuery', String(value))
 }
 
 function getTotalStock(product: Product): number {

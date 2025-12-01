@@ -3,18 +3,11 @@ import 'dotenv/config'
 import { sql } from 'drizzle-orm'
 import { db, closeConnection } from './connection'
 import {
-  archives,
-  auditLogs,
   brands,
   categories,
-  closures,
   customers,
-  movements,
   products,
-  saleItems,
-  sales,
   sellers,
-  stockMovements,
   suppliers,
   variationGroups,
   variations,
@@ -148,9 +141,9 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
           id: customer.id,
           firstName: customer.firstName,
           lastName: customer.lastName,
-          email: customer.email || null,
-          phone: customer.phone || null,
-          address: customer.address || null,
+          email: null,
+          phone: null,
+          address: null,
           metadata: {
             city: customer.city,
             postalCode: customer.postalCode,
@@ -178,6 +171,21 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       customers: insertedCustomers.length,
       products: insertedProducts.length,
     }
+
+    // Synchroniser les séquences PostgreSQL
+    console.log('🔄 Synchronisation des séquences...')
+    const tables = [
+      'categories', 'suppliers', 'brands', 'variation_groups', 'variations',
+      'sellers', 'customers', 'products', 'sales', 'sale_items',
+      'movements', 'stock_movements', 'closures', 'audit_logs', 'archives'
+    ]
+
+    for (const table of tables) {
+      await tx.execute(sql`
+        SELECT setval('${sql.raw(table + '_id_seq')}', COALESCE((SELECT MAX(id) FROM ${sql.raw(table)}), 1), true)
+      `)
+    }
+    console.log('✅ Séquences synchronisées')
 
     console.log('✨ Seed terminé avec succès!')
     console.table(summary)

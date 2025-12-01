@@ -5,9 +5,7 @@ import StockAlerts from '@/components/caisse/StockAlerts.vue'
 const BadgeStub = { template: '<span><slot /></span>' }
 const ButtonStub = { template: '<button @click="$emit(\'click\')"><slot /></button>' }
 const IconStub = { template: '<span />' }
-const TransitionStub = {
-  render() { return this.$slots.default?.() }
-}
+const TransitionStub = { template: '<div><slot /></div>' }
 
 const productsStoreMock = {
   outOfStockAlerts: [] as any[],

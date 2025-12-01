@@ -11,6 +11,7 @@ const product = {
   barcode: '123',
   categoryName: 'Cat',
   price: 10,
+  tva: 20,
   image: null,
   stock: 5,
   stockByVariation: { a: 1, b: 2 }
@@ -53,8 +54,11 @@ describe('ProductsTableView', () => {
     await editBtn.trigger('click')
     await delBtn.trigger('click')
 
-    expect(wrapper.emitted().view?.[0]?.[0].id).toBe(1)
-    expect(wrapper.emitted().edit?.[0]?.[0].id).toBe(1)
-    expect(wrapper.emitted().delete?.[0]?.[0].id).toBe(1)
+    const viewEmit = wrapper.emitted().view as any[] | undefined
+    const editEmit = wrapper.emitted().edit as any[] | undefined
+    const deleteEmit = wrapper.emitted().delete as any[] | undefined
+    expect(viewEmit?.[0]?.[0].id).toBe(1)
+    expect(editEmit?.[0]?.[0].id).toBe(1)
+    expect(deleteEmit?.[0]?.[0].id).toBe(1)
   })
 })

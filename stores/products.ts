@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Product } from '@/types'
+import { useVariationGroupsStore } from './variationGroups'
 
 export const useProductsStore = defineStore('products', () => {
   // État
@@ -270,17 +271,27 @@ export const useProductsStore = defineStore('products', () => {
    * Retourne un tableau d'alertes avec le produit et les variations concernées
    */
   const outOfStockAlerts = computed(() => {
+    const variationStore = useVariationGroupsStore()
     const alerts: Array<{
       product: Product
-      variations?: Array<{ id: string; stock: number }>
+      variations?: Array<{ id: string; name: string; stock: number }>
     }> = []
+
+    // Helper function to get variation name by ID
+    const getVariationName = (variationId: string): string => {
+      for (const group of variationStore.groups) {
+        const variation = group.variations.find(v => String(v.id) === variationId)
+        if (variation) return variation.name
+      }
+      return `Variation ${variationId}`
+    }
 
     products.value.forEach(p => {
       if (p.stockByVariation) {
         // Pour les produits avec variations, ne garder que les variations en rupture (stock = 0)
         const outOfStockVariations = Object.entries(p.stockByVariation)
           .filter(([_, stock]) => stock <= 0)
-          .map(([id, stock]) => ({ id, stock }))
+          .map(([id, stock]) => ({ id, name: getVariationName(id), stock }))
 
         if (outOfStockVariations.length > 0) {
           alerts.push({
@@ -320,10 +331,20 @@ export const useProductsStore = defineStore('products', () => {
    * Retourne un tableau d'alertes avec le produit et les variations concernées
    */
   const lowStockAlerts = computed(() => {
+    const variationStore = useVariationGroupsStore()
     const alerts: Array<{
       product: Product
-      variations?: Array<{ id: string; stock: number }>
+      variations?: Array<{ id: string; name: string; stock: number }>
     }> = []
+
+    // Helper function to get variation name by ID
+    const getVariationName = (variationId: string): string => {
+      for (const group of variationStore.groups) {
+        const variation = group.variations.find(v => String(v.id) === variationId)
+        if (variation) return variation.name
+      }
+      return `Variation ${variationId}`
+    }
 
     products.value.forEach(p => {
       if (p.stockByVariation) {
@@ -333,7 +354,7 @@ export const useProductsStore = defineStore('products', () => {
             const minStockForVariation = p.minStockByVariation?.[id] ?? p.minStock ?? 5
             return stock > 0 && stock <= minStockForVariation
           })
-          .map(([id, stock]) => ({ id, stock }))
+          .map(([id, stock]) => ({ id, name: getVariationName(id), stock }))
 
         if (lowStockVariations.length > 0) {
           alerts.push({

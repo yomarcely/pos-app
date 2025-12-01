@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Globals simulant l'environnement Nuxt/Nitro
-globalThis.defineEventHandler = (fn: any) => fn
-globalThis.createError = (data: any) => ({ __isError: true, ...data })
-globalThis.getQuery = (event: any) => event?.query || {}
+;(globalThis as any).defineEventHandler = (fn: any) => fn
+;(globalThis as any).createError = (data: any) => ({ __isError: true, ...data })
+;(globalThis as any).getQuery = (event: any) => event?.query || {}
 
 // db mock injecté dynamiquement
 let currentDb: any
@@ -124,10 +124,10 @@ describe('API handlers', () => {
     currentDb = createDbSequence([groups, vars])
     const handler = (await import('@/server/api/variations/index.get')).default
 
-    const res = await handler()
+    const res = await handler({} as any)
     expect(res.success).toBe(true)
     expect(res.groups).toHaveLength(2)
     const color = res.groups.find((g: any) => g.id === 1)
-    expect(color.variations.map((v: any) => v.id)).toEqual([11, 10]) // tri sortOrder
+    expect(color?.variations.map((v: any) => v.id)).toEqual([11, 10]) // tri sortOrder
   })
 })

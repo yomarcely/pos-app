@@ -11,6 +11,7 @@ const product = {
   barcode: '123',
   categoryName: 'Cat',
   price: 10,
+  tva: 20,
   image: null,
   stock: 5,
   stockByVariation: { a: 1, b: 2 }
@@ -52,7 +53,9 @@ describe('ProductsGridView', () => {
     await editBtn.trigger('click', event)
     await delBtn.trigger('click', event)
 
-    expect(wrapper.emitted().edit?.[0]?.[0].id).toBe(1)
-    expect(wrapper.emitted().delete?.[0]?.[0].id).toBe(1)
+    const editEmit = wrapper.emitted().edit as any[] | undefined
+    const deleteEmit = wrapper.emitted().delete as any[] | undefined
+    expect(editEmit?.[0]?.[0].id).toBe(1)
+    expect(deleteEmit?.[0]?.[0].id).toBe(1)
   })
 })

@@ -15,8 +15,8 @@ describe('stores/tickets', () => {
     store.addTicket(items, 10)
 
     expect(store.ticketCount).toBe(1)
-    expect(store.tickets[0].items).not.toBe(items)
-    expect(store.tickets[0].items[0].name).toBe('Produit')
+    expect(store.tickets[0]?.items).not.toBe(items)
+    expect(store.tickets[0]?.items[0]?.name).toBe('Produit')
   })
 
   it('supprime un ticket', () => {

@@ -14,9 +14,6 @@ import { categories } from '~/server/database/schema'
 interface CreateCategoryRequest {
   name: string
   parentId?: number | null
-  sortOrder?: number
-  icon?: string
-  color?: string
 }
 
 export default defineEventHandler(async (event) => {
@@ -33,9 +30,9 @@ export default defineEventHandler(async (event) => {
     const [newCategory] = await db.insert(categories).values({
       name: body.name.trim(),
       parentId: body.parentId || null,
-      sortOrder: body.sortOrder || 0,
-      icon: body.icon || null,
-      color: body.color || null,
+      sortOrder: 0,
+      icon: null,
+      color: null,
     }).returning()
 
     console.log(`✅ Catégorie créée: ${newCategory.name} (ID: ${newCategory.id})`)

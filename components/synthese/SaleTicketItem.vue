@@ -71,7 +71,7 @@
         ]"
       >
         <!-- Annulation info -->
-        <div v-if="sale.status === 'cancelled'" class="bg-destructive/10 p-2 rounded text-xs text-destructive mb-2">
+        <div v-if="sale.status === 'cancelled' && sale.cancelledAt" class="bg-destructive/10 p-2 rounded text-xs text-destructive mb-2">
           Annulée le {{ new Date(sale.cancelledAt).toLocaleString('fr-FR') }}
         </div>
 

@@ -13,9 +13,6 @@ import { eq } from 'drizzle-orm'
 interface UpdateCategoryRequest {
   name?: string
   parentId?: number | null
-  sortOrder?: number
-  icon?: string | null
-  color?: string | null
 }
 
 export default defineEventHandler(async (event) => {
@@ -54,9 +51,6 @@ export default defineEventHandler(async (event) => {
 
     if (body.name !== undefined) updateData.name = body.name.trim()
     if (body.parentId !== undefined) updateData.parentId = body.parentId
-    if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder
-    if (body.icon !== undefined) updateData.icon = body.icon
-    if (body.color !== undefined) updateData.color = body.color
 
     const [updated] = await db
       .update(categories)

@@ -49,9 +49,6 @@ const showDeleteDialog = ref(false)
 const formData = ref({
   name: '',
   parentId: null as number | null,
-  sortOrder: 0,
-  icon: '',
-  color: '#3b82f6',
 })
 
 const selectedCategory = ref<Category | null>(null)
@@ -88,9 +85,6 @@ function openCreateDialog(parent: Category | null = null) {
   formData.value = {
     name: '',
     parentId: parent?.id || null,
-    sortOrder: 0,
-    icon: '',
-    color: '#3b82f6',
   }
   showCreateDialog.value = true
 }
@@ -101,9 +95,6 @@ function openEditDialog(category: Category) {
   formData.value = {
     name: category.name,
     parentId: category.parentId,
-    sortOrder: category.sortOrder,
-    icon: category.icon || '',
-    color: category.color || '#3b82f6',
   }
   showEditDialog.value = true
 }
@@ -254,17 +245,6 @@ onMounted(() => {
             <Label for="name">Nom *</Label>
             <Input id="name" v-model="formData.name" placeholder="Ex: Vêtements" />
           </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <Label for="color">Couleur</Label>
-              <Input id="color" v-model="formData.color" type="color" />
-            </div>
-            <div>
-              <Label for="sortOrder">Ordre</Label>
-              <Input id="sortOrder" v-model.number="formData.sortOrder" type="number" />
-            </div>
-          </div>
         </div>
 
         <DialogFooter>
@@ -288,17 +268,6 @@ onMounted(() => {
           <div>
             <Label for="edit-name">Nom *</Label>
             <Input id="edit-name" v-model="formData.name" placeholder="Ex: Vêtements" />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <Label for="edit-color">Couleur</Label>
-              <Input id="edit-color" v-model="formData.color" type="color" />
-            </div>
-            <div>
-              <Label for="edit-sortOrder">Ordre</Label>
-              <Input id="edit-sortOrder" v-model.number="formData.sortOrder" type="number" />
-            </div>
           </div>
         </div>
 

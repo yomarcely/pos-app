@@ -7,9 +7,10 @@ import { eq } from 'drizzle-orm'
  * API: Récupérer tous les groupes de variations avec leurs variations
  * ==========================================
  *
- * GET /api/variations
+ * GET /api/variations/groups
  *
  * Retourne la liste de tous les groupes de variations non archivés avec leurs variations
+ * (alias de /api/variations pour compatibilité avec les appels existants).
  */
 
 interface Variation {

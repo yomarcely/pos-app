@@ -51,7 +51,7 @@ describe('pages/dashboard/index', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons).toHaveLength(6)
 
-    await buttons[0].trigger('click')
+    await buttons[0]!.trigger('click')
     expect(push).toHaveBeenCalledWith('/caisse')
   })
 

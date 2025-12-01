@@ -69,7 +69,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 interface Variation {
   id: number
   name: string
-  sortOrder: number
+  sortOrder: number | null
 }
 
 interface VariationGroup {

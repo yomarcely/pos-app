@@ -70,24 +70,11 @@
             </div>
 
             <!-- Catégorie -->
-            <div class="space-y-2">
-              <Label>Catégorie</Label>
-              <div class="border rounded-lg p-4 max-h-64 overflow-y-auto">
-                <div v-if="categories.length === 0" class="text-center py-4 text-muted-foreground">
-                  Aucune catégorie disponible
-                </div>
-                <div v-else class="space-y-2">
-                  <CategoryTreeItem
-                    v-for="category in categories"
-                    :key="category.id"
-                    :category="category"
-                    :selected-id="form.categoryId"
-                    @select="form.categoryId = $event"
-                    @add-subcategory="openAddCategoryDialog"
-                  />
-                </div>
-              </div>
-            </div>
+            <CategorySelector
+              :categories="categories"
+              :model-value="form.categoryId"
+              @update:model-value="form.categoryId = $event"
+            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -113,9 +100,7 @@
             tva: form.tva,
             categoryId: form.categoryId
           }"
-          :categories="flatCategories"
           @update:form="updatePricingForm"
-          @add-category="openAddCategoryDialog"
         />
       </TabsContent>
 
@@ -251,7 +236,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ArrowLeft, X, Save, Info } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -261,13 +246,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/composables/useToast'
 import { useRoute, useRouter } from 'vue-router'
-import FormDialog from '@/components/ui/FormDialog.vue'
+import FormDialog from '@/components/common/FormDialog.vue'
 import ProductFormGeneral from '@/components/produits/form/ProductFormGeneral.vue'
 import ProductFormVariations from '@/components/produits/form/ProductFormVariations.vue'
 import ProductFormPricing from '@/components/produits/form/ProductFormPricing.vue'
 import ProductFormBarcode from '@/components/produits/form/ProductFormBarcode.vue'
-import CategoryTreeItem from '@/components/categories/CategoryTreeItem.vue'
-import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import CategorySelector from '@/components/produits/CategorySelector.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
 const route = useRoute()
@@ -317,20 +302,6 @@ const newSupplierName = ref('')
 const newBrandName = ref('')
 
 // Computed
-const flatCategories = computed(() => {
-  const flatten = (cats: any[], level = 0): any[] => {
-    let result: any[] = []
-    for (const cat of cats) {
-      result.push({ id: cat.id, name: '  '.repeat(level) + cat.name })
-      if (cat.children && cat.children.length > 0) {
-        result = result.concat(flatten(cat.children, level + 1))
-      }
-    }
-    return result
-  }
-  return flatten(categories.value)
-})
-
 const selectedVariationsList = computed(() => {
   const variations: any[] = []
   for (const group of variationGroups.value) {
@@ -342,6 +313,24 @@ const selectedVariationsList = computed(() => {
   }
   return variations
 })
+
+// Pré-sélectionner le groupe correspondant aux variations chargées
+function ensureSelectedGroupFromVariations() {
+  if (selectedGroupId.value) return
+  if (!form.value.variationGroupIds.length) return
+  const group = variationGroups.value.find((g: any) =>
+    g.variations?.some((v: any) => form.value.variationGroupIds.includes(v.id))
+  )
+  if (group) {
+    selectedGroupId.value = group.id
+  }
+}
+
+watch(
+  [variationGroups, () => form.value.variationGroupIds],
+  ensureSelectedGroupFromVariations,
+  { immediate: true }
+)
 
 // Update handlers
 function updateGeneralForm(updatedForm: any) {
@@ -367,12 +356,6 @@ function getStockByVariation(variationId: number): number {
 // Navigation
 function goBack() {
   router.push('/produits')
-}
-
-// Dialog actions
-function openAddCategoryDialog() {
-  newCategoryName.value = ''
-  showAddCategoryDialog.value = true
 }
 
 function openAddSupplierDialog() {
@@ -409,10 +392,11 @@ async function saveNewSupplier() {
       method: 'POST',
       body: { name: newSupplierName.value }
     })
-    if (response?.success) {
+    const created = response?.supplier || response
+    if (created?.id) {
       toast.success('Fournisseur créé avec succès')
       await loadSuppliers()
-      form.value.supplierId = response.supplier.id.toString()
+      form.value.supplierId = created.id.toString()
       showAddSupplierDialog.value = false
     }
   } catch (error: any) {
@@ -427,10 +411,11 @@ async function saveNewBrand() {
       method: 'POST',
       body: { name: newBrandName.value }
     })
-    if (response?.success) {
+    const created = response?.brand || response
+    if (created?.id) {
       toast.success('Marque créée avec succès')
       await loadBrands()
-      form.value.brandId = response.brand.id.toString()
+      form.value.brandId = created.id.toString()
       showAddBrandDialog.value = false
     }
   } catch (error: any) {
@@ -478,7 +463,7 @@ async function loadProduct() {
 async function loadSuppliers() {
   try {
     const response: any = await $fetch('/api/suppliers')
-    suppliers.value = response.suppliers || []
+    suppliers.value = Array.isArray(response) ? response : (response.suppliers || [])
   } catch (error) {
     console.error('Erreur lors du chargement des fournisseurs:', error)
   }
@@ -487,7 +472,7 @@ async function loadSuppliers() {
 async function loadBrands() {
   try {
     const response: any = await $fetch('/api/brands')
-    brands.value = response.brands || []
+    brands.value = Array.isArray(response) ? response : (response.brands || [])
   } catch (error) {
     console.error('Erreur lors du chargement des marques:', error)
   }
@@ -518,6 +503,20 @@ async function saveProduct() {
     return
   }
 
+  // Validation variations
+  if (form.value.hasVariations && (!form.value.variationGroupIds || form.value.variationGroupIds.length === 0)) {
+    toast.error('Sélectionnez au moins une variation')
+    return
+  }
+
+  const selectedVariationIds = form.value.hasVariations ? form.value.variationGroupIds : []
+  const stockByVariation = form.value.hasVariations
+    ? Object.fromEntries(selectedVariationIds.map(id => [id, originalProduct.value?.stockByVariation?.[id] ?? 0]))
+    : null
+  const minStockByVariation = form.value.hasVariations
+    ? Object.fromEntries(selectedVariationIds.map(id => [id, form.value.minStockByVariation[id] ?? 0]))
+    : null
+
   loading.value = true
   try {
     const payload = {
@@ -527,8 +526,10 @@ async function saveProduct() {
       price: parseFloat(form.value.price) || 0,
       purchasePrice: form.value.purchasePrice ? parseFloat(form.value.purchasePrice) : null,
       tva: parseFloat(form.value.tva),
+      hasVariations: form.value.hasVariations,
       minStock: form.value.minStock,
-      minStockByVariation: form.value.hasVariations ? form.value.minStockByVariation : null,
+      minStockByVariation,
+      stockByVariation,
       variationGroupIds: form.value.hasVariations ? form.value.variationGroupIds : null,
       categoryId: form.value.categoryId ? parseInt(form.value.categoryId) : null,
       supplierId: form.value.supplierId ? parseInt(form.value.supplierId) : null,

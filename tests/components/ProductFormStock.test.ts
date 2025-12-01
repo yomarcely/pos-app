@@ -44,8 +44,10 @@ describe('ProductFormStock', () => {
     await inputs[1]!.setValue('1')
 
     const emits = wrapper.emitted()
-    expect(emits['update:initialStock']?.[0]?.[0]).toBe(3)
-    expect(emits['update:minStock']?.[0]?.[0]).toBe(1)
+    const initialStockEmit = emits['update:initialStock'] as any[] | undefined
+    const minStockEmit = emits['update:minStock'] as any[] | undefined
+    expect(initialStockEmit?.[0]?.[0]).toBe(3)
+    expect(minStockEmit?.[0]?.[0]).toBe(1)
   })
 
   it('gère le stock par variation', async () => {
@@ -65,11 +67,11 @@ describe('ProductFormStock', () => {
     await wrapper.find('#min-stock-2').setValue('1')
 
     const emits = wrapper.emitted()
-    const initEmits = emits['update:initialStockByVariation'] || []
+    const initEmits = (emits['update:initialStockByVariation'] as any[]) || []
     expect(initEmits[0]?.[0]).toEqual({ 1: 5, 2: 0 })
     expect(initEmits.at(-1)?.[0]).toEqual({ 1: 0, 2: 3 })
 
-    const minEmits = emits['update:minStockByVariation'] || []
+    const minEmits = (emits['update:minStockByVariation'] as any[]) || []
     expect(minEmits[0]?.[0]).toEqual({ 1: 2, 2: 0 })
     expect(minEmits.at(-1)?.[0]).toEqual({ 1: 0, 2: 1 })
   })

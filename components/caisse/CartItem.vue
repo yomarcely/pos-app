@@ -126,11 +126,11 @@ const isBelowPurchasePrice = computed(() => {
 })
 
 // Fonction pour obtenir le nom d'une variation par son ID
-function getVariationNameById(variationId: number): string {
+function getVariationNameById(variationId: string | number): string {
     // Parcourir tous les groupes de variations
     for (const group of variationGroups) {
         // Chercher la variation dans ce groupe
-        const variation = group.variations.find((v: { id: number, name: string }) => v.id === variationId)
+        const variation = group.variations.find((v) => v.id === variationId)
         if (variation) {
             return variation.name
         }
@@ -139,11 +139,11 @@ function getVariationNameById(variationId: number): string {
 }
 
 // Fonction pour obtenir l'ID d'une variation par son nom
-function getVariationIdByName(variationName: string): number | null {
+function getVariationIdByName(variationName: string): string | number | null {
     // Parcourir tous les groupes de variations
     for (const group of variationGroups) {
         // Chercher la variation dans ce groupe
-        const variation = group.variations.find((v: { id: number, name: string }) => v.name === variationName)
+        const variation = group.variations.find((v) => v.name === variationName)
         if (variation) {
             return variation.id
         }

@@ -31,7 +31,7 @@ function scrollToBottom() {
 }
 
 // Fonction pour obtenir le nom d'une variation par son ID
-function getVariationNameById(variationId: number): string {
+function getVariationNameById(variationId: string | number): string {
   for (const group of variationGroups.value) {
     const variation = group.variations.find(v => v.id === variationId)
     if (variation) {
@@ -137,7 +137,7 @@ function removeFromCart(id: number, variation: string) {
         <ComboboxGroup>
           <ComboboxItem v-for="item in Products" :key="item.id" :value="item">
             <div class="flex items-center gap-2">
-              <img :src="item.image" class="w-6 h-6 rounded" />
+              <img v-if="item.image" :src="item.image" class="w-6 h-6 rounded" />
               <span class="flex-1">{{ item.name }}</span>
               <span class="text-sm text-gray-500">{{ item.price.toFixed(2) }} €</span>
             </div>

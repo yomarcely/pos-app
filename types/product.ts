@@ -2,7 +2,7 @@
 export interface Variation {
   id: number | string
   name: string
-  sortOrder?: number
+  sortOrder?: number | null
   groupId?: number | string
 }
 
