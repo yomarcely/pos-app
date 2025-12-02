@@ -4,145 +4,155 @@
       <CardTitle>Informations générales</CardTitle>
       <CardDescription>Informations de base du produit</CardDescription>
     </CardHeader>
-    <CardContent class="space-y-6">
-      <!-- Nom du produit -->
-      <div class="space-y-2">
-        <Label for="name">Nom du produit *</Label>
-        <Input
-          id="name"
-          :model-value="form.name"
-          placeholder="Ex: T-shirt Bleu"
-          @update:model-value="$emit('update:form', { ...form, name: $event as string })"
-        />
-      </div>
+    <CardContent class="space-y-8">
+      <div class="grid gap-8 lg:grid-cols-2 lg:items-start lg:justify-center">
+        <div class="space-y-4 w-full max-w-lg lg:ml-auto lg:mr-6">
+          <!-- Nom du produit -->
+          <div class="space-y-2">
+            <Label for="name">Nom du produit *</Label>
+            <Input
+              id="name"
+              :model-value="form.name"
+              placeholder="Ex: T-shirt Bleu"
+              @update:model-value="$emit('update:form', { ...form, name: $event as string })"
+            />
+          </div>
 
-      <!-- Description -->
-      <div class="space-y-2">
-        <Label for="description">Description</Label>
-        <Textarea
-          id="description"
-          :model-value="form.description"
-          placeholder="Décrivez votre produit..."
-          rows="4"
-          @update:model-value="$emit('update:form', { ...form, description: $event as string })"
-        />
-        <p class="text-xs text-muted-foreground">
-          Description détaillée du produit (optionnel)
-        </p>
-      </div>
+          <!-- Catégorie (slot injecté depuis la page) -->
+          <slot name="category" />
 
-      <!-- Fournisseur -->
-      <div class="space-y-2">
-        <Label for="supplier">Fournisseur</Label>
-        <div class="flex gap-2">
-          <Select :model-value="form.supplierId" @update:model-value="$emit('update:form', { ...form, supplierId: String($event) })">
-            <SelectTrigger id="supplier" class="flex-1">
-              <SelectValue placeholder="Sélectionner un fournisseur" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id.toString()">
-                {{ supplier.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            type="button"
-            @click="$emit('add-supplier')"
-            title="Ajouter un fournisseur"
-          >
-            <Plus class="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      <!-- Marque -->
-      <div class="space-y-2">
-        <Label for="brand">Marque</Label>
-        <div class="flex gap-2">
-          <Select :model-value="form.brandId" @update:model-value="$emit('update:form', { ...form, brandId: String($event) })">
-            <SelectTrigger id="brand" class="flex-1">
-              <SelectValue placeholder="Sélectionner une marque" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="brand in brands" :key="brand.id" :value="brand.id.toString()">
-                {{ brand.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            type="button"
-            @click="$emit('add-brand')"
-            title="Ajouter une marque"
-          >
-            <Plus class="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      <!-- Upload photo -->
-      <div class="space-y-2">
-        <Label>Photo du produit</Label>
-        <div
-          class="relative w-full aspect-square max-w-xs rounded-lg border-2 border-dashed transition-colors"
-          :class="isDragging ? 'border-primary bg-primary/5' : 'border-muted bg-muted/50'"
-          @dragover.prevent="isDragging = true"
-          @dragleave.prevent="isDragging = false"
-          @drop.prevent="handleDrop"
-        >
-          <!-- Image preview -->
-          <img
-            v-if="form.image"
-            :src="form.image"
-            alt="Preview"
-            class="w-full h-full object-cover rounded-lg"
-          />
-
-          <!-- Upload zone -->
-          <div
-            v-else
-            class="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6"
-          >
-            <ImageIcon class="w-12 h-12 text-muted-foreground" />
-            <div class="text-center">
-              <p class="text-sm text-muted-foreground mb-2">
-                Glissez-déposez une image ici
-              </p>
-              <p class="text-xs text-muted-foreground mb-3">ou</p>
+          <!-- Fournisseur -->
+          <div class="space-y-2">
+            <Label for="supplier">Fournisseur</Label>
+            <div class="flex gap-2">
+              <Select :model-value="form.supplierId" @update:model-value="$emit('update:form', { ...form, supplierId: String($event) })">
+                <SelectTrigger id="supplier" class="flex-1">
+                  <SelectValue placeholder="Sélectionner un fournisseur" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id.toString()">
+                    {{ supplier.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <Button
+                variant="outline"
+                size="icon"
                 type="button"
-                variant="secondary"
-                size="sm"
-                @click="fileInput?.click()"
+                @click="$emit('add-supplier')"
+                title="Ajouter un fournisseur"
               >
-                <Upload class="w-4 h-4 mr-2" />
-                Parcourir
+                <Plus class="w-4 h-4" />
               </Button>
             </div>
           </div>
 
-          <!-- Remove button -->
-          <Button
-            v-if="form.image"
-            type="button"
-            variant="destructive"
-            size="icon"
-            class="absolute top-2 right-2"
-            @click="$emit('update:form', { ...form, image: null }); isDragging = false"
-          >
-            <X class="w-4 h-4" />
-          </Button>
+          <!-- Marque -->
+          <div class="space-y-2">
+            <Label for="brand">Marque</Label>
+            <div class="flex gap-2">
+              <Select :model-value="form.brandId" @update:model-value="$emit('update:form', { ...form, brandId: String($event) })">
+                <SelectTrigger id="brand" class="flex-1">
+                  <SelectValue placeholder="Sélectionner une marque" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="brand in brands" :key="brand.id" :value="brand.id.toString()">
+                    {{ brand.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                @click="$emit('add-brand')"
+                title="Ajouter une marque"
+              >
+                <Plus class="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          class="hidden"
-          @change="handleFileSelect"
-        />
+
+        <!-- Colonne droite : photo + description -->
+        <div class="space-y-4 w-full max-w-sm lg:max-w-[320px] lg:mr-auto lg:flex lg:flex-col lg:items-center">
+          <!-- Upload photo -->
+          <div class="space-y-2 w-full">
+            <Label class="text-center lg:text-left">Photo du produit</Label>
+            <div
+              class="relative w-full aspect-square max-w-[320px] rounded-lg border-2 border-dashed transition-colors"
+              :class="isDragging ? 'border-primary bg-primary/5' : 'border-muted bg-muted/50'"
+              @dragover.prevent="isDragging = true"
+              @dragleave.prevent="isDragging = false"
+              @drop.prevent="handleDrop"
+            >
+              <!-- Image preview -->
+              <img
+                v-if="form.image"
+                :src="form.image"
+                alt="Preview"
+                class="w-full h-full object-cover rounded-lg"
+              />
+
+              <!-- Upload zone -->
+              <div
+                v-else
+                class="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6"
+              >
+                <ImageIcon class="w-12 h-12 text-muted-foreground" />
+                <div class="text-center">
+                  <p class="text-sm text-muted-foreground mb-2">
+                    Glissez-déposez une image ici
+                  </p>
+                  <p class="text-xs text-muted-foreground mb-3">ou</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    @click="fileInput?.click()"
+                  >
+                    <Upload class="w-4 h-4 mr-2" />
+                    Parcourir
+                  </Button>
+                </div>
+              </div>
+
+              <!-- Remove button -->
+              <Button
+                v-if="form.image"
+                type="button"
+                variant="destructive"
+                size="icon"
+                class="absolute top-2 right-2"
+                @click="$emit('update:form', { ...form, image: null }); isDragging = false"
+              >
+                <X class="w-4 h-4" />
+              </Button>
+            </div>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleFileSelect"
+            />
+          </div>
+
+          <!-- Description alignée sur la largeur de la photo -->
+          <div class="space-y-2 w-full max-w-[320px] lg:self-center">
+            <Label for="description" class="text-center lg:text-left">Description</Label>
+            <Textarea
+              id="description"
+              :model-value="form.description"
+              placeholder="Décrivez votre produit..."
+              rows="4"
+              @update:model-value="$emit('update:form', { ...form, description: $event as string })"
+            />
+            <p class="text-xs text-muted-foreground">
+              Description détaillée du produit (optionnel)
+            </p>
+          </div>
+        </div>
       </div>
     </CardContent>
   </Card>

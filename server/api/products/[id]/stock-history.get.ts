@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { stockMovements, products, movements } from '~/server/database/schema'
+import { stockMovements, products, movements, sales } from '~/server/database/schema'
 import { eq, desc } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 
@@ -54,9 +54,11 @@ export default defineEventHandler(async (event) => {
         movementId: stockMovements.movementId,
         movementNumber: movements.movementNumber,
         movementComment: movements.comment,
+        saleTicket: sales.ticketNumber,
       })
       .from(stockMovements)
       .leftJoin(movements, eq(stockMovements.movementId, movements.id))
+      .leftJoin(sales, eq(stockMovements.saleId, sales.id))
       .where(eq(stockMovements.productId, productId))
       .orderBy(desc(stockMovements.createdAt))
 
@@ -76,6 +78,7 @@ export default defineEventHandler(async (event) => {
       movementNumber: m.movementNumber,
       movementComment: m.movementComment,
       receiptNumber: null, // À ajouter si vous avez une table receipts
+      saleTicket: m.saleTicket || null,
     }))
 
     console.log(`📊 ${stockMovs.length} mouvement(s) de stock récupéré(s) pour le produit #${productId}`)

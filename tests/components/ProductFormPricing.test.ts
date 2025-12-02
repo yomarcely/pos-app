@@ -53,10 +53,13 @@ describe('ProductFormPricing', () => {
 
   it('émet update:form pour prix/achat/tva/catégorie', async () => {
     const wrapper = mountComponent()
-    const inputs = wrapper.findAll('input')
-    expect(inputs.length).toBeGreaterThanOrEqual(2)
-    await inputs[0]!.setValue('15')
-    await inputs[1]!.setValue('7')
+    const purchaseInput = wrapper.find('input#purchasePrice')
+    const priceInput = wrapper.find('input#price')
+    expect(purchaseInput.exists()).toBe(true)
+    expect(priceInput.exists()).toBe(true)
+
+    await priceInput.setValue('15')
+    await purchaseInput.setValue('7')
 
     const emits = (wrapper.emitted()['update:form'] as any[]) || []
     const priceUpdate = emits.find((e: any) => e[0]?.price === '15')

@@ -1,7 +1,5 @@
 import type { Product as BaseProduct } from './product'
 
-export type Product = BaseProduct
-
 export interface ProductInCart extends BaseProduct {
   quantity: number
   discount: number

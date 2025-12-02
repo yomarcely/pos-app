@@ -25,7 +25,7 @@
             <select
               id="variation-group-select"
               :value="selectedGroupId"
-              class="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              class="px-3 py-2 rounded-md border border-input bg-background text-sm w-auto inline-block"
               @change="$emit('update:selectedGroupId', parseInt(($event.target as HTMLSelectElement).value))"
             >
               <option :value="null">Sélectionnez un groupe</option>

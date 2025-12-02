@@ -58,7 +58,11 @@ vi.mock('@/stores/customer', () => ({
 vi.mock('@/stores/sellers', () => ({
   useSellersStore: () => sellersStoreMock
 }))
+vi.mock('@/stores/variationGroups', () => ({
+  useVariationGroupsStore: () => ({ groups: [] })
+}))
 vi.mock('pinia', () => ({
+  defineStore: (_id: string, setup: any) => setup,
   storeToRefs: (store: any) => ({
     totalTTC: store.totalTTC,
     totalHT: store.totalHT,

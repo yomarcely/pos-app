@@ -53,7 +53,15 @@
           @update:form="updateGeneralForm"
           @add-supplier="openAddSupplierDialog"
           @add-brand="openAddBrandDialog"
-        />
+        >
+          <template #category>
+            <CategorySelector
+              :categories="categories"
+              :model-value="form.categoryId"
+              @update:model-value="form.categoryId = $event"
+            />
+          </template>
+        </ProductFormGeneral>
 
         <!-- Switch variations + Catégorie -->
         <Card class="mt-6">
@@ -68,13 +76,6 @@
               </div>
               <Switch v-model="form.hasVariations" />
             </div>
-
-            <!-- Catégorie -->
-            <CategorySelector
-              :categories="categories"
-              :model-value="form.categoryId"
-              @update:model-value="form.categoryId = $event"
-            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -107,11 +108,23 @@
       <!-- Onglet 4: Stock -->
       <TabsContent value="stock">
         <Card>
-          <CardHeader>
-            <CardTitle>Gestion du stock</CardTitle>
-            <CardDescription>
-              Le stock actuel ne peut pas être modifié directement ici. Utilisez les mouvements de stock.
-            </CardDescription>
+          <CardHeader class="flex flex-col gap-3">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Gestion du stock</CardTitle>
+                <CardDescription>
+                  Gérez le stock depuis cette fiche produit.
+                </CardDescription>
+              </div>
+              <div class="flex gap-2">
+                <Button variant="outline" size="sm" @click="openHistory">
+                  Historique
+                </Button>
+                <Button size="sm" @click="openStockDialog('reception')">
+                  Mouvement de stock
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent class="space-y-6">
             <!-- Stock actuel (lecture seule) -->
@@ -228,6 +241,144 @@
       submit-label="Créer"
       @submit="saveNewBrand"
     />
+
+    <!-- Dialog: Mouvement de stock -->
+    <Dialog v-model:open="stockDialogOpen">
+      <DialogContent class="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {{ movementType === 'reception' ? 'Entrée de stock' : 'Ajustement de stock' }}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label>Type</Label>
+            <div class="flex gap-2">
+              <Button
+                :variant="movementType === 'reception' ? 'default' : 'outline'"
+                type="button"
+                @click="movementType = 'reception'"
+              >
+                Entrée
+              </Button>
+              <Button
+                :variant="movementType === 'adjustment' ? 'default' : 'outline'"
+                type="button"
+                @click="movementType = 'adjustment'"
+              >
+                Ajustement
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              Entrée ajoute une quantité. Ajustement fixe un nouveau stock.
+            </p>
+          </div>
+
+          <div v-if="form.hasVariations" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium">Variations</p>
+              <p class="text-xs text-muted-foreground">Stock actuel et nouvelle valeur</p>
+            </div>
+            <div
+              v-for="variation in selectedVariationsList"
+              :key="variation.id"
+              class="flex items-center gap-3"
+            >
+              <div class="flex-1 space-y-1">
+                <p class="text-sm font-medium">{{ variation.name }}</p>
+                <div class="inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+                  <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Stock actuel</span>
+                  <span class="text-lg font-semibold">{{ getStockByVariation(variation.id) }}</span>
+                </div>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                class="w-32"
+                :model-value="movementQuantities[variation.id]?.toString() ?? ''"
+                @update:model-value="(val) => setMovementQuantity(variation.id, val)"
+              />
+            </div>
+          </div>
+
+          <div v-else class="space-y-2">
+            <Label>Nouveau stock / quantité</Label>
+            <div class="rounded-lg border bg-muted/50 px-4 py-3 flex items-center justify-between gap-4">
+              <div>
+                <p class="text-[11px] uppercase tracking-wide text-muted-foreground">Stock actuel</p>
+                <p class="text-3xl font-semibold">{{ originalProduct?.stock || 0 }}</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="0"
+                  class="w-32"
+                  :model-value="movementQuantities['base']?.toString() ?? ''"
+                  @update:model-value="(val) => setMovementQuantity('base', val)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter class="mt-4">
+          <Button variant="outline" type="button" @click="stockDialogOpen = false">
+            Annuler
+          </Button>
+          <Button :disabled="savingMovement" type="button" @click="submitStockMovement">
+            {{ savingMovement ? 'En cours...' : 'Valider' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Dialog: Historique de stock -->
+    <Dialog v-model:open="historyDialogOpen">
+      <DialogContent class="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Historique de stock</DialogTitle>
+        </DialogHeader>
+        <div class="max-h-[420px] overflow-y-auto space-y-3">
+          <LoadingSpinner v-if="loadingHistory" text="Chargement de l'historique..." />
+          <div v-else-if="stockHistory.length === 0" class="text-sm text-muted-foreground">
+            Aucun mouvement de stock pour ce produit.
+          </div>
+          <div v-else class="space-y-2">
+            <div
+              v-for="movement in stockHistory"
+              :key="movement.id"
+              class="border rounded-lg p-3 space-y-1"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <Badge variant="secondary">{{ reasonLabel(movement.reason) }}</Badge>
+                  <span class="text-sm font-medium">
+                    {{ movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity }}
+                  </span>
+                  <span v-if="movement.variation" class="text-xs text-muted-foreground">
+                    Variation: {{ movement.variation }}
+                  </span>
+                  <span v-if="movement.reason === 'sale' && movement.saleTicket" class="text-xs text-muted-foreground">
+                    Ticket #{{ movement.saleTicket }}
+                  </span>
+                </div>
+                <span class="text-xs text-muted-foreground">
+                  {{ formatDate(movement.createdAt) }}
+                </span>
+              </div>
+              <div class="text-xs text-muted-foreground">
+                Stock: {{ movement.previousStock }} → {{ movement.newStock }}
+                <span v-if="movement.movementNumber"> · Mouvement #{{ movement.movementNumber }}</span>
+              </div>
+              <div v-if="movement.movementComment" class="text-xs text-muted-foreground">
+                {{ movement.movementComment }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -253,6 +404,8 @@ import ProductFormPricing from '@/components/produits/form/ProductFormPricing.vu
 import ProductFormBarcode from '@/components/produits/form/ProductFormBarcode.vue'
 import CategorySelector from '@/components/produits/CategorySelector.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 
 const toast = useToast()
 const route = useRoute()
@@ -260,6 +413,7 @@ const router = useRouter()
 const activeTab = ref('general')
 const loading = ref(false)
 const loadingProduct = ref(true)
+const savingMovement = ref(false)
 
 const productId = computed(() => parseInt(route.params.id as string))
 
@@ -300,6 +454,14 @@ const showAddBrandDialog = ref(false)
 const newCategoryName = ref('')
 const newSupplierName = ref('')
 const newBrandName = ref('')
+
+// Stock movements
+const stockDialogOpen = ref(false)
+const movementType = ref<'reception' | 'adjustment'>('reception')
+const movementQuantities = ref<Record<string | number, number | null>>({})
+const historyDialogOpen = ref(false)
+const loadingHistory = ref(false)
+const stockHistory = ref<any[]>([])
 
 // Computed
 const selectedVariationsList = computed(() => {
@@ -351,6 +513,116 @@ function updatePricingForm(updatedForm: any) {
 function getStockByVariation(variationId: number): number {
   if (!originalProduct.value?.stockByVariation) return 0
   return originalProduct.value.stockByVariation[variationId] || 0
+}
+
+function resetMovementQuantities() {
+  if (form.value.hasVariations) {
+    const quantities: Record<string | number, number | null> = {}
+    for (const variation of selectedVariationsList.value) {
+      quantities[variation.id] = null
+    }
+    movementQuantities.value = quantities
+  } else {
+    movementQuantities.value = { base: null }
+  }
+}
+
+function openStockDialog(type: 'reception' | 'adjustment') {
+  movementType.value = type
+  resetMovementQuantities()
+  stockDialogOpen.value = true
+}
+
+function setMovementQuantity(key: string | number, value: string | number) {
+  const parsed = Number(value)
+  movementQuantities.value = {
+    ...movementQuantities.value,
+    [key]: Number.isFinite(parsed) ? parsed : null,
+  }
+}
+
+async function submitStockMovement() {
+  const items: any[] = []
+  const adjustmentType = movementType.value === 'reception' ? 'add' : 'set'
+
+  if (form.value.hasVariations) {
+    for (const variation of selectedVariationsList.value) {
+      const qty = movementQuantities.value[variation.id]
+      if (qty === null || qty === undefined || !Number.isFinite(qty)) continue
+      items.push({
+        productId: productId.value,
+        variation: variation.id.toString(),
+        quantity: Number(qty),
+        adjustmentType,
+      })
+    }
+  } else {
+    const qty = movementQuantities.value['base']
+    if (qty !== null && qty !== undefined && Number.isFinite(qty)) {
+      items.push({
+        productId: productId.value,
+        quantity: Number(qty),
+        adjustmentType,
+      })
+    }
+  }
+
+  if (!items.length) {
+    toast.error('Renseignez au moins une quantité')
+    return
+  }
+
+  savingMovement.value = true
+  try {
+    await $fetch('/api/movements/create', {
+      method: 'POST',
+      body: {
+        type: movementType.value,
+        items,
+      },
+    })
+    toast.success('Mouvement enregistré')
+    stockDialogOpen.value = false
+    await loadProduct()
+  } catch (error: any) {
+    console.error('Erreur lors du mouvement de stock:', error)
+    toast.error(error.data?.message || 'Erreur lors du mouvement de stock')
+  } finally {
+    savingMovement.value = false
+  }
+}
+
+function formatDate(date: string | Date) {
+  return new Date(date).toLocaleString('fr-FR')
+}
+
+function reasonLabel(reason: string) {
+  const map: Record<string, string> = {
+    reception: 'Entrée',
+    inventory_adjustment: 'Ajustement',
+    loss: 'Perte',
+    transfer: 'Transfert',
+  }
+  return map[reason] || reason
+}
+
+async function openHistory() {
+  historyDialogOpen.value = true
+  if (stockHistory.value.length) return
+  await loadHistory()
+}
+
+async function loadHistory() {
+  try {
+    loadingHistory.value = true
+    const response: any = await $fetch(`/api/products/${productId.value}/stock-history`)
+    stockHistory.value = response.movements || []
+  } catch (error) {
+    console.error('Erreur lors du chargement de l\'historique:', error)
+    toast.error('Erreur lors du chargement de l\'historique')
+  } finally {
+    loadingHistory.value = false
+  }
 }
 
 // Navigation
@@ -523,6 +795,8 @@ async function saveProduct() {
       name: form.value.name,
       description: form.value.description || null,
       barcode: form.value.barcode || null,
+      barcodeByVariation: form.value.hasVariations ? form.value.barcodeByVariation : null,
+      supplierCode: form.value.supplierCode || null,
       price: parseFloat(form.value.price) || 0,
       purchasePrice: form.value.purchasePrice ? parseFloat(form.value.purchasePrice) : null,
       tva: parseFloat(form.value.tva),

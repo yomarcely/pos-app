@@ -7,6 +7,7 @@ import { useCartStore } from '@/stores/cart'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/composables/useToast'
 
@@ -16,6 +17,7 @@ const cartStore = useCartStore()
 const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
 const sellersStore = useSellersStore()
+const variationStore = useVariationGroupsStore()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
 const isDayClosed = ref(false)
@@ -87,16 +89,27 @@ async function validerVente() {
     // 4. Préparer les données pour l'API
     const seller = sellersStore.sellers.find(s => s.id === Number(sellersStore.selectedSeller))
 
+    const findVariationIdByName = (name?: string | null) => {
+      if (!name) return null
+      for (const group of variationStore.groups) {
+        const variation = group.variations.find(v => v.name === name)
+        if (variation) return variation.id
+      }
+      return null
+    }
+
     const saleData = {
       items: cartStore.items.map(item => {
         const finalPrice = cartStore.getFinalPrice(item)
+        const variationId = findVariationIdByName(item.variation)
+        const variationKey = variationId ? String(variationId) : (item.variation || null)
         return {
           productId: item.id,
           productName: item.name,
           quantity: item.quantity,
           unitPrice: finalPrice, // Prix après remise
           originalPrice: item.price, // Prix d'origine
-          variation: item.variation || '',
+          variation: variationKey,
           discount: item.discount,
           discountType: item.discountType,
           tva: item.tva || 20,

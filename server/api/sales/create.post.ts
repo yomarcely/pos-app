@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, products, variations } from '~/server/database/schema'
 import { desc, gte, lt, and, eq } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -223,13 +223,35 @@ export default defineEventHandler(async (event) => {
         let newStock = 0
 
         // Mise à jour du stock selon le type (avec ou sans variation)
-        if (item.variation && product.stockByVariation) {
-          const stockByVar = product.stockByVariation as Record<string, number>
-          oldStock = stockByVar[item.variation] || 0
-          newStock = oldStock - item.quantity
+        const stockByVar = product.stockByVariation as Record<string, number> | null
+        let variationKey: string | null = item.variation || null
 
-          // Mettre à jour le stock de la variation
-          stockByVar[item.variation] = newStock
+        // Normaliser la clé de variation : préférer l'ID si on part d'un nom
+        if (variationKey && stockByVar) {
+          if (!(variationKey in stockByVar)) {
+            const numericKey = Number(variationKey)
+            if (Number.isFinite(numericKey) && String(numericKey) in stockByVar) {
+              variationKey = String(numericKey)
+            } else {
+              const [foundVar] = await tx
+                .select({ id: variations.id })
+                .from(variations)
+                .where(eq(variations.name, variationKey))
+                .limit(1)
+              if (foundVar && String(foundVar.id) in stockByVar) {
+                variationKey = String(foundVar.id)
+              } else {
+                console.warn(`Variation "${variationKey}" inconnue pour produit ${item.productId}, stock non mis à jour pour cette ligne`)
+                variationKey = null
+              }
+            }
+          }
+        }
+
+        if (variationKey && stockByVar) {
+          oldStock = stockByVar[variationKey] || 0
+          newStock = oldStock - item.quantity
+          stockByVar[variationKey] = newStock
 
           await tx
             .update(products)

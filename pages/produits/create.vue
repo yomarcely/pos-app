@@ -45,7 +45,15 @@
           @update:form="updateGeneralForm"
           @add-supplier="openAddSupplierDialog"
           @add-brand="openAddBrandDialog"
-        />
+        >
+          <template #category>
+            <CategorySelector
+              :categories="categories"
+              :model-value="form.categoryId"
+              @update:model-value="form.categoryId = $event"
+            />
+          </template>
+        </ProductFormGeneral>
 
         <!-- Switch variations + Catégorie -->
         <Card class="mt-6">
@@ -60,13 +68,6 @@
               </div>
               <Switch v-model="form.hasVariations" />
             </div>
-
-            <!-- Catégorie -->
-            <CategorySelector
-              :categories="categories"
-              :model-value="form.categoryId"
-              @update:model-value="form.categoryId = $event"
-            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -382,6 +383,8 @@ async function saveProduct() {
       name: form.value.name,
       description: form.value.description || null,
       barcode: form.value.barcode || null,
+      barcodeByVariation: form.value.hasVariations ? form.value.barcodeByVariation : null,
+      supplierCode: form.value.supplierCode || null,
       price: parseFloat(form.value.price) || 0,
       purchasePrice: form.value.purchasePrice ? parseFloat(form.value.purchasePrice) : null,
       tva: parseFloat(form.value.tva),

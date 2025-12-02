@@ -5,30 +5,11 @@
       <CardDescription>Définissez les prix de vente et d'achat</CardDescription>
     </CardHeader>
     <CardContent class="space-y-6">
-      <!-- Prix de vente -->
-      <div class="space-y-2">
-        <Label for="price">Prix de vente TTC *</Label>
-        <div class="flex gap-2">
-          <div class="relative flex-1">
-            <Input
-              id="price"
-              type="number"
-              step="0.01"
-              :model-value="form.price"
-              placeholder="0.00"
-              class="pr-8"
-              @update:model-value="handlePriceChange"
-            />
-            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Prix d'achat -->
-      <div class="space-y-2">
-        <Label for="purchasePrice">Prix d'achat HT</Label>
-        <div class="flex gap-2">
-          <div class="relative flex-1">
+      <div class="grid gap-4 md:grid-cols-3">
+        <!-- Prix d'achat -->
+        <div class="space-y-2">
+          <Label for="purchasePrice">Prix d'achat HT</Label>
+          <div class="relative">
             <Input
               id="purchasePrice"
               type="number"
@@ -41,21 +22,38 @@
             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
           </div>
         </div>
-      </div>
 
-      <!-- Coef -->
-      <div class="space-y-2">
-        <Label for="coef">Coef</Label>
-        <Input
-          id="coef"
-          type="number"
-          step="0.01"
-          min="0"
-          :model-value="coef"
-          placeholder="1.00"
-          @update:model-value="handleCoefChange"
-        />
-        <p class="text-xs text-muted-foreground">Modifier le coef ajuste automatiquement le prix TTC.</p>
+        <!-- Coef -->
+        <div class="space-y-2">
+          <Label for="coef">Coef</Label>
+          <Input
+            id="coef"
+            type="number"
+            step="0.01"
+            min="0"
+            :model-value="coef"
+            placeholder="1.00"
+            @update:model-value="handleCoefChange"
+          />
+          <p class="text-xs text-muted-foreground">Modifier le coef ajuste automatiquement le prix TTC.</p>
+        </div>
+
+        <!-- Prix de vente -->
+        <div class="space-y-2">
+          <Label for="price">Prix de vente TTC *</Label>
+          <div class="relative">
+            <Input
+              id="price"
+              type="number"
+              step="0.01"
+              :model-value="form.price"
+              placeholder="0.00"
+              class="pr-8"
+              @update:model-value="handlePriceChange"
+            />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+          </div>
+        </div>
       </div>
 
       <!-- TVA -->

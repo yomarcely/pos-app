@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, products, variations } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
 
@@ -90,13 +90,36 @@ export default defineEventHandler(async (event) => {
       let oldStock = 0
       let newStock = 0
 
+      const stockByVar = product.stockByVariation as Record<string, number> | null
+      let variationKey: string | null = item.variation || null
+
+      if (variationKey && stockByVar) {
+        if (!(variationKey in stockByVar)) {
+          const numericKey = Number(variationKey)
+          if (Number.isFinite(numericKey) && String(numericKey) in stockByVar) {
+            variationKey = String(numericKey)
+          } else {
+            const [foundVar] = await db
+              .select({ id: variations.id })
+              .from(variations)
+              .where(eq(variations.name, variationKey))
+              .limit(1)
+            if (foundVar && String(foundVar.id) in stockByVar) {
+              variationKey = String(foundVar.id)
+            } else {
+              console.warn(`Variation "${variationKey}" inconnue pour produit ${item.productId}, stock non restauré pour cette ligne`)
+              variationKey = null
+            }
+          }
+        }
+      }
+
       // Restaurer le stock selon le type (avec ou sans variation)
-      if (item.variation && product.stockByVariation) {
-        const stockByVar = product.stockByVariation as Record<string, number>
-        oldStock = stockByVar[item.variation] || 0
+      if (variationKey && stockByVar) {
+        oldStock = stockByVar[variationKey] || 0
         newStock = oldStock + item.quantity // Ajouter car on annule une sortie
 
-        stockByVar[item.variation] = newStock
+        stockByVar[variationKey] = newStock
 
         await db
           .update(products)
