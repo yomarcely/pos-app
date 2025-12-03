@@ -22,6 +22,7 @@ import {
   Lock,
   LockOpen,
 } from 'lucide-vue-next'
+import PageHeader from '@/components/common/PageHeader.vue'
 import DailySummaryStats from '@/components/synthese/DailySummaryStats.vue'
 import SaleTicketItem from '@/components/synthese/SaleTicketItem.vue'
 
@@ -164,48 +165,48 @@ const cancelledSales = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4">
+  <div class="p-6 space-y-6">
     <!-- En-tête avec sélection de date et clôture -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Synthèse journalière</h1>
-        <p class="text-muted-foreground">Vue d'ensemble des ventes et statistiques</p>
-      </div>
+    <PageHeader
+      title="Synthèse journalière"
+      description="Vue d'ensemble des ventes et statistiques"
+    >
+      <template #actions>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <Calendar class="w-4 h-4 text-muted-foreground" />
+            <Input
+              v-model="selectedDate"
+              type="date"
+              class="w-[200px]"
+              :disabled="closingDay"
+            />
+          </div>
 
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <Calendar class="w-4 h-4 text-muted-foreground" />
-          <Input
-            v-model="selectedDate"
-            type="date"
-            class="w-[200px]"
-            :disabled="closingDay"
-          />
+          <!-- Badge de statut -->
+          <Badge v-if="isClosed" variant="secondary" class="gap-1">
+            <Lock class="w-3 h-3" />
+            Clôturée
+          </Badge>
+          <Badge v-else variant="outline" class="gap-1">
+            <LockOpen class="w-3 h-3" />
+            Ouverte
+          </Badge>
+
+          <!-- Bouton de clôture -->
+          <Button
+            v-if="!isClosed"
+            @click="isCloseDialogOpen = true"
+            :disabled="loading || closingDay || !dailyData"
+            variant="default"
+            class="bg-blue-600 hover:bg-blue-700"
+          >
+            <Lock class="w-4 h-4 mr-2" />
+            Clôturer la journée
+          </Button>
         </div>
-
-        <!-- Badge de statut -->
-        <Badge v-if="isClosed" variant="secondary" class="gap-1">
-          <Lock class="w-3 h-3" />
-          Clôturée
-        </Badge>
-        <Badge v-else variant="outline" class="gap-1">
-          <LockOpen class="w-3 h-3" />
-          Ouverte
-        </Badge>
-
-        <!-- Bouton de clôture -->
-        <Button
-          v-if="!isClosed"
-          @click="isCloseDialogOpen = true"
-          :disabled="loading || closingDay || !dailyData"
-          variant="default"
-          class="bg-blue-600 hover:bg-blue-700"
-        >
-          <Lock class="w-4 h-4 mr-2" />
-          Clôturer la journée
-        </Button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Indicateur de chargement -->
     <div v-if="loading" class="text-center py-8">
@@ -213,7 +214,7 @@ const cancelledSales = computed(() => {
     </div>
 
     <!-- Contenu principal -->
-    <div v-else-if="dailyData" class="space-y-4">
+    <div v-else-if="dailyData">
       <!-- Statistiques -->
       <DailySummaryStats
         :summary="dailyData.summary"

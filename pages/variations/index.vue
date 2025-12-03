@@ -1,18 +1,17 @@
 <template>
   <div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Gestion des variations</h1>
-        <p class="text-muted-foreground mt-1">
-          Créez des groupes de variations (Couleur, Taille...) et leurs valeurs
-        </p>
-      </div>
-      <Button @click="openCreateGroupDialog">
-        <Plus class="w-4 h-4 mr-2" />
-        Nouveau groupe
-      </Button>
-    </div>
+    <PageHeader
+      title="Gestion des variations"
+      description="Créez des groupes de variations (Couleur, Taille...) et leurs valeurs"
+    >
+      <template #actions>
+        <Button @click="openCreateGroupDialog">
+          <Plus class="w-4 h-4 mr-2" />
+          Nouveau groupe
+        </Button>
+      </template>
+    </PageHeader>
 
     <!-- Loading -->
     <LoadingSpinner v-if="loading" text="Chargement des variations..." />
@@ -109,6 +108,7 @@ definePageMeta({
 
 import { Plus, Layers } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import FormDialog from '@/components/common/FormDialog.vue'

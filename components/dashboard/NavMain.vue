@@ -26,6 +26,7 @@ const props = defineProps<{
     items?: {
       title: string
       url: string
+      disabled?: boolean
     }[]
   }[]
 }>()
@@ -68,7 +69,14 @@ const openStates = ref<Record<string, boolean>>(
           <CollapsibleContent v-if="item.items?.length">
             <SidebarMenuSub>
               <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
-                <SidebarMenuSubButton as-child>
+                <SidebarMenuSubButton
+                  v-if="subItem.disabled"
+                  :disabled="true"
+                  class="opacity-50 cursor-not-allowed"
+                >
+                  <span>{{ subItem.title }}</span>
+                </SidebarMenuSubButton>
+                <SidebarMenuSubButton v-else as-child>
                   <a :href="subItem.url">
                     <span>{{ subItem.title }}</span>
                   </a>

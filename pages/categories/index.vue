@@ -20,6 +20,7 @@ import {
   Folder,
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
+import PageHeader from '@/components/common/PageHeader.vue'
 import CategoryTreeItem from '@/components/categories/CategoryTreeItem.vue'
 
 const toast = useToast()
@@ -181,18 +182,17 @@ onMounted(() => {
 <template>
   <div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Gestion des catégories</h1>
-        <p class="text-muted-foreground mt-1">
-          Organisez vos produits en catégories et sous-catégories
-        </p>
-      </div>
-      <Button @click="openCreateDialog(null)">
-        <Plus class="w-4 h-4 mr-2" />
-        Nouvelle catégorie
-      </Button>
-    </div>
+    <PageHeader
+      title="Gestion des catégories"
+      description="Organisez vos produits en catégories et sous-catégories"
+    >
+      <template #actions>
+        <Button @click="openCreateDialog(null)">
+          <Plus class="w-4 h-4 mr-2" />
+          Nouvelle catégorie
+        </Button>
+      </template>
+    </PageHeader>
 
     <!-- Vue arborescente -->
     <div class="border rounded-lg bg-card">

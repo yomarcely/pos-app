@@ -1,14 +1,10 @@
 <template>
   <div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Historique des clôtures</h1>
-        <p class="text-muted-foreground mt-1">
-          {{ filteredCount }} clôture(s)
-        </p>
-      </div>
-    </div>
+    <PageHeader
+      title="Historique des clôtures"
+      :description="`${filteredCount} clôture(s)`"
+    />
 
     <!-- Filtres -->
     <Card>
@@ -244,6 +240,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { formatPrice, formatDate, formatDateTime } from '@/utils/formatters'

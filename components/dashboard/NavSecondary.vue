@@ -12,6 +12,7 @@ const props = defineProps<{
     title: string
     url: string
     icon: LucideIcon
+    disabled?: boolean
   }[]
 }>()
 </script>
@@ -20,7 +21,16 @@ const props = defineProps<{
     <SidebarGroupContent>
       <SidebarMenu>
         <SidebarMenuItem v-for="item in items" :key="item.title">
-          <SidebarMenuButton as-child size="sm">
+          <SidebarMenuButton
+            v-if="item.disabled"
+            :disabled="true"
+            size="sm"
+            class="opacity-50 cursor-not-allowed"
+          >
+            <component :is="item.icon" />
+            <span>{{ item.title }}</span>
+          </SidebarMenuButton>
+          <SidebarMenuButton v-else as-child size="sm">
             <a :href="item.url">
               <component :is="item.icon" />
               <span>{{ item.title }}</span>

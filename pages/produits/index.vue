@@ -1,18 +1,17 @@
 <template>
   <div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Catalogue produits</h1>
-        <p class="text-muted-foreground mt-1">
-          {{ filteredCount }} produit(s)
-        </p>
-      </div>
-      <Button @click="navigateTo('/produits/create')">
-        <Plus class="w-4 h-4 mr-2" />
-        Nouveau produit
-      </Button>
-    </div>
+    <PageHeader
+      title="Catalogue produits"
+      :description="`${filteredCount} produit(s)`"
+    >
+      <template #actions>
+        <Button @click="navigateTo('/produits/create')">
+          <Plus class="w-4 h-4 mr-2" />
+          Nouveau produit
+        </Button>
+      </template>
+    </PageHeader>
 
     <!-- Barre de recherche et filtres -->
     <ProductsSearchBar
@@ -60,6 +59,7 @@ definePageMeta({
 import { Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/composables/useToast'
+import PageHeader from '@/components/common/PageHeader.vue'
 import ProductsSearchBar from '@/components/produits/ProductsSearchBar.vue'
 import ProductsTableView from '@/components/produits/ProductsTableView.vue'
 import ProductsGridView from '@/components/produits/ProductsGridView.vue'

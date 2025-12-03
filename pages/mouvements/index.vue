@@ -1,14 +1,10 @@
 <template>
   <div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Mouvements de stock</h1>
-        <p class="text-muted-foreground mt-1">
-          Gérer les entrées, sorties et ajustements de stock
-        </p>
-      </div>
-    </div>
+    <PageHeader
+      title="Mouvements de stock"
+      description="Gérer les entrées, sorties et ajustements de stock"
+    />
 
     <!-- Type de mouvement -->
     <MovementTypeSelector v-model="movementType" />
@@ -71,6 +67,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/composables/useToast'
+import PageHeader from '@/components/common/PageHeader.vue'
 import MovementTypeSelector from '@/components/mouvements/MovementTypeSelector.vue'
 import ProductSearchWithSuggestions from '@/components/mouvements/ProductSearchWithSuggestions.vue'
 import ProductCatalogDialog from '@/components/mouvements/ProductCatalogDialog.vue'

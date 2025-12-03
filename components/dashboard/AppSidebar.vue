@@ -15,10 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import {
   Command,
-  Frame,
   LifeBuoy,
-  Map,
-  PieChart,
   Send,
   Settings2,
   ShoppingCart,
@@ -76,10 +73,12 @@ const data = {
         {
           title: 'Promotions',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Imprimer étiquette',
           url: '#',
+          disabled: true,
         },
       ],
     },
@@ -90,15 +89,17 @@ const data = {
       items: [
         {
           title: 'Listing',
-          url: '#',
+          url: '/clients',
         },
         {
           title: 'Mailing / SMS',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Fusion',
           url: '#',
+          disabled: true,
         },
       ],
     },
@@ -114,14 +115,17 @@ const data = {
         {
           title: 'Réceptions fournisseurs',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Inventaire',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Historique',
           url: '#',
+          disabled: true,
         },
         {
           title: 'État des stocks',
@@ -137,18 +141,22 @@ const data = {
         {
           title: 'Chiffre d\'affaire',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Catalogue',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Vendeur',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Analyse',
           url: '#',
+          disabled: true,
         },
       ],
     },
@@ -160,18 +168,22 @@ const data = {
         {
           title: 'General',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Team',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Billing',
           url: '#',
+          disabled: true,
         },
         {
           title: 'Limits',
           url: '#',
+          disabled: true,
         },
       ],
     },
@@ -181,28 +193,13 @@ const data = {
       title: 'Aide',
       url: '#',
       icon: LifeBuoy,
+      disabled: true,
     },
     {
       title: 'Feedback',
       url: '#',
       icon: Send,
-    },
-  ],
-  projects: [
-    {
-      name: 'Design Engineering',
-      url: '#',
-      icon: Frame,
-    },
-    {
-      name: 'Sales & Marketing',
-      url: '#',
-      icon: PieChart,
-    },
-    {
-      name: 'Travel',
-      url: '#',
-      icon: Map,
+      disabled: true,
     },
   ],
 }

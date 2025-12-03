@@ -7,6 +7,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { useVariationGroupsStore } from '@/stores/variationGroups'
 import type { Product } from '@/types'
+import PageHeader from '@/components/common/PageHeader.vue'
 import {
   Table,
   TableBody,
@@ -120,13 +121,12 @@ function isVariationOutOfStock(product: Product, variationId: number): boolean {
 </script>
 
 <template>
-  <div class="container mx-auto py-6 px-6">
-    <div class="space-y-6">
-      <!-- En-tête -->
-      <div>
-        <h1 class="text-3xl font-bold">État des stocks</h1>
-        <p class="text-muted-foreground mt-1">Visualisez et consultez vos niveaux de stock</p>
-      </div>
+  <div class="p-6 space-y-6">
+    <!-- En-tête -->
+    <PageHeader
+      title="État des stocks"
+      description="Visualisez et consultez vos niveaux de stock"
+    />
 
       <!-- Statistiques -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -195,9 +195,9 @@ function isVariationOutOfStock(product: Product, variationId: number): boolean {
         </div>
       </div>
 
-      <!-- Tableau des stocks -->
-      <div class="border rounded-lg">
-        <Table>
+    <!-- Tableau des stocks -->
+    <div class="border rounded-lg">
+      <Table>
           <TableHeader>
             <TableRow>
               <TableHead class="w-12"></TableHead>
@@ -316,6 +316,5 @@ function isVariationOutOfStock(product: Product, variationId: number): boolean {
           </TableBody>
         </Table>
       </div>
-    </div>
   </div>
 </template>
