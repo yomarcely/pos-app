@@ -27,12 +27,38 @@ const getDatabaseUrl = () => {
 }
 
 // Connexion PostgreSQL
-const connectionString = getDatabaseUrl()
+let connectionString = getDatabaseUrl()
+const useSSL = process.env.DB_SSL === 'true' || connectionString.includes('supabase.co')
+
+// Détecter si on utilise le pooler Supabase (Transaction mode)
+const isSupabasePooler = connectionString.includes('pooler.supabase.com')
+
+// Ajouter les options PostgreSQL pour augmenter les timeouts
+if (isSupabasePooler) {
+  const separator = connectionString.includes('?') ? '&' : '?'
+  connectionString += `${separator}options=-c%20statement_timeout%3D60000`
+}
+
+// Détecter le mode du pooler (Session = 5432, Transaction = 6543)
+const isSessionMode = connectionString.includes(':5432')
+const isTransactionMode = connectionString.includes(':6543')
 
 export const client = postgres(connectionString, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10,
+  // Session mode: peut utiliser plusieurs connexions
+  // Transaction mode: max 1 connexion car pooler gère le pooling
+  max: isTransactionMode ? 1 : (isSupabasePooler ? 3 : 10),
+
+  // Timeouts adaptés selon le mode
+  idle_timeout: isSupabasePooler ? 0 : 20, // 0 = pas de timeout idle pour Supabase
+  connect_timeout: isSupabasePooler ? 30 : 10,
+
+  // SSL requis pour Supabase
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
+
+  // Transaction mode ne supporte pas les prepared statements
+  ...(isTransactionMode && {
+    prepare: false,
+  }),
 })
 
 export const db = drizzle(client, { schema })

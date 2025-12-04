@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { variations, variationGroups } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -20,6 +21,8 @@ interface CreateVariationRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody<CreateVariationRequest>(event)
 
     if (!body.name || body.name.trim() === '') {
@@ -47,6 +50,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const [newVariation] = await db.insert(variations).values({
+      tenantId,
       groupId: body.groupId,
       name: body.name.trim(),
       sortOrder: body.sortOrder || 0,

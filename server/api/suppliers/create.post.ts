@@ -3,6 +3,8 @@ import { suppliers } from '~/server/database/schema'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody(event)
     const { name, contact, email, phone, address } = body
 
@@ -16,6 +18,7 @@ export default defineEventHandler(async (event) => {
     const [newSupplier] = await db
       .insert(suppliers)
       .values({
+        tenantId,
         name: name.trim(),
         contact: contact?.trim() || null,
         email: email?.trim() || null,

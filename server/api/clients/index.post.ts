@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -13,6 +14,7 @@ import { customers } from '~/server/database/schema'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const body = await readBody(event)
 
     // Validation
@@ -26,6 +28,7 @@ export default defineEventHandler(async (event) => {
     // Préparer les données
     const now = new Date()
     const clientData = {
+      tenantId,
       firstName: body.firstName || null,
       lastName: body.lastName || null,
       email: body.email || null,

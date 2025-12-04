@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
 import { variationGroups } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -17,6 +18,8 @@ interface CreateGroupRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody<CreateGroupRequest>(event)
 
     if (!body.name || body.name.trim() === '') {
@@ -27,6 +30,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const [newGroup] = await db.insert(variationGroups).values({
+      tenantId,
       name: body.name.trim(),
     }).returning()
 

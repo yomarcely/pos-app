@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { products, stockMovements } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -40,6 +41,7 @@ interface CreateMovementRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const body = await readBody<CreateMovementRequest>(event)
 
     // Validation
@@ -69,7 +71,7 @@ export default defineEventHandler(async (event) => {
 
     const result = await db.transaction(async (tx) => {
       // 1. Créer le mouvement principal
-      const movement = await createMovement(body.type, body.comment, body.userId)
+      const movement = await createMovement(body.type, body.comment, body.userId, tenantId)
 
       // 2. Créer les lignes de stock_movements
       const stockMovementsData = []
@@ -138,6 +140,7 @@ export default defineEventHandler(async (event) => {
 
         // Créer la ligne de mouvement de stock
         await tx.insert(stockMovements).values({
+          tenantId,
           movementId: movement.id,
           productId: item.productId,
           variation: item.variation || null,

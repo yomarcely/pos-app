@@ -1,8 +1,11 @@
 import { db } from '~/server/database/connection'
 import { brands } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody(event)
     const { name } = body
 
@@ -16,6 +19,7 @@ export default defineEventHandler(async (event) => {
     const [newBrand] = await db
       .insert(brands)
       .values({
+        tenantId,
         name: name.trim(),
       })
       .returning()

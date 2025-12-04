@@ -10,6 +10,8 @@ import { eq, desc } from 'drizzle-orm'
  * GET /api/clients/:id/purchases
  *
  * Retourne la liste des achats effectués par un client
+ *
+ * Performance: Utilise un LEFT JOIN pour éviter N+1 queries
  */
 
 export default defineEventHandler(async (event) => {
@@ -37,10 +39,10 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Récupérer toutes les ventes du client
-    const clientSales = await db
+    // Récupérer toutes les ventes avec leurs articles en une seule requête
+    const salesWithItems = await db
       .select({
-        id: sales.id,
+        saleId: sales.id,
         ticketNumber: sales.ticketNumber,
         saleDate: sales.saleDate,
         totalHT: sales.totalHT,
@@ -48,38 +50,63 @@ export default defineEventHandler(async (event) => {
         totalTTC: sales.totalTTC,
         status: sales.status,
         payments: sales.payments,
+        // Articles
+        itemId: saleItems.id,
+        productName: saleItems.productName,
+        variation: saleItems.variation,
+        quantity: saleItems.quantity,
+        unitPrice: saleItems.unitPrice,
+        itemTotalTTC: saleItems.totalTTC,
+        discount: saleItems.discount,
+        discountType: saleItems.discountType,
+        originalPrice: saleItems.originalPrice,
+        tva: saleItems.tva,
       })
       .from(sales)
+      .leftJoin(saleItems, eq(sales.id, saleItems.saleId))
       .where(eq(sales.customerId, id))
       .orderBy(desc(sales.saleDate))
 
-    // Pour chaque vente, récupérer les articles
-    const purchasesWithItems = await Promise.all(
-      clientSales.map(async (sale) => {
-        // Récupérer tous les articles de la vente
-        const items = await db
-          .select({
-            id: saleItems.id,
-            productName: saleItems.productName,
-            variation: saleItems.variation,
-            quantity: saleItems.quantity,
-            unitPrice: saleItems.unitPrice,
-            totalTTC: saleItems.totalTTC,
-            discount: saleItems.discount,
-            discountType: saleItems.discountType,
-            originalPrice: saleItems.originalPrice,
-            tva: saleItems.tva,
-          })
-          .from(saleItems)
-          .where(eq(saleItems.saleId, sale.id))
+    // Grouper les résultats par vente
+    const purchasesMap = new Map<number, any>()
 
-        return {
-          ...sale,
-          items,
-          itemCount: items.length,
-        }
-      })
-    )
+    for (const row of salesWithItems) {
+      if (!purchasesMap.has(row.saleId)) {
+        purchasesMap.set(row.saleId, {
+          id: row.saleId,
+          ticketNumber: row.ticketNumber,
+          saleDate: row.saleDate,
+          totalHT: row.totalHT,
+          totalTVA: row.totalTVA,
+          totalTTC: row.totalTTC,
+          status: row.status,
+          payments: row.payments,
+          items: [],
+        })
+      }
+
+      // Ajouter l'article si présent (LEFT JOIN peut retourner null)
+      if (row.itemId) {
+        purchasesMap.get(row.saleId)!.items.push({
+          id: row.itemId,
+          productName: row.productName,
+          variation: row.variation,
+          quantity: row.quantity,
+          unitPrice: row.unitPrice,
+          totalTTC: row.itemTotalTTC,
+          discount: row.discount,
+          discountType: row.discountType,
+          originalPrice: row.originalPrice,
+          tva: row.tva,
+        })
+      }
+    }
+
+    // Convertir en tableau et ajouter itemCount
+    const purchasesWithItems = Array.from(purchasesMap.values()).map(purchase => ({
+      ...purchase,
+      itemCount: purchase.items.length,
+    }))
 
     return {
       success: true,

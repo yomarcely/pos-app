@@ -13,7 +13,8 @@ import { sql } from 'drizzle-orm'
 export async function createMovement(
   type: 'reception' | 'adjustment' | 'loss' | 'transfer',
   comment?: string,
-  userId?: number
+  userId?: number,
+  tenantId?: string
 ): Promise<{ id: number; movementNumber: string }> {
   // Générer le numéro de mouvement via la fonction SQL
   const result = await db.execute(sql`SELECT generate_movement_number(${type}::varchar) as movement_number`)
@@ -27,6 +28,7 @@ export async function createMovement(
   const [movement] = await db
     .insert(movements)
     .values({
+      tenantId: tenantId || null,
       movementNumber,
       type,
       comment: comment || null,

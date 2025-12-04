@@ -36,6 +36,17 @@ DB_SSL=false
 
 Créez un fichier `.env` à la racine avec ces clés (ou renseignez `DATABASE_URL`).
 
+### 🔐 Auth Supabase & multi-tenant
+L'authentification et le transport du tenant reposent sur Supabase Auth :
+```env
+SUPABASE_URL=https://<id>.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_JWT_SECRET=...
+DEFAULT_TENANT_ID=<id par défaut si aucun tenant n'est fourni>
+```
+Chaque requête API attend un `Authorization: Bearer <access_token>` (session Supabase) et un tenant (`x-tenant-id` ou `tenant_id` dans les métadonnées utilisateur). Des policies RLS côté Supabase/PostgreSQL doivent ensuite être ajoutées pour isoler les données par tenant.
+
 ## ▶️ Mise en route locale
 1) **Installer les dépendances**
 ```bash

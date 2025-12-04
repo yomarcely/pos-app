@@ -18,7 +18,12 @@
     "db:drop": "drizzle-kit drop",
     "db:seed": "RUN_SEED=1 tsx server/database/seed.ts",
     "db:seed:append": "RUN_SEED=1 tsx server/database/seed.ts --no-reset",
-    "db:sync-sequences": "tsx server/database/sync-sequences.ts"
+    "db:sync-sequences": "tsx server/database/sync-sequences.ts",
+    "env:check": "node scripts/check-env.js",
+    "env:switch": "bash scripts/switch-env.sh",
+    "env:dev": "bash scripts/switch-env.sh development",
+    "env:staging": "bash scripts/switch-env.sh staging",
+    "env:prod": "bash scripts/switch-env.sh production"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -26,6 +31,7 @@
     "@nuxt/icon": "1.13.0",
     "@nuxt/image": "1.10.0",
     "@pinia/nuxt": "^0.11.2",
+    "@supabase/supabase-js": "^2.48.0",
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^13.5.0",

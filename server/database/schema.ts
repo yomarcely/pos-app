@@ -18,6 +18,7 @@ import { relations } from 'drizzle-orm'
 // ==========================================
 export const sales = pgTable('sales', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Numéro de ticket unique et séquentiel (obligatoire NF525)
   ticketNumber: varchar('ticket_number', { length: 50 }).notNull().unique(),
@@ -75,9 +76,13 @@ export const sales = pgTable('sales', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('sales_tenant_id_idx').on(table.tenantId),
   ticketNumberIdx: index('sales_ticket_number_idx').on(table.ticketNumber),
   saleDateIdx: index('sales_sale_date_idx').on(table.saleDate),
   closureIdIdx: index('sales_closure_id_idx').on(table.closureId),
+  sellerIdIdx: index('sales_seller_id_idx').on(table.sellerId),
+  customerIdIdx: index('sales_customer_id_idx').on(table.customerId),
+  statusIdx: index('sales_status_idx').on(table.status),
 }))
 
 // ==========================================
@@ -85,6 +90,7 @@ export const sales = pgTable('sales', {
 // ==========================================
 export const saleItems = pgTable('sale_items', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   saleId: integer('sale_id').notNull().references(() => sales.id, { onDelete: 'cascade' }),
 
@@ -110,13 +116,17 @@ export const saleItems = pgTable('sale_items', {
   totalTTC: decimal('total_ttc', { precision: 10, scale: 2 }).notNull(),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => ({
+  tenantIdIdx: index('sale_items_tenant_id_idx').on(table.tenantId),
+  saleIdIdx: index('sale_items_sale_id_idx').on(table.saleId),
+}))
 
 // ==========================================
 // 3. CATÉGORIES (ARBORESCENCE)
 // ==========================================
 export const categories = pgTable('categories', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 255 }).notNull(),
 
@@ -137,6 +147,7 @@ export const categories = pgTable('categories', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('categories_tenant_id_idx').on(table.tenantId),
   parentIdIdx: index('categories_parent_id_idx').on(table.parentId),
   nameIdx: index('categories_name_idx').on(table.name),
 }))
@@ -146,6 +157,7 @@ export const categories = pgTable('categories', {
 // ==========================================
 export const variationGroups = pgTable('variation_groups', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 100 }).notNull(), // Ex: "Couleur", "Taille"
 
@@ -156,6 +168,7 @@ export const variationGroups = pgTable('variation_groups', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('variation_groups_tenant_id_idx').on(table.tenantId),
   nameIdx: index('variation_groups_name_idx').on(table.name),
 }))
 
@@ -164,6 +177,7 @@ export const variationGroups = pgTable('variation_groups', {
 // ==========================================
 export const variations = pgTable('variations', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   groupId: integer('group_id').notNull().references(() => variationGroups.id, { onDelete: 'cascade' }),
 
@@ -179,6 +193,7 @@ export const variations = pgTable('variations', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('variations_tenant_id_idx').on(table.tenantId),
   groupIdIdx: index('variations_group_id_idx').on(table.groupId),
   nameIdx: index('variations_name_idx').on(table.name),
 }))
@@ -188,6 +203,7 @@ export const variations = pgTable('variations', {
 // ==========================================
 export const suppliers = pgTable('suppliers', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 255 }).notNull(),
   contact: varchar('contact', { length: 100 }),
@@ -202,6 +218,7 @@ export const suppliers = pgTable('suppliers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('suppliers_tenant_id_idx').on(table.tenantId),
   nameIdx: index('suppliers_name_idx').on(table.name),
 }))
 
@@ -210,6 +227,7 @@ export const suppliers = pgTable('suppliers', {
 // ==========================================
 export const brands = pgTable('brands', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 255 }).notNull(),
 
@@ -220,6 +238,7 @@ export const brands = pgTable('brands', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('brands_tenant_id_idx').on(table.tenantId),
   nameIdx: index('brands_name_idx').on(table.name),
 }))
 
@@ -228,6 +247,7 @@ export const brands = pgTable('brands', {
 // ==========================================
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 255 }).notNull(),
   barcode: varchar('barcode', { length: 50 }), // Code-barres pour produit simple
@@ -268,6 +288,7 @@ export const products = pgTable('products', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('products_tenant_id_idx').on(table.tenantId),
   barcodeIdx: index('products_barcode_idx').on(table.barcode),
   nameIdx: index('products_name_idx').on(table.name),
   categoryIdIdx: index('products_category_id_idx').on(table.categoryId),
@@ -280,6 +301,7 @@ export const products = pgTable('products', {
 // ==========================================
 export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Informations client
   firstName: varchar('first_name', { length: 100 }),
@@ -311,6 +333,7 @@ export const customers = pgTable('customers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('customers_tenant_id_idx').on(table.tenantId),
   emailIdx: index('customers_email_idx').on(table.email),
   phoneIdx: index('customers_phone_idx').on(table.phone),
 }))
@@ -320,6 +343,7 @@ export const customers = pgTable('customers', {
 // ==========================================
 export const sellers = pgTable('sellers', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 100 }).notNull(),
   code: varchar('code', { length: 20 }).unique(),
@@ -328,7 +352,9 @@ export const sellers = pgTable('sellers', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => ({
+  tenantIdIdx: index('sellers_tenant_id_idx').on(table.tenantId),
+}))
 
 // ==========================================
 // 11. MOUVEMENTS DE STOCK (AUDIT)
@@ -337,6 +363,7 @@ export const sellers = pgTable('sellers', {
 // Table principale des mouvements (opérations groupées)
 export const movements = pgTable('movements', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Numéro du mouvement (ex: REC-001, ADJ-001, LOSS-001)
   movementNumber: varchar('movement_number', { length: 50 }).notNull().unique(),
@@ -352,6 +379,7 @@ export const movements = pgTable('movements', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('movements_tenant_id_idx').on(table.tenantId),
   typeIdx: index('movements_type_idx').on(table.type),
   createdAtIdx: index('movements_created_at_idx').on(table.createdAt),
   movementNumberIdx: index('movements_movement_number_idx').on(table.movementNumber),
@@ -360,6 +388,7 @@ export const movements = pgTable('movements', {
 // Lignes de détail des mouvements de stock (par produit/variation)
 export const stockMovements = pgTable('stock_movements', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Référence vers le mouvement parent
   movementId: integer('movement_id').references(() => movements.id, { onDelete: 'cascade' }),
@@ -381,6 +410,7 @@ export const stockMovements = pgTable('stock_movements', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('stock_movements_tenant_id_idx').on(table.tenantId),
   productIdIdx: index('stock_movements_product_id_idx').on(table.productId),
   movementIdIdx: index('stock_movements_movement_id_idx').on(table.movementId),
   reasonIdx: index('stock_movements_reason_idx').on(table.reason),
@@ -392,6 +422,7 @@ export const stockMovements = pgTable('stock_movements', {
 // ==========================================
 export const auditLogs = pgTable('audit_logs', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Qui
   userId: integer('user_id'),
@@ -412,6 +443,7 @@ export const auditLogs = pgTable('audit_logs', {
   // IP (RGPD - traçabilité)
   ipAddress: varchar('ip_address', { length: 45 }),
 }, (table) => ({
+  tenantIdIdx: index('audit_logs_tenant_id_idx').on(table.tenantId),
   entityTypeIdx: index('audit_logs_entity_type_idx').on(table.entityType),
   entityIdIdx: index('audit_logs_entity_id_idx').on(table.entityId),
   createdAtIdx: index('audit_logs_created_at_idx').on(table.createdAt),
@@ -422,6 +454,7 @@ export const auditLogs = pgTable('audit_logs', {
 // ==========================================
 export const closures = pgTable('closures', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Date de la journée clôturée
   closureDate: varchar('closure_date', { length: 10 }).notNull(), // Format YYYY-MM-DD
@@ -452,6 +485,7 @@ export const closures = pgTable('closures', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('closures_tenant_id_idx').on(table.tenantId),
   closureDateIdx: index('closures_closure_date_idx').on(table.closureDate),
   closureHashIdx: index('closures_closure_hash_idx').on(table.closureHash),
 }))
@@ -461,6 +495,7 @@ export const closures = pgTable('closures', {
 // ==========================================
 export const archives = pgTable('archives', {
   id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Période archivée
   periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
@@ -480,6 +515,7 @@ export const archives = pgTable('archives', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  tenantIdIdx: index('archives_tenant_id_idx').on(table.tenantId),
   periodStartIdx: index('archives_period_start_idx').on(table.periodStart),
   archiveTypeIdx: index('archives_archive_type_idx').on(table.archiveType),
 }))

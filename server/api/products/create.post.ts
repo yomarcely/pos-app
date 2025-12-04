@@ -4,6 +4,8 @@ import { validateVariationPayload } from '~/server/utils/validateVariationPayloa
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody(event)
     const {
       name,
@@ -51,6 +53,7 @@ export default defineEventHandler(async (event) => {
 
     // Préparer les données du produit
     const productData = {
+      tenantId,
       name: name.trim(),
       description: description?.trim() || null,
       image: image || null,

@@ -46,6 +46,8 @@ interface CreateCustomerRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody<CreateCustomerRequest>(event)
 
     // Validation des données obligatoires
@@ -71,6 +73,7 @@ export default defineEventHandler(async (event) => {
     const [newCustomer] = await db
       .insert(customers)
       .values({
+        tenantId,
         firstName: body.name,
         lastName: body.lastname,
         address: body.address || null,
@@ -105,6 +108,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
 
     await db.insert(auditLogs).values({
+      tenantId,
       userId: 1, // TODO: Récupérer l'ID du vendeur connecté
       userName: 'System',
       entityType: 'customer',

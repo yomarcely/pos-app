@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { products, stockMovements, auditLogs } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -33,6 +34,7 @@ interface UpdateStockRequest {
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody<UpdateStockRequest>(event)
+    const tenantId = getTenantIdFromEvent(event)
 
     // Validation
     if (!body.productId) {
@@ -116,6 +118,7 @@ export default defineEventHandler(async (event) => {
 
       // Enregistrer le mouvement de stock
       const [movement] = await tx.insert(stockMovements).values({
+        tenantId,
         productId: body.productId,
         variation: body.variation || null,
         quantity: quantityDelta,
@@ -127,6 +130,7 @@ export default defineEventHandler(async (event) => {
 
       // Enregistrer la création de l'ajustement dans l'audit log (NF525)
       await tx.insert(auditLogs).values({
+        tenantId,
         userId: body.userId || null,
         userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
         entityType: 'stock_movement',

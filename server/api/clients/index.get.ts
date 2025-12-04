@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { customers, sales } from '~/server/database/schema'
-import { desc, or, like, sql, sum } from 'drizzle-orm'
+import { desc, or, like, sql, eq } from 'drizzle-orm'
 
 /**
  * ==========================================
@@ -11,6 +11,8 @@ import { desc, or, like, sql, sum } from 'drizzle-orm'
  *
  * Retourne la liste des clients avec support de recherche
  * Inclut le chiffre d'affaire total de chaque client
+ *
+ * Performance: Utilise un LEFT JOIN pour éviter N+1 queries
  */
 
 export default defineEventHandler(async (event) => {
@@ -18,7 +20,7 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event)
     const searchTerm = query.search as string | undefined
 
-    // Base query avec métadata pour extraire la ville
+    // Query optimisée avec LEFT JOIN pour calculer le CA en une seule requête
     let queryBuilder = db
       .select({
         id: customers.id,
@@ -36,13 +38,33 @@ export default defineEventHandler(async (event) => {
         notes: customers.notes,
         createdAt: customers.createdAt,
         updatedAt: customers.updatedAt,
+        // Calculer le CA total directement avec LEFT JOIN
+        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'completed' THEN CAST(${sales.totalTTC} AS NUMERIC) ELSE 0 END), 0)`,
       })
       .from(customers)
+      .leftJoin(sales, eq(customers.id, sales.customerId))
+      .groupBy(
+        customers.id,
+        customers.firstName,
+        customers.lastName,
+        customers.email,
+        customers.phone,
+        customers.address,
+        customers.metadata,
+        customers.gdprConsent,
+        customers.gdprConsentDate,
+        customers.marketingConsent,
+        customers.loyaltyProgram,
+        customers.discount,
+        customers.notes,
+        customers.createdAt,
+        customers.updatedAt
+      )
 
     // Appliquer la recherche si présente
     if (searchTerm && searchTerm.trim() !== '') {
       const searchPattern = `%${searchTerm.trim()}%`
-      queryBuilder = queryBuilder.where(
+      queryBuilder = queryBuilder.having(
         or(
           like(customers.firstName, searchPattern),
           like(customers.lastName, searchPattern),
@@ -56,29 +78,31 @@ export default defineEventHandler(async (event) => {
     // Ordonner par date de création (plus récents en premier)
     const allClients = await queryBuilder.orderBy(desc(customers.createdAt))
 
-    // Calculer le CA total pour chaque client
-    const clientsWithCA = await Promise.all(
-      allClients.map(async (client) => {
-        // Récupérer le CA total du client (uniquement ventes completed)
-        const caResult = await db
-          .select({
-            totalCA: sum(sales.totalTTC),
-          })
-          .from(sales)
-          .where(
-            sql`${sales.customerId} = ${client.id} AND ${sales.status} = 'completed'`
-          )
+    // Transformer les résultats
+    const clientsWithCA = allClients.map((client) => {
+      const metadata = client.metadata as any || {}
 
-        const metadata = client.metadata as any || {}
-
-        return {
-          ...client,
-          city: metadata.city || null,
-          totalRevenue: caResult[0]?.totalCA ? parseFloat(caResult[0].totalCA as string) : 0,
-          loyaltyPoints: 0, // TODO: implémenter le système de points
-        }
-      })
-    )
+      return {
+        id: client.id,
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        metadata: client.metadata,
+        gdprConsent: client.gdprConsent,
+        gdprConsentDate: client.gdprConsentDate,
+        marketingConsent: client.marketingConsent,
+        loyaltyProgram: client.loyaltyProgram,
+        discount: client.discount,
+        notes: client.notes,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        city: metadata.city || null,
+        totalRevenue: parseFloat(client.totalRevenue as string) || 0,
+        loyaltyPoints: 0, // TODO: implémenter le système de points
+      }
+    })
 
     return {
       success: true,

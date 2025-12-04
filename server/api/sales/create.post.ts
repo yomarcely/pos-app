@@ -7,6 +7,7 @@ import {
   generateTicketSignature,
   type TicketData,
 } from '~/server/utils/nf525'
+import { getTenantId } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -158,9 +159,12 @@ export default defineEventHandler(async (event) => {
 
     const { newSale, saleItemsData, stockUpdateLogs } = await db.transaction(async (tx) => {
       // 5.1 Enregistrer la vente
+      const tenantId = getTenantId(event)
+
       const [createdSale] = await tx
         .insert(sales)
         .values({
+          tenantId,
           ticketNumber,
           saleDate: new Date(),
           totalHT: body.totals.totalHT.toString(),
@@ -185,6 +189,7 @@ export default defineEventHandler(async (event) => {
         const totalHT = totalTTC / (1 + item.tva / 100)
 
         return {
+          tenantId,
           saleId: createdSale.id,
           productId: item.productId,
           productName: item.productName,
@@ -276,6 +281,7 @@ export default defineEventHandler(async (event) => {
 
         // Enregistrer le mouvement de stock
         stockMovementsData.push({
+          tenantId,
           productId: item.productId,
           variation: item.variation || null,
           quantity: -item.quantity, // Négatif car sortie de stock
@@ -295,6 +301,7 @@ export default defineEventHandler(async (event) => {
 
       // 5.4 Log d'audit
       await tx.insert(auditLogs).values({
+        tenantId,
         userId: body.seller.id,
         userName: body.seller.name,
         entityType: 'sale',

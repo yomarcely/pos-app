@@ -25,6 +25,7 @@ import {
 
 type SeedOptions = {
   reset?: boolean
+  tenantId?: string
 }
 
 type SeedResult = {
@@ -65,9 +66,19 @@ async function resetDatabase(executor: DbExecutor) {
   `)
 }
 
-function productPayloads() {
-  return productsSeed.map((product) => ({
+export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResult> {
+  const seedTenantId = options.tenantId || process.env.SEED_TENANT_ID || process.env.DEFAULT_TENANT_ID
+
+  if (!seedTenantId) {
+    throw new Error('Aucun tenantId pour le seed. Définissez SEED_TENANT_ID ou DEFAULT_TENANT_ID.')
+  }
+
+  const reset = options.reset ?? true
+  console.log('🌱 Démarrage du seed de la base de données...')
+
+  const productPayloads = () => productsSeed.map((product) => ({
     id: product.id,
+    tenantId: seedTenantId,
     name: product.name,
     barcode: product.barcode || null,
     price: product.price.toString(),
@@ -84,11 +95,6 @@ function productPayloads() {
     image: product.image || null,
     description: null,
   }))
-}
-
-export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResult> {
-  const reset = options.reset ?? true
-  console.log('🌱 Démarrage du seed de la base de données...')
 
   return db.transaction(async (tx) => {
     if (reset) {
@@ -97,31 +103,31 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
 
     const insertedCategories = await tx
       .insert(categories)
-      .values(categoriesSeed)
+      .values(categoriesSeed.map(category => ({ ...category, tenantId: seedTenantId })))
       .onConflictDoNothing({ target: categories.id })
       .returning({ id: categories.id })
 
     const insertedSuppliers = await tx
       .insert(suppliers)
-      .values(suppliersSeed)
+      .values(suppliersSeed.map(supplier => ({ ...supplier, tenantId: seedTenantId })))
       .onConflictDoNothing({ target: suppliers.id })
       .returning({ id: suppliers.id })
 
     const insertedBrands = await tx
       .insert(brands)
-      .values(brandsSeed)
+      .values(brandsSeed.map(brand => ({ ...brand, tenantId: seedTenantId })))
       .onConflictDoNothing({ target: brands.id })
       .returning({ id: brands.id })
 
     const insertedVariationGroups = await tx
       .insert(variationGroups)
-      .values(variationGroupsSeed)
+      .values(variationGroupsSeed.map(group => ({ ...group, tenantId: seedTenantId })))
       .onConflictDoNothing({ target: variationGroups.id })
       .returning({ id: variationGroups.id })
 
     const insertedVariations = await tx
       .insert(variations)
-      .values(variationsSeed)
+      .values(variationsSeed.map(variation => ({ ...variation, tenantId: seedTenantId })))
       .onConflictDoNothing({ target: variations.id })
       .returning({ id: variations.id })
 
@@ -130,6 +136,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       .values(sellersSeed.map((seller, index) => ({
         ...seller,
         code: seller.code || `SLR-${String(index + 1).padStart(3, '0')}`,
+        tenantId: seedTenantId,
       })))
       .onConflictDoNothing({ target: sellers.id })
       .returning({ id: sellers.id })
@@ -150,6 +157,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
           },
           gdprConsent: true,
           gdprConsentDate: new Date(),
+          tenantId: seedTenantId,
         })),
       )
       .onConflictDoNothing({ target: customers.id })

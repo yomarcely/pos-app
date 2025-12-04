@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
 import { categories } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -18,6 +19,8 @@ interface CreateCategoryRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const body = await readBody<CreateCategoryRequest>(event)
 
     if (!body.name || body.name.trim() === '') {
@@ -28,6 +31,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const [newCategory] = await db.insert(categories).values({
+      tenantId,
       name: body.name.trim(),
       parentId: body.parentId || null,
       sortOrder: 0,

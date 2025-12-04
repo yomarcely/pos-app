@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, closures, auditLogs } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -26,6 +27,7 @@ interface CloseDayRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const body = await readBody<CloseDayRequest>(event)
 
     if (!body.date) {
@@ -50,7 +52,12 @@ export default defineEventHandler(async (event) => {
     const existingClosure = await db
       .select()
       .from(closures)
-      .where(eq(closures.closureDate, body.date))
+      .where(
+        and(
+          eq(closures.closureDate, body.date),
+          eq(closures.tenantId, tenantId),
+        )
+      )
       .limit(1)
 
     if (existingClosure.length > 0) {
@@ -69,7 +76,8 @@ export default defineEventHandler(async (event) => {
       .where(
         and(
           gte(sales.saleDate, startOfDay),
-          lt(sales.saleDate, endOfDay)
+          lt(sales.saleDate, endOfDay),
+          eq(sales.tenantId, tenantId)
         )
       )
       .orderBy(desc(sales.saleDate))
@@ -129,6 +137,7 @@ export default defineEventHandler(async (event) => {
     // 5. CRÉER L'ENREGISTREMENT DE CLÔTURE
     // ==========================================
     const [newClosure] = await db.insert(closures).values({
+      tenantId,
       closureDate: body.date,
       ticketCount,
       cancelledCount,
@@ -150,6 +159,7 @@ export default defineEventHandler(async (event) => {
     // 6. ENREGISTRER LA CLÔTURE DANS L'AUDIT LOG (NF525)
     // ==========================================
     await db.insert(auditLogs).values({
+      tenantId,
       userId: body.userId || null,
       userName: body.userName || 'System',
       entityType: 'closure',
@@ -188,7 +198,12 @@ export default defineEventHandler(async (event) => {
           closedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(inArray(sales.id, saleIds))
+        .where(
+          and(
+            inArray(sales.id, saleIds),
+            eq(sales.tenantId, tenantId),
+          )
+        )
 
       console.log(`📝 ${dailySales.length} vente(s) marquée(s) comme clôturées`)
     }
