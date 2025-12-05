@@ -19,6 +19,7 @@ import { sql, eq, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const search = query.search as string | undefined
     const categoryId = query.categoryId ? Number(query.categoryId) : undefined
@@ -28,6 +29,9 @@ export default defineEventHandler(async (event) => {
 
     // Construction de la requête avec filtres
     const conditions: any[] = []
+
+    // IMPORTANT: Filtrer par tenant_id pour le multi-tenancy
+    conditions.push(eq(products.tenantId, tenantId))
 
     // Filtrer les produits non archivés par défaut
     if (!includeArchived) {

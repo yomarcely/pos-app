@@ -1,7 +1,10 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, auditLogs, products, variations } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { cancelSaleSchema, type CancelSaleInput } from '~/server/validators/sale.schema'
 
 /**
  * ==========================================
@@ -20,8 +23,9 @@ interface CancelSaleRequest {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(getRouterParam(event, 'id'))
-    const body = await readBody<CancelSaleRequest>(event)
+    const body = await validateBody<CancelSaleInput>(event, cancelSaleSchema)
 
     if (!id) {
       throw createError({
@@ -43,7 +47,12 @@ export default defineEventHandler(async (event) => {
     const [sale] = await db
       .select()
       .from(sales)
-      .where(eq(sales.id, id))
+      .where(
+        and(
+          eq(sales.id, id),
+          eq(sales.tenantId, tenantId),
+        )
+      )
       .limit(1)
 
     if (!sale) {
@@ -67,7 +76,12 @@ export default defineEventHandler(async (event) => {
     const items = await db
       .select()
       .from(saleItems)
-      .where(eq(saleItems.saleId, id))
+      .where(
+        and(
+          eq(saleItems.saleId, id),
+          eq(saleItems.tenantId, tenantId),
+        )
+      )
 
     // ==========================================
     // 3. RESTAURER LES STOCKS
@@ -143,6 +157,7 @@ export default defineEventHandler(async (event) => {
 
       // Enregistrer le mouvement de stock d'annulation
       stockMovementsData.push({
+        tenantId,
         productId: item.productId,
         variation: item.variation || null,
         quantity: item.quantity, // Positif car on remet en stock
@@ -171,12 +186,18 @@ export default defineEventHandler(async (event) => {
         cancelledAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(sales.id, id))
+      .where(
+        and(
+          eq(sales.id, id),
+          eq(sales.tenantId, tenantId),
+        )
+      )
 
     // ==========================================
     // 5. ENREGISTRER DANS L'AUDIT LOG (NF525)
     // ==========================================
     await db.insert(auditLogs).values({
+      tenantId,
       userId: body.userId || null,
       userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
       entityType: 'sale',

@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { categories, products } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(event.context.params?.id)
 
     if (!id || isNaN(id)) {
@@ -23,18 +25,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier que la catégorie existe
-    const [existing] = await db.select().from(categories).where(eq(categories.id, id)).limit(1)
-
-    if (!existing) {
-      throw createError({
-        statusCode: 404,
-        message: 'Catégorie introuvable',
-      })
-    }
-
-    // Vérifier s'il y a des sous-catégories
-    const subcategories = await db.select().from(categories).where(eq(categories.parentId, id))
+    // Vérifier s'il y a des sous-catégories - SÉCURITÉ: filtre par tenantId
+    const subcategories = await db.select().from(categories).where(
+      and(
+        eq(categories.parentId, id),
+        eq(categories.tenantId, tenantId)
+      )
+    )
 
     if (subcategories.length > 0) {
       throw createError({
@@ -43,8 +40,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier s'il y a des produits dans cette catégorie
-    const productsInCategory = await db.select().from(products).where(eq(products.categoryId, id))
+    // Vérifier s'il y a des produits dans cette catégorie - SÉCURITÉ: filtre par tenantId
+    const productsInCategory = await db.select().from(products).where(
+      and(
+        eq(products.categoryId, id),
+        eq(products.tenantId, tenantId)
+      )
+    )
 
     if (productsInCategory.length > 0) {
       throw createError({
@@ -53,7 +55,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Archiver la catégorie (soft delete)
+    // Archiver la catégorie (soft delete) - SÉCURITÉ: filtre par tenantId ET id
     const [archived] = await db
       .update(categories)
       .set({
@@ -61,8 +63,20 @@ export default defineEventHandler(async (event) => {
         archivedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(categories.id, id))
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.tenantId, tenantId)
+        )
+      )
       .returning()
+
+    if (!archived) {
+      throw createError({
+        statusCode: 404,
+        message: 'Catégorie introuvable',
+      })
+    }
 
     console.log(`🗑️ Catégorie archivée: ${archived.name}`)
 

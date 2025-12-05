@@ -1,29 +1,24 @@
 import { db } from '~/server/database/connection'
 import { suppliers } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createSupplierSchema, type CreateSupplierInput } from '~/server/validators/supplier.schema'
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody(event)
-    const { name, contact, email, phone, address } = body
-
-    if (!name || !name.trim()) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le nom du fournisseur est requis',
-      })
-    }
+    const body = await validateBody<CreateSupplierInput>(event, createSupplierSchema)
 
     const [newSupplier] = await db
       .insert(suppliers)
       .values({
         tenantId,
-        name: name.trim(),
-        contact: contact?.trim() || null,
-        email: email?.trim() || null,
-        phone: phone?.trim() || null,
-        address: address?.trim() || null,
+        name: body.name.trim(),
+        contact: body.contact?.trim() || null,
+        email: body.email?.trim() || null,
+        phone: body.phone?.trim() || null,
+        address: body.address?.trim() || null,
       })
       .returning()
 

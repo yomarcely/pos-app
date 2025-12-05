@@ -1,5 +1,8 @@
 import { db } from '~/server/database/connection'
 import { customers, auditLogs } from '~/server/database/schema'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { createCustomerSchema, type CreateCustomerInput } from '~/server/validators/customer.schema'
+import { validateBody } from '~/server/utils/validation'
 
 /**
  * ==========================================
@@ -7,64 +10,14 @@ import { customers, auditLogs } from '~/server/database/schema'
  * ==========================================
  *
  * POST /api/customers/create
- *
- * Corps de la requête:
- * {
- *   name: string,
- *   lastname: string,
- *   address?: string,
- *   postalcode?: string,
- *   city?: string,
- *   country?: string,
- *   phonenumber?: string,
- *   mail?: string,
- *   fidelity?: boolean,
- *   authorizesms?: boolean,
- *   authorizemailing?: boolean,
- *   discount?: number,
- *   alert?: string,
- *   information?: string
- * }
  */
-
-interface CreateCustomerRequest {
-  name: string
-  lastname: string
-  address?: string
-  postalcode?: string
-  city?: string
-  country?: string
-  phonenumber?: string
-  mail?: string
-  fidelity?: boolean
-  authorizesms?: boolean
-  authorizemailing?: boolean
-  discount?: number
-  alert?: string
-  information?: string
-}
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody<CreateCustomerRequest>(event)
-
-    // Validation des données obligatoires
-    if (!body.name || !body.lastname || !body.postalcode) {
-      throw createError({
-        statusCode: 400,
-        message: 'Le nom, le prénom et le code postal sont obligatoires',
-      })
-    }
-
-    // Validation de l'email si fourni
-    if (body.mail && !body.mail.includes('@')) {
-      throw createError({
-        statusCode: 400,
-        message: 'Adresse email invalide',
-      })
-    }
+    // Validation avec Zod
+    const body = await validateBody<CreateCustomerInput>(event, createCustomerSchema)
 
     // ==========================================
     // 1. ENREGISTRER LE CLIENT EN BDD
@@ -87,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
         // Programme de fidélité
         loyaltyProgram: body.fidelity || false,
-        discount: body.discount?.toString() || '0',
+        discount: body.discount !== undefined ? String(body.discount) : '0',
 
         // Informations additionnelles
         notes: body.information || null,

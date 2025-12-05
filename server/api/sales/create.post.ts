@@ -8,6 +8,8 @@ import {
   type TicketData,
 } from '~/server/utils/nf525'
 import { getTenantId } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 
 /**
  * ==========================================
@@ -65,7 +67,7 @@ interface CreateSaleRequest {
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody<CreateSaleRequest>(event)
+    const body = await validateBody<CreateSaleRequestInput>(event, createSaleRequestSchema)
 
     // Validation des données
     if (!body.items || body.items.length === 0) {
@@ -130,12 +132,29 @@ export default defineEventHandler(async (event) => {
     // 3. GÉNÉRER LE HASH NF525
     // ==========================================
 
+    const parsedItems = body.items.map(item => {
+      const unitPriceNum = Number(item.unitPrice)
+      const tvaNum = Number(item.tva)
+      const quantityNum = Number(item.quantity)
+
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        variation: item.variation || null,
+        quantity: quantityNum,
+        unitPrice: unitPriceNum,
+        discount: Number(item.discount || 0),
+        discountType: item.discountType,
+        tva: tvaNum,
+      }
+    })
+
     const ticketData: TicketData = {
       ticketNumber,
       saleDate: new Date(),
-      totalTTC: body.totals.totalTTC,
+      totalTTC: Number(body.totals.totalTTC),
       sellerId: body.seller.id,
-      items: body.items.map(item => ({
+      items: parsedItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -159,7 +178,7 @@ export default defineEventHandler(async (event) => {
 
     const { newSale, saleItemsData, stockUpdateLogs } = await db.transaction(async (tx) => {
       // 5.1 Enregistrer la vente
-      const tenantId = getTenantId(event)
+      const tenantId = getTenantIdFromEvent(event)
 
       const [createdSale] = await tx
         .insert(sales)
@@ -167,10 +186,10 @@ export default defineEventHandler(async (event) => {
           tenantId,
           ticketNumber,
           saleDate: new Date(),
-          totalHT: body.totals.totalHT.toString(),
-          totalTVA: body.totals.totalTVA.toString(),
-          totalTTC: body.totals.totalTTC.toString(),
-          globalDiscount: body.globalDiscount.value.toString(),
+          totalHT: Number(body.totals.totalHT).toString(),
+          totalTVA: Number(body.totals.totalTVA).toString(),
+          totalTTC: Number(body.totals.totalTTC).toString(),
+          globalDiscount: Number(body.globalDiscount.value || 0).toString(),
           globalDiscountType: body.globalDiscount.type,
           sellerId: body.seller.id,
           customerId: body.customer?.id || null,
@@ -183,8 +202,7 @@ export default defineEventHandler(async (event) => {
         .returning()
 
       // 5.2 Enregistrer les lignes de vente
-      const saleItemsData = body.items.map(item => {
-        // Le unitPrice est déjà le prix final après remise
+      const saleItemsData = parsedItems.map(item => {
         const totalTTC = item.unitPrice * item.quantity
         const totalHT = totalTTC / (1 + item.tva / 100)
 
@@ -195,9 +213,9 @@ export default defineEventHandler(async (event) => {
           productName: item.productName,
           variation: item.variation || null,
           quantity: item.quantity,
-          originalPrice: item.originalPrice?.toString() || null,
+          originalPrice: null,
           unitPrice: item.unitPrice.toString(),
-          discount: item.discount.toString(),
+          discount: item.discount ? item.discount.toString() : '0',
           discountType: item.discountType,
           tva: item.tva.toString(),
           totalHT: totalHT.toFixed(2),

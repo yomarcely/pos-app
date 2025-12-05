@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, sql, inArray } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -16,6 +17,7 @@ import { desc, gte, lt, and, eq, sql, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const dateParam = query.date as string
 
@@ -44,6 +46,7 @@ export default defineEventHandler(async (event) => {
       .from(sales)
       .where(
         and(
+          eq(sales.tenantId, tenantId),
           gte(sales.saleDate, startOfDay),
           lt(sales.saleDate, endOfDay),
           eq(sales.status, 'completed')
@@ -58,6 +61,7 @@ export default defineEventHandler(async (event) => {
       .from(sales)
       .where(
         and(
+          eq(sales.tenantId, tenantId),
           gte(sales.saleDate, startOfDay),
           lt(sales.saleDate, endOfDay),
           eq(sales.status, 'cancelled')
@@ -73,6 +77,7 @@ export default defineEventHandler(async (event) => {
       .innerJoin(sales, eq(saleItems.saleId, sales.id))
       .where(
         and(
+          eq(sales.tenantId, tenantId),
           gte(sales.saleDate, startOfDay),
           lt(sales.saleDate, endOfDay),
           eq(sales.status, 'completed')
@@ -89,6 +94,7 @@ export default defineEventHandler(async (event) => {
       .from(sales)
       .where(
         and(
+          eq(sales.tenantId, tenantId),
           gte(sales.saleDate, startOfDay),
           lt(sales.saleDate, endOfDay)
         )

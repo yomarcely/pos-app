@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import NavMain from './NavMain.vue'
 import NavProjects from './NavProjects.vue'
 import NavSecondary from './NavSecondary.vue'
@@ -24,15 +26,34 @@ import {
   BarChart,
   MoveRight,
 } from 'lucide-vue-next'
+
 const props = withDefaults(defineProps<SidebarProps>(), {
   variant: 'inset',
 })
+
+const authStore = useAuthStore()
+const isClient = ref(false)
+
+onMounted(() => {
+  isClient.value = true
+})
+
+const user = computed(() => {
+  if (!isClient.value) {
+    return {
+      name: 'Utilisateur',
+      email: '',
+      avatar: '/avatars/shadcn.jpg',
+    }
+  }
+  return {
+    name: authStore.user?.user_metadata?.name || authStore.user?.email?.split('@')[0] || 'Utilisateur',
+    email: authStore.user?.email || '',
+    avatar: authStore.user?.user_metadata?.avatar_url || '/avatars/shadcn.jpg',
+  }
+})
+
 const data = {
-  user: {
-    name: 'Yohan Marcel',
-    email: 'yohanmarcel@gmail.com',
-    avatar: '/avatars/shadcn.jpg',
-  },
   navMain: [
     {
       title: 'Ventes',
@@ -229,7 +250,7 @@ const data = {
       <NavSecondary :items="data.navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
-      <NavUser :user="data.user" />
+      <NavUser :user="user" />
     </SidebarFooter>
   </Sidebar>
 </template>

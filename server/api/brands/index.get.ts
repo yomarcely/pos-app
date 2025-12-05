@@ -1,13 +1,21 @@
 import { db } from '~/server/database/connection'
 import { brands } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     const allBrands = await db
       .select()
       .from(brands)
-      .where(eq(brands.isArchived, false))
+      .where(
+        and(
+          eq(brands.tenantId, tenantId),
+          eq(brands.isArchived, false)
+        )
+      )
       .orderBy(brands.name)
 
     return allBrands

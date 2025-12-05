@@ -1,6 +1,8 @@
 import { db } from '~/server/database/connection'
 import { categories } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { createCategorySchema, type CreateCategoryInput } from '~/server/validators/category.schema'
+import { validateBody } from '~/server/utils/validation'
 
 /**
  * ==========================================
@@ -12,31 +14,16 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
  * Crée une nouvelle catégorie ou sous-catégorie
  */
 
-interface CreateCategoryRequest {
-  name: string
-  parentId?: number | null
-}
-
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody<CreateCategoryRequest>(event)
-
-    if (!body.name || body.name.trim() === '') {
-      throw createError({
-        statusCode: 400,
-        message: 'Le nom de la catégorie est obligatoire',
-      })
-    }
+    // Validation avec Zod
+    const validatedData = await validateBody<CreateCategoryInput>(event, createCategorySchema)
 
     const [newCategory] = await db.insert(categories).values({
       tenantId,
-      name: body.name.trim(),
-      parentId: body.parentId || null,
-      sortOrder: 0,
-      icon: null,
-      color: null,
+      ...(validatedData as any),
     }).returning()
 
     console.log(`✅ Catégorie créée: ${newCategory.name} (ID: ${newCategory.id})`)

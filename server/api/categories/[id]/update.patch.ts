@@ -1,6 +1,9 @@
 import { db } from '~/server/database/connection'
 import { categories } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { updateCategorySchema } from '~/server/validators/category.schema'
+import { validateBody } from '~/server/utils/validation'
 
 /**
  * ==========================================
@@ -10,15 +13,10 @@ import { eq } from 'drizzle-orm'
  * PATCH /api/categories/:id/update
  */
 
-interface UpdateCategoryRequest {
-  name?: string
-  parentId?: number | null
-}
-
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(event.context.params?.id)
-    const body = await readBody<UpdateCategoryRequest>(event)
 
     if (!id || isNaN(id)) {
       throw createError({
@@ -27,36 +25,35 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier que la catégorie existe
-    const [existing] = await db.select().from(categories).where(eq(categories.id, id)).limit(1)
-
-    if (!existing) {
-      throw createError({
-        statusCode: 404,
-        message: 'Catégorie introuvable',
-      })
-    }
+    // Validation avec Zod
+    const validatedData = await validateBody(event, updateCategorySchema)
 
     // Vérifier qu'on ne créé pas de boucle (catégorie parent de elle-même)
-    if (body.parentId === id) {
+    if (validatedData.parentId === id) {
       throw createError({
         statusCode: 400,
         message: 'Une catégorie ne peut pas être son propre parent',
       })
     }
 
-    const updateData: any = {
-      updatedAt: new Date(),
-    }
-
-    if (body.name !== undefined) updateData.name = body.name.trim()
-    if (body.parentId !== undefined) updateData.parentId = body.parentId
-
+    // Mettre à jour - SÉCURITÉ: filtre par tenantId ET id
     const [updated] = await db
       .update(categories)
-      .set(updateData)
-      .where(eq(categories.id, id))
+      .set({ ...validatedData as any, updatedAt: new Date() })
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.tenantId, tenantId)
+        )
+      )
       .returning()
+
+    if (!updated) {
+      throw createError({
+        statusCode: 404,
+        message: 'Catégorie introuvable',
+      })
+    }
 
     console.log(`✅ Catégorie mise à jour: ${updated.name}`)
 

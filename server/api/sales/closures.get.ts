@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { closures } from '~/server/database/schema'
-import { desc } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const limit = query.limit ? Number(query.limit) : 50
 
@@ -21,6 +23,7 @@ export default defineEventHandler(async (event) => {
     const closuresList = await db
       .select()
       .from(closures)
+      .where(eq(closures.tenantId, tenantId))
       .orderBy(desc(closures.closureDate))
       .limit(limit)
 

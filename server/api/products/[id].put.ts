@@ -1,7 +1,9 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
-import { validateVariationPayload } from '~/server/utils/validateVariationPayload'
+import { eq, and } from 'drizzle-orm'
+import { updateProductSchema } from '~/server/validators/product.schema'
+import { validateBody } from '~/server/utils/validation'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -15,6 +17,7 @@ import { validateVariationPayload } from '~/server/utils/validateVariationPayloa
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = getRouterParam(event, 'id')
 
     if (!id) {
@@ -24,77 +27,19 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const body = await readBody(event)
-    const {
-      name,
-      description,
-      image,
-      barcode,
-      barcodeByVariation,
-      supplierCode,
-      categoryId,
-      supplierId,
-      brandId,
-      price,
-      purchasePrice,
-      tva,
-      manageStock,
-      stock,
-      minStock,
-      hasVariations,
-      variationGroupIds,
-      stockByVariation,
-      minStockByVariation,
-    } = body
+    // Validation avec Zod
+    const validatedData = await validateBody(event, updateProductSchema)
 
-    // Validation
-    if (!name || !name.trim()) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le nom du produit est requis',
-      })
-    }
-
-    if (!price || parseFloat(price) <= 0) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le prix de vente est requis et doit être supérieur à 0',
-      })
-    }
-
-    const validatedVariations = validateVariationPayload({
-      hasVariations,
-      variationGroupIds,
-      stockByVariation,
-      minStockByVariation,
-    })
-
-    // Préparer les données du produit (sans toucher au stock)
-    const productData = {
-      name: name.trim(),
-      description: description?.trim() || null,
-      image: image || null,
-      barcode: barcode?.trim() || null,
-      barcodeByVariation: hasVariations && barcodeByVariation ? barcodeByVariation : null,
-      supplierCode: supplierCode?.trim() || null,
-      categoryId: categoryId ? parseInt(categoryId) : null,
-      supplierId: supplierId ? parseInt(supplierId) : null,
-      brandId: brandId ? parseInt(brandId) : null,
-      price: parseFloat(price).toString(),
-      purchasePrice: purchasePrice ? parseFloat(purchasePrice).toString() : null,
-      tva: tva ? parseFloat(tva).toString() : '20',
-      minStock: minStock !== undefined ? parseInt(minStock) : undefined,
-      variationGroupIds: validatedVariations.variationGroupIds,
-      stockByVariation: validatedVariations.stockByVariation,
-      minStockByVariation: validatedVariations.minStockByVariation,
-      // Note: stock n'est PAS modifié ici, il est géré uniquement via l'API de gestion de stock
-    }
-
-    // Mettre à jour le produit
+    // Mettre à jour le produit - SÉCURITÉ: on filtre par tenantId ET id
     const [updatedProduct] = await db
       .update(products)
-      .set(productData)
-      .where(eq(products.id, parseInt(id)))
+      .set(validatedData as any)
+      .where(
+        and(
+          eq(products.id, parseInt(id)),
+          eq(products.tenantId, tenantId)
+        )
+      )
       .returning()
 
     if (!updatedProduct) {

@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
-import { desc } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -15,6 +16,8 @@ import { desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     // Récupérer tous les clients, triés par date de création (plus récents en premier)
     const allCustomers = await db
       .select({
@@ -34,6 +37,7 @@ export default defineEventHandler(async (event) => {
         createdAt: customers.createdAt,
       })
       .from(customers)
+      .where(eq(customers.tenantId, tenantId))
       .orderBy(desc(customers.createdAt))
 
     // Transformer les données pour correspondre au format attendu par le frontend

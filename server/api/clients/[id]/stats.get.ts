@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { customers, sales } from '~/server/database/schema'
-import { eq, sql, count } from 'drizzle-orm'
+import { eq, sql, count, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { eq, sql, count } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
 
     if (!id) {
@@ -27,7 +29,12 @@ export default defineEventHandler(async (event) => {
     const [client] = await db
       .select()
       .from(customers)
-      .where(eq(customers.id, id))
+      .where(
+        and(
+          eq(customers.id, id),
+          eq(customers.tenantId, tenantId),
+        )
+      )
       .limit(1)
 
     if (!client) {
@@ -44,7 +51,11 @@ export default defineEventHandler(async (event) => {
       })
       .from(sales)
       .where(
-        sql`${sales.customerId} = ${id} AND ${sales.status} = 'completed'`
+        and(
+          eq(sales.customerId, id),
+          eq(sales.tenantId, tenantId),
+          eq(sales.status, 'completed'),
+        )
       )
 
     // Récupérer le CA total
@@ -54,7 +65,11 @@ export default defineEventHandler(async (event) => {
       })
       .from(sales)
       .where(
-        sql`${sales.customerId} = ${id} AND ${sales.status} = 'completed'`
+        and(
+          eq(sales.customerId, id),
+          eq(sales.tenantId, tenantId),
+          eq(sales.status, 'completed'),
+        )
       )
 
     const totalRevenue = revenueResult[0]?.totalRevenue

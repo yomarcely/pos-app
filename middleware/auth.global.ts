@@ -9,14 +9,18 @@ export default defineNuxtRouteMiddleware(async (to) => {
     await auth.restoreSession()
   }
 
-  const isLoginRoute = to.path.startsWith('/login')
+  // Routes publiques (accessibles sans authentification)
+  const publicRoutes = ['/login', '/signup']
+  const isPublicRoute = publicRoutes.some(route => to.path.startsWith(route))
 
-  if (!auth.isAuthenticated && !isLoginRoute) {
+  // Si non authentifié et route non publique, rediriger vers login
+  if (!auth.isAuthenticated && !isPublicRoute) {
     const redirect = encodeURIComponent(to.fullPath)
     return navigateTo(`/login?redirect=${redirect}`)
   }
 
-  if (auth.isAuthenticated && isLoginRoute) {
+  // Si authentifié et sur une route publique, rediriger vers dashboard
+  if (auth.isAuthenticated && isPublicRoute) {
     const fallback = typeof to.query.redirect === 'string' ? to.query.redirect : '/dashboard'
     return navigateTo(fallback)
   }

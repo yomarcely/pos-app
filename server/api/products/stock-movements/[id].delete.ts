@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { stockMovements, products, auditLogs } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { getRequestIP } from 'h3'
 
 /**
@@ -15,6 +16,7 @@ import { getRequestIP } from 'h3'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(getRouterParam(event, 'id'))
 
     if (!id) {
@@ -28,7 +30,12 @@ export default defineEventHandler(async (event) => {
     const [movement] = await db
       .select()
       .from(stockMovements)
-      .where(eq(stockMovements.id, id))
+      .where(
+        and(
+          eq(stockMovements.id, id),
+          eq(stockMovements.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!movement) {
@@ -50,7 +57,12 @@ export default defineEventHandler(async (event) => {
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.id, movement.productId))
+      .where(
+        and(
+          eq(products.id, movement.productId),
+          eq(products.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!product) {
@@ -102,10 +114,16 @@ export default defineEventHandler(async (event) => {
     // Supprimer le mouvement de stock
     await db
       .delete(stockMovements)
-      .where(eq(stockMovements.id, id))
+      .where(
+        and(
+          eq(stockMovements.id, id),
+          eq(stockMovements.tenantId, tenantId)
+        )
+      )
 
     // Enregistrer la suppression dans l'audit log (NF525)
     await db.insert(auditLogs).values({
+      tenantId,
       userId: movement.userId,
       userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
       entityType: 'stock_movement',

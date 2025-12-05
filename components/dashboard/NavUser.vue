@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuthStore } from '@/stores/auth'
 import {
     Avatar,
     AvatarFallback,
@@ -29,6 +30,7 @@ import {
     Sun,
     Moon,
 } from 'lucide-vue-next'
+
 const props = defineProps<{
     user: {
         name: string
@@ -36,12 +38,19 @@ const props = defineProps<{
         avatar: string
     }
 }>()
-const { isMobile } = useSidebar()
 
+const { isMobile } = useSidebar()
+const authStore = useAuthStore()
 const colorMode = useColorMode()
+const router = useRouter()
 
 function toggleColorMode() {
     colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
+
+async function handleLogout() {
+    await authStore.signOut()
+    await router.push('/login')
 }
 </script>
 <template>
@@ -109,7 +118,7 @@ function toggleColorMode() {
                         </DropdownMenuItem>
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem @click="handleLogout">
                         <LogOut />
                         Log out
                     </DropdownMenuItem>

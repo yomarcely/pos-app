@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -12,6 +13,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = getRouterParam(event, 'id')
 
     if (!id) {
@@ -27,7 +29,12 @@ export default defineEventHandler(async (event) => {
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.id, productId))
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!product) {
@@ -38,7 +45,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Supprimer le produit
-    await db.delete(products).where(eq(products.id, productId))
+    await db.delete(products).where(
+      and(
+        eq(products.id, productId),
+        eq(products.tenantId, tenantId)
+      )
+    )
 
     console.log(`✅ Produit supprimé: ${product.name} (ID: ${productId})`)
 

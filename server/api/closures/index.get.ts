@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { closures } from '~/server/database/schema'
-import { desc, gte, lte, and } from 'drizzle-orm'
+import { desc, gte, lte, and, eq } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -12,12 +13,13 @@ import { desc, gte, lte, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const startDate = query.startDate as string | undefined
     const endDate = query.endDate as string | undefined
 
     // Construire les conditions de filtrage
-    const conditions = []
+    const conditions = [eq(closures.tenantId, tenantId)]
 
     if (startDate) {
       conditions.push(gte(closures.closureDate, startDate))

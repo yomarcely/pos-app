@@ -1,6 +1,9 @@
 import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 
 /**
  * ==========================================
@@ -14,6 +17,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
 
     if (!id) {
@@ -23,21 +27,18 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const body = await readBody(event)
-
-    // Validation
-    if (!body.gdprConsent) {
-      throw createError({
-        statusCode: 400,
-        message: 'Le consentement RGPD est obligatoire',
-      })
-    }
+    const body = await validateBody<CreateClientInput>(event, createClientSchema)
 
     // Vérifier si le client existe
     const [existingClient] = await db
       .select()
       .from(customers)
-      .where(eq(customers.id, id))
+      .where(
+        and(
+          eq(customers.id, id),
+          eq(customers.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!existingClient) {

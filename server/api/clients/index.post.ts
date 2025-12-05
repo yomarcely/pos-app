@@ -1,6 +1,8 @@
 import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 
 /**
  * ==========================================
@@ -15,15 +17,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
-    const body = await readBody(event)
-
-    // Validation
-    if (!body.gdprConsent) {
-      throw createError({
-        statusCode: 400,
-        message: 'Le consentement RGPD est obligatoire',
-      })
-    }
+    const body = await validateBody<CreateClientInput>(event, createClientSchema)
 
     // Préparer les données
     const now = new Date()
@@ -38,7 +32,7 @@ export default defineEventHandler(async (event) => {
       gdprConsentDate: body.gdprConsent ? now : null,
       marketingConsent: !!body.marketingConsent,
       loyaltyProgram: !!body.loyaltyProgram,
-      discount: body.discount?.toString() || '0',
+      discount: body.discount !== undefined ? String(body.discount) : '0',
       notes: body.notes || null,
       alerts: body.alerts || null,
       metadata: body.metadata || {},

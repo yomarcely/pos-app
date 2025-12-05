@@ -3,6 +3,8 @@ import { sales, closures, auditLogs } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
 
 /**
  * ==========================================
@@ -28,14 +30,7 @@ interface CloseDayRequest {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
-    const body = await readBody<CloseDayRequest>(event)
-
-    if (!body.date) {
-      throw createError({
-        statusCode: 400,
-        message: 'Date de clôture manquante',
-      })
-    }
+    const body = await validateBody<CloseDayInput>(event, closeDaySchema)
 
     const targetDate = new Date(body.date)
 

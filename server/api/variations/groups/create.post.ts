@@ -1,6 +1,8 @@
 import { db } from '~/server/database/connection'
 import { variationGroups } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createVariationGroupSchema, type CreateVariationGroupInput } from '~/server/validators/variation.schema'
 
 /**
  * ==========================================
@@ -20,14 +22,7 @@ export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody<CreateGroupRequest>(event)
-
-    if (!body.name || body.name.trim() === '') {
-      throw createError({
-        statusCode: 400,
-        message: 'Le nom du groupe de variation est obligatoire',
-      })
-    }
+    const body = await validateBody<CreateVariationGroupInput>(event, createVariationGroupSchema)
 
     const [newGroup] = await db.insert(variationGroups).values({
       tenantId,

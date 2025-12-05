@@ -1,6 +1,9 @@
 import { db } from '~/server/database/connection'
 import { variations } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { updateVariationSchema, type UpdateVariationInput } from '~/server/validators/variation.schema'
 
 /**
  * ==========================================
@@ -10,15 +13,11 @@ import { eq } from 'drizzle-orm'
  * PATCH /api/variations/:id/update
  */
 
-interface UpdateVariationRequest {
-  name?: string
-  sortOrder?: number
-}
-
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(event.context.params?.id)
-    const body = await readBody<UpdateVariationRequest>(event)
+    const body = await validateBody<UpdateVariationInput>(event, updateVariationSchema)
 
     if (!id || isNaN(id)) {
       throw createError({
@@ -28,7 +27,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Vérifier que la variation existe
-    const [existing] = await db.select().from(variations).where(eq(variations.id, id)).limit(1)
+    const [existing] = await db.select().from(variations).where(
+      and(
+        eq(variations.id, id),
+        eq(variations.tenantId, tenantId),
+      )
+    ).limit(1)
 
     if (!existing) {
       throw createError({
@@ -47,7 +51,12 @@ export default defineEventHandler(async (event) => {
     const [updated] = await db
       .update(variations)
       .set(updateData)
-      .where(eq(variations.id, id))
+      .where(
+        and(
+          eq(variations.id, id),
+          eq(variations.tenantId, tenantId),
+        )
+      )
       .returning()
 
     console.log(`✅ Variation mise à jour: ${updated.name}`)

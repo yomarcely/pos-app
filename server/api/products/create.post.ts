@@ -1,76 +1,20 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
-import { validateVariationPayload } from '~/server/utils/validateVariationPayload'
+import { createProductSchema, type CreateProductInput } from '~/server/validators/product.schema'
+import { validateBody } from '~/server/utils/validation'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody(event)
-    const {
-      name,
-      description,
-      image,
-      barcode,
-      barcodeByVariation,
-      supplierCode,
-      categoryId,
-      supplierId,
-      brandId,
-      price,
-      purchasePrice,
-      tva,
-      manageStock,
-      stock,
-      minStock,
-      hasVariations,
-      variationGroupIds,
-      stockByVariation,
-      minStockByVariation,
-    } = body
+    // Validation avec Zod
+    const validatedData = await validateBody<CreateProductInput>(event, createProductSchema)
 
-    // Validation
-    if (!name || !name.trim()) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le nom du produit est requis',
-      })
-    }
-
-    if (!price || parseFloat(price) <= 0) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le prix de vente est requis et doit être supérieur à 0',
-      })
-    }
-
-    const validatedVariations = validateVariationPayload({
-      hasVariations,
-      variationGroupIds,
-      stockByVariation,
-      minStockByVariation,
-    })
-
-    // Préparer les données du produit
+    // Préparer les données du produit avec tenant_id
     const productData = {
       tenantId,
-      name: name.trim(),
-      description: description?.trim() || null,
-      image: image || null,
-      barcode: barcode?.trim() || null,
-      barcodeByVariation: hasVariations && barcodeByVariation ? barcodeByVariation : null,
-      supplierCode: supplierCode?.trim() || null,
-      categoryId: categoryId ? parseInt(categoryId) : null,
-      supplierId: supplierId ? parseInt(supplierId) : null,
-      brandId: brandId ? parseInt(brandId) : null,
-      price: parseFloat(price).toString(),
-      purchasePrice: purchasePrice ? parseFloat(purchasePrice).toString() : null,
-      tva: tva ? parseFloat(tva).toString() : '20',
-      stock: manageStock ? (stock ? parseInt(stock) : 0) : 0,
-      minStock: minStock ? parseInt(minStock) : 5,
-      variationGroupIds: validatedVariations.variationGroupIds,
-      stockByVariation: validatedVariations.stockByVariation,
-      minStockByVariation: validatedVariations.minStockByVariation,
+      ...validatedData,
     }
 
     // Créer le produit

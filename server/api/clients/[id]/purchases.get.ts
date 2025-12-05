@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { customers, sales, saleItems } from '~/server/database/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -16,6 +17,7 @@ import { eq, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
 
     if (!id) {
@@ -29,7 +31,12 @@ export default defineEventHandler(async (event) => {
     const [client] = await db
       .select()
       .from(customers)
-      .where(eq(customers.id, id))
+      .where(
+        and(
+          eq(customers.id, id),
+          eq(customers.tenantId, tenantId),
+        )
+      )
       .limit(1)
 
     if (!client) {
@@ -64,7 +71,12 @@ export default defineEventHandler(async (event) => {
       })
       .from(sales)
       .leftJoin(saleItems, eq(sales.id, saleItems.saleId))
-      .where(eq(sales.customerId, id))
+      .where(
+        and(
+          eq(sales.customerId, id),
+          eq(sales.tenantId, tenantId),
+        )
+      )
       .orderBy(desc(sales.saleDate))
 
     // Grouper les résultats par vente

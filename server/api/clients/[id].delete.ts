@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
 
     if (!id) {
@@ -27,7 +29,12 @@ export default defineEventHandler(async (event) => {
     const existingClient = await db
       .select()
       .from(customers)
-      .where(eq(customers.id, id))
+      .where(
+        and(
+          eq(customers.id, id),
+          eq(customers.tenantId, tenantId),
+        )
+      )
       .limit(1)
 
     if (existingClient.length === 0) {
@@ -38,7 +45,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Supprimer le client
-    await db.delete(customers).where(eq(customers.id, id))
+    await db.delete(customers).where(
+      and(
+        eq(customers.id, id),
+        eq(customers.tenantId, tenantId),
+      )
+    )
 
     return {
       success: true,

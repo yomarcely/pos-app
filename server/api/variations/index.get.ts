@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { variationGroups, variations } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -24,19 +25,31 @@ interface VariationGroup {
   variations: Variation[]
 }
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
+
     // Récupérer tous les groupes non archivés
     const groups = await db
       .select()
       .from(variationGroups)
-      .where(eq(variationGroups.isArchived, false))
+      .where(
+        and(
+          eq(variationGroups.tenantId, tenantId),
+          eq(variationGroups.isArchived, false)
+        )
+      )
 
     // Récupérer toutes les variations non archivées
     const allVariations = await db
       .select()
       .from(variations)
-      .where(eq(variations.isArchived, false))
+      .where(
+        and(
+          eq(variations.tenantId, tenantId),
+          eq(variations.isArchived, false)
+        )
+      )
 
     // Construire la structure avec les variations groupées
     const result: VariationGroup[] = groups.map(group => ({

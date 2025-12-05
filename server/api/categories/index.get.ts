@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { categories } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -70,15 +71,21 @@ function buildTree(flatCategories: any[]): Category[] {
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const includeArchived = query.includeArchived === 'true'
 
-    // Récupérer toutes les catégories
+    // Récupérer toutes les catégories filtrées par tenant_id
     let allCategories
     if (includeArchived) {
-      allCategories = await db.select().from(categories)
+      allCategories = await db.select().from(categories).where(eq(categories.tenantId, tenantId))
     } else {
-      allCategories = await db.select().from(categories).where(eq(categories.isArchived, false))
+      allCategories = await db.select().from(categories).where(
+        and(
+          eq(categories.tenantId, tenantId),
+          eq(categories.isArchived, false)
+        )
+      )
     }
 
     // Construire l'arbre

@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { products } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = getRouterParam(event, 'id')
 
     if (!id) {
@@ -26,7 +28,12 @@ export default defineEventHandler(async (event) => {
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.id, parseInt(id)))
+      .where(
+        and(
+          eq(products.id, parseInt(id)),
+          eq(products.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!product) {

@@ -3,6 +3,8 @@ import { products, stockMovements, auditLogs } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { updateStockSchema, type UpdateStockInput } from '~/server/validators/product.schema'
 
 /**
  * ==========================================
@@ -33,8 +35,8 @@ interface UpdateStockRequest {
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody<UpdateStockRequest>(event)
     const tenantId = getTenantIdFromEvent(event)
+    const body = await validateBody<UpdateStockInput>(event, updateStockSchema)
 
     // Validation
     if (!body.productId) {

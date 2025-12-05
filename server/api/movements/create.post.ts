@@ -3,6 +3,22 @@ import { products, stockMovements } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { z } from 'zod'
+
+const movementItemSchema = z.object({
+  productId: z.number().int().positive(),
+  variation: z.string().optional(),
+  quantity: z.number(),
+  adjustmentType: z.enum(['add', 'set']).default('add'),
+})
+
+const createMovementSchema = z.object({
+  type: z.enum(['reception', 'adjustment', 'loss', 'transfer']),
+  comment: z.string().max(1000).optional(),
+  userId: z.number().int().positive().optional(),
+  items: z.array(movementItemSchema).min(1, 'Aucun article dans le mouvement'),
+})
 
 /**
  * ==========================================
@@ -42,7 +58,7 @@ interface CreateMovementRequest {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
-    const body = await readBody<CreateMovementRequest>(event)
+    const body = await validateBody<CreateMovementRequest>(event, createMovementSchema)
 
     // Validation
     if (!body.type) {

@@ -2,6 +2,8 @@ import { db } from '~/server/database/connection'
 import { variations, variationGroups } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createVariationSchema, type CreateVariationInput } from '~/server/validators/variation.schema'
 
 /**
  * ==========================================
@@ -13,31 +15,11 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
  * Crée une nouvelle variation dans un groupe (ex: "Rouge", "Bleu", "S", "M", "L")
  */
 
-interface CreateVariationRequest {
-  groupId: number
-  name: string
-  sortOrder?: number
-}
-
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody<CreateVariationRequest>(event)
-
-    if (!body.name || body.name.trim() === '') {
-      throw createError({
-        statusCode: 400,
-        message: 'Le nom de la variation est obligatoire',
-      })
-    }
-
-    if (!body.groupId) {
-      throw createError({
-        statusCode: 400,
-        message: 'L\'ID du groupe de variation est obligatoire',
-      })
-    }
+    const body = await validateBody<CreateVariationInput>(event, createVariationSchema)
 
     // Vérifier que le groupe existe
     const [group] = await db.select().from(variationGroups).where(eq(variationGroups.id, body.groupId)).limit(1)

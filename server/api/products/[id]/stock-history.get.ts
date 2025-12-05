@@ -1,7 +1,7 @@
 import { db } from '~/server/database/connection'
 import { stockMovements, products, movements, sales } from '~/server/database/schema'
-import { eq, desc } from 'drizzle-orm'
-import { sql } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = getRouterParam(event, 'id')
 
     if (!id) {
@@ -28,7 +29,12 @@ export default defineEventHandler(async (event) => {
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.id, productId))
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.tenantId, tenantId)
+        )
+      )
       .limit(1)
 
     if (!product) {
@@ -59,7 +65,12 @@ export default defineEventHandler(async (event) => {
       .from(stockMovements)
       .leftJoin(movements, eq(stockMovements.movementId, movements.id))
       .leftJoin(sales, eq(stockMovements.saleId, sales.id))
-      .where(eq(stockMovements.productId, productId))
+      .where(
+        and(
+          eq(stockMovements.productId, productId),
+          eq(stockMovements.tenantId, tenantId)
+        )
+      )
       .orderBy(desc(stockMovements.createdAt))
 
     // Mapper les champs pour le frontend

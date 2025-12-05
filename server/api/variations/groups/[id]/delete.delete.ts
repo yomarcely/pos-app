@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { variationGroups, variations } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -14,6 +15,7 @@ import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const id = Number(event.context.params?.id)
 
     if (!id || isNaN(id)) {
@@ -24,7 +26,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Vérifier que le groupe existe
-    const [existing] = await db.select().from(variationGroups).where(eq(variationGroups.id, id)).limit(1)
+    const [existing] = await db.select().from(variationGroups).where(
+      and(
+        eq(variationGroups.id, id),
+        eq(variationGroups.tenantId, tenantId),
+      )
+    ).limit(1)
 
     if (!existing) {
       throw createError({
@@ -34,7 +41,12 @@ export default defineEventHandler(async (event) => {
     }
 
     // Vérifier s'il y a des variations dans ce groupe
-    const variationsInGroup = await db.select().from(variations).where(eq(variations.groupId, id))
+    const variationsInGroup = await db.select().from(variations).where(
+      and(
+        eq(variations.groupId, id),
+        eq(variations.tenantId, tenantId),
+      )
+    )
 
     if (variationsInGroup.length > 0) {
       throw createError({
@@ -50,7 +62,12 @@ export default defineEventHandler(async (event) => {
         isArchived: true,
         archivedAt: new Date(),
       })
-      .where(eq(variationGroups.id, id))
+      .where(
+        and(
+          eq(variationGroups.id, id),
+          eq(variationGroups.tenantId, tenantId),
+        )
+      )
 
     console.log(`✅ Groupe de variation archivé: ${existing.name}`)
 

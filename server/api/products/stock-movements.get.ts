@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { stockMovements, products } from '~/server/database/schema'
 import { desc, eq, ne, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -16,6 +17,7 @@ import { desc, eq, ne, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const productId = query.productId ? Number(query.productId) : null
     const limit = query.limit ? Number(query.limit) : 100
@@ -23,7 +25,8 @@ export default defineEventHandler(async (event) => {
     // Récupérer les mouvements de stock (seulement les ajustements, pas les ventes)
     let whereConditions = [
       ne(stockMovements.reason, 'sale'),
-      ne(stockMovements.reason, 'sale_cancellation')
+      ne(stockMovements.reason, 'sale_cancellation'),
+      eq(stockMovements.tenantId, tenantId),
     ]
 
     // Filtrer par produit si spécifié

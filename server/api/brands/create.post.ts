@@ -1,26 +1,20 @@
 import { db } from '~/server/database/connection'
 import { brands } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { validateBody } from '~/server/utils/validation'
+import { createBrandSchema, type CreateBrandInput } from '~/server/validators/brand.schema'
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
 
-    const body = await readBody(event)
-    const { name } = body
-
-    if (!name || !name.trim()) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Le nom de la marque est requis',
-      })
-    }
+    const body = await validateBody<CreateBrandInput>(event, createBrandSchema)
 
     const [newBrand] = await db
       .insert(brands)
       .values({
         tenantId,
-        name: name.trim(),
+        name: body.name.trim(),
       })
       .returning()
 

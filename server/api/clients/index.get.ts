@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { customers, sales } from '~/server/database/schema'
-import { desc, or, like, sql, eq } from 'drizzle-orm'
+import { desc, or, like, sql, eq, and } from 'drizzle-orm'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
  * ==========================================
@@ -17,6 +18,7 @@ import { desc, or, like, sql, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   try {
+    const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const searchTerm = query.search as string | undefined
 
@@ -42,7 +44,11 @@ export default defineEventHandler(async (event) => {
         totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'completed' THEN CAST(${sales.totalTTC} AS NUMERIC) ELSE 0 END), 0)`,
       })
       .from(customers)
-      .leftJoin(sales, eq(customers.id, sales.customerId))
+      .leftJoin(sales, and(
+        eq(customers.id, sales.customerId),
+        eq(sales.tenantId, tenantId)
+      ))
+      .where(eq(customers.tenantId, tenantId))
       .groupBy(
         customers.id,
         customers.firstName,
