@@ -17,6 +17,8 @@ export interface TicketData {
   saleDate: Date
   totalTTC: number
   sellerId: number
+  establishmentNumber: number
+  registerNumber: number
   items: Array<{
     productId: number
     quantity: number
@@ -43,6 +45,8 @@ export function generateTicketHash(
     ticketData.saleDate.toISOString(),
     ticketData.totalTTC.toFixed(2),
     ticketData.sellerId,
+    ticketData.establishmentNumber,
+    ticketData.registerNumber,
     previousHash || 'FIRST_TICKET',
     // Ajouter les items pour plus de sécurité
     ticketData.items
@@ -56,12 +60,14 @@ export function generateTicketHash(
 
 /**
  * Génère un numéro de ticket unique et séquentiel
- * Format: YYYYMMDD-NNNNNN (ex: 20250120-000001)
+ * Format: YYYYMMDD-E{etab}-R{caisse}-NNNNNN (ex: 20250120-E01-R02-000001)
  *
  * @param sequenceNumber - Numéro de séquence du jour
+ * @param establishmentNumber - Numéro logique de l'établissement (1, 2, ...)
+ * @param registerNumber - Numéro logique de la caisse (1, 2, ...)
  * @returns Numéro de ticket formaté
  */
-export function generateTicketNumber(sequenceNumber: number): string {
+export function generateTicketNumber(sequenceNumber: number, establishmentNumber: number, registerNumber: number): string {
   const date = new Date()
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -70,7 +76,10 @@ export function generateTicketNumber(sequenceNumber: number): string {
   // Numéro de séquence sur 6 chiffres
   const sequence = String(sequenceNumber).padStart(6, '0')
 
-  return `${year}${month}${day}-${sequence}`
+  const etab = String(establishmentNumber).padStart(2, '0')
+  const register = String(registerNumber).padStart(2, '0')
+
+  return `${year}${month}${day}-E${etab}-R${register}-${sequence}`
 }
 
 /**
@@ -179,6 +188,8 @@ export function verifyTicketChain(
     saleDate: Date
     totalTTC: number
     sellerId: number
+    establishmentNumber: number
+    registerNumber: number
     items: any[]
     currentHash: string
     previousHash: string | null
@@ -205,6 +216,8 @@ export function verifyTicketChain(
         saleDate: ticket.saleDate,
         totalTTC: ticket.totalTTC,
         sellerId: ticket.sellerId,
+        establishmentNumber: ticket.establishmentNumber,
+        registerNumber: ticket.registerNumber,
         items: ticket.items,
       },
       ticket.previousHash

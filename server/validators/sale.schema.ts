@@ -70,6 +70,8 @@ export const createSaleRequestSchema = z.object({
     value: z.number().optional().default(0),
     type: z.enum(['%', '€']).default('%'),
   }),
+  establishmentId: z.number().int().positive('Établissement requis'),
+  registerId: z.number().int().positive('Caisse requise'),
 })
 
 export type CreateSaleInput = z.infer<typeof createSaleSchema>

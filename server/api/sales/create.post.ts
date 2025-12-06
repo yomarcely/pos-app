@@ -1,13 +1,13 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products, variations } from '~/server/database/schema'
-import { desc, gte, lt, and, eq } from 'drizzle-orm'
+import { sales, saleItems, stockMovements, auditLogs, products, variations, registers, establishments } from '~/server/database/schema'
+import { desc, gte, lt, and, eq, like, sql } from 'drizzle-orm'
 import {
   generateTicketNumber,
   generateTicketHash,
   generateTicketSignature,
   type TicketData,
 } from '~/server/utils/nf525'
-import { getTenantId } from '~/server/utils/tenant'
+import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 
@@ -63,11 +63,14 @@ interface CreateSaleRequest {
     value: number
     type: '%' | '€'
   }
+  establishmentId: number
+  registerId: number
 }
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await validateBody<CreateSaleRequestInput>(event, createSaleRequestSchema)
+    const tenantId = getTenantIdFromEvent(event)
 
     // Validation des données
     if (!body.items || body.items.length === 0) {
@@ -91,6 +94,107 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    if (!body.establishmentId || !body.registerId) {
+      throw createError({
+        statusCode: 400,
+        message: 'Établissement ou caisse manquant',
+      })
+    }
+
+    // Vérifier la caisse et l'établissement associés au tenant
+    const [register] = await db
+      .select({
+        id: registers.id,
+        tenantId: registers.tenantId,
+        establishmentId: registers.establishmentId,
+        name: registers.name,
+      })
+      .from(registers)
+      .where(
+        and(
+          eq(registers.id, body.registerId),
+          eq(registers.tenantId, tenantId),
+          eq(registers.isActive, true)
+        )
+      )
+      .limit(1)
+
+    if (!register) {
+      throw createError({
+        statusCode: 400,
+        message: 'Caisse introuvable ou inactive',
+      })
+    }
+
+    if (register.establishmentId !== body.establishmentId) {
+      throw createError({
+        statusCode: 400,
+        message: 'La caisse sélectionnée n’appartient pas à cet établissement',
+      })
+    }
+
+    const [establishment] = await db
+      .select({
+        id: establishments.id,
+        name: establishments.name,
+      })
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.id, register.establishmentId),
+          eq(establishments.tenantId, tenantId),
+          eq(establishments.isActive, true)
+        )
+      )
+      .limit(1)
+
+    if (!establishment) {
+      throw createError({
+        statusCode: 400,
+        message: 'Établissement introuvable ou inactif',
+      })
+    }
+
+    // Numérotation logique: établissement n°X pour ce tenant, caisse n°Y dans cet établissement
+    const tenantEstablishments = await db
+      .select({ id: establishments.id })
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, tenantId),
+          eq(establishments.isActive, true)
+        )
+      )
+      .orderBy(establishments.id)
+
+    const establishmentNumber = tenantEstablishments.findIndex(e => e.id === establishment.id) + 1
+    if (establishmentNumber <= 0) {
+      throw createError({
+        statusCode: 400,
+        message: 'Établissement non autorisé pour ce tenant',
+      })
+    }
+
+    const establishmentRegisters = await db
+      .select({ id: registers.id })
+      .from(registers)
+      .where(
+        and(
+          eq(registers.establishmentId, establishment.id),
+          eq(registers.tenantId, tenantId),
+          eq(registers.isActive, true)
+        )
+      )
+      .orderBy(registers.id)
+
+    const registerNumber = establishmentRegisters.findIndex(r => r.id === register.id) + 1
+    if (registerNumber <= 0) {
+      throw createError({
+        statusCode: 400,
+        message: 'Caisse non autorisée pour cet établissement',
+      })
+    }
+
     // ==========================================
     // 1. RÉCUPÉRER LE DERNIER TICKET (CHAÎNAGE)
     // ==========================================
@@ -101,6 +205,12 @@ export default defineEventHandler(async (event) => {
         currentHash: sales.currentHash,
       })
       .from(sales)
+      .where(
+        and(
+          eq(sales.tenantId, tenantId),
+          eq(sales.registerId, register.id)
+        )
+      )
       .orderBy(desc(sales.id))
       .limit(1)
 
@@ -110,23 +220,36 @@ export default defineEventHandler(async (event) => {
     // 2. GÉNÉRER LE NUMÉRO DE TICKET
     // ==========================================
 
-    // Compter les tickets du jour pour la séquence
-    const today = new Date()
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0)
-    const tomorrowStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0, 0)
+    // Compter les tickets du jour pour la séquence (par caisse + date)
+    const now = new Date()
+    const prefixDate = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('')
 
-    const todaySales = await db
-      .select({ id: sales.id })
+    const ticketPrefix = `${prefixDate}-E${String(establishmentNumber).padStart(2, '0')}-R${String(registerNumber).padStart(2, '0')}-`
+
+    // Récupérer la séquence max existante sur ce préfixe (tous tenants confondus, car contrainte unique globale)
+    const [lastTicket] = await db
+      .select({ ticketNumber: sales.ticketNumber })
       .from(sales)
-      .where(
-        and(
-          gte(sales.saleDate, todayStart),
-          lt(sales.saleDate, tomorrowStart)
-        )
-      )
+      .where(like(sales.ticketNumber, `${ticketPrefix}%`))
+      .orderBy(desc(sales.ticketNumber))
+      .limit(1)
 
-    const sequenceNumber = todaySales.length + 1
-    const ticketNumber = generateTicketNumber(sequenceNumber)
+    const extractSeq = (num?: string | null) => {
+      if (!num) return 0
+      const parts = num.split('-')
+      const seqPart = parts[parts.length - 1]
+      const parsed = Number(seqPart)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+
+    const lastSeq = extractSeq(lastTicket?.ticketNumber)
+
+    const sequenceNumber = lastSeq + 1
+    const ticketNumber = generateTicketNumber(sequenceNumber, establishmentNumber, registerNumber)
 
     // ==========================================
     // 3. GÉNÉRER LE HASH NF525
@@ -154,6 +277,8 @@ export default defineEventHandler(async (event) => {
       saleDate: new Date(),
       totalTTC: Number(body.totals.totalTTC),
       sellerId: body.seller.id,
+      establishmentNumber,
+      registerNumber,
       items: parsedItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -178,8 +303,6 @@ export default defineEventHandler(async (event) => {
 
     const { newSale, saleItemsData, stockUpdateLogs } = await db.transaction(async (tx) => {
       // 5.1 Enregistrer la vente
-      const tenantId = getTenantIdFromEvent(event)
-
       const [createdSale] = await tx
         .insert(sales)
         .values({
@@ -193,6 +316,8 @@ export default defineEventHandler(async (event) => {
           globalDiscountType: body.globalDiscount.type,
           sellerId: body.seller.id,
           customerId: body.customer?.id || null,
+          establishmentId: establishment.id,
+          registerId: register.id,
           payments: body.payments,
           previousHash,
           currentHash,
@@ -333,6 +458,8 @@ export default defineEventHandler(async (event) => {
         metadata: {
           hash: currentHash,
           signature,
+          establishmentId: establishment.id,
+          registerId: register.id,
         },
         ipAddress: getRequestIP(event) || null,
       })
@@ -355,6 +482,8 @@ export default defineEventHandler(async (event) => {
         totalTTC: newSale.totalTTC,
         hash: newSale.currentHash,
         signature: newSale.signature,
+        establishmentId: establishment.id,
+        registerId: register.id,
       },
     }
   } catch (error) {

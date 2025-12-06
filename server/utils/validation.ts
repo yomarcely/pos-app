@@ -26,13 +26,14 @@ export async function validateBody<T>(event: H3Event, schema: ZodSchema<T>): Pro
         field: err.path.join('.'),
         message: err.message,
       }))
+      const firstMessage = errors[0]?.message || 'Erreur de validation'
 
       console.error('[Validation] Erreurs:', errors)
 
       throw createError({
         statusCode: 400,
-        statusMessage: errors[0]?.message || 'Erreur de validation',
-        message: 'Erreur de validation',
+        statusMessage: firstMessage,
+        message: firstMessage,
         data: { errors },
       })
     }

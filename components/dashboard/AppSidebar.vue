@@ -189,17 +189,14 @@ const data = {
         {
           title: 'General',
           url: '#',
-          disabled: true,
         },
         {
-          title: 'Team',
-          url: '#',
-          disabled: true,
+          title: 'Vendeurs',
+          url: '/vendeurs',
         },
         {
-          title: 'Billing',
-          url: '#',
-          disabled: true,
+          title: 'Etablissements',
+          url: '/etablissements',
         },
         {
           title: 'Limits',

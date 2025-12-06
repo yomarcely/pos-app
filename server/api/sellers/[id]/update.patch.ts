@@ -1,28 +1,28 @@
 import { db } from '~/server/database/connection'
-import { variationGroups } from '~/server/database/schema'
+import { sellers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
-import { updateVariationGroupSchema, type UpdateVariationGroupInput } from '~/server/validators/variation.schema'
+import { updateSellerSchema, type UpdateSellerInput } from '~/server/validators/seller.schema'
 
 /**
  * ==========================================
- * API: Mettre à jour un groupe de variation
+ * API: Mettre à jour un vendeur
  * ==========================================
  *
- * PATCH /api/variations/groups/:id/update
+ * PATCH /api/sellers/:id/update
  */
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const id = Number(event.context.params?.id)
-    const body = await validateBody<UpdateVariationGroupInput>(event, updateVariationGroupSchema)
+    const body = await validateBody<UpdateSellerInput>(event, updateSellerSchema)
 
     if (!id || isNaN(id)) {
       throw createError({
         statusCode: 400,
-        message: 'ID de groupe invalide',
+        message: 'ID de vendeur invalide',
       })
     }
 
@@ -31,15 +31,17 @@ export default defineEventHandler(async (event) => {
     }
 
     if (body.name !== undefined) updateData.name = body.name.trim()
+    if (body.code !== undefined) updateData.code = body.code?.trim() || null
+    if (body.isActive !== undefined) updateData.isActive = body.isActive
 
     // Mettre à jour - SÉCURITÉ: filtre par tenantId ET id
     const [updated] = await db
-      .update(variationGroups)
+      .update(sellers)
       .set(updateData)
       .where(
         and(
-          eq(variationGroups.id, id),
-          eq(variationGroups.tenantId, tenantId)
+          eq(sellers.id, id),
+          eq(sellers.tenantId, tenantId)
         )
       )
       .returning()
@@ -47,19 +49,19 @@ export default defineEventHandler(async (event) => {
     if (!updated) {
       throw createError({
         statusCode: 404,
-        message: 'Groupe de variation introuvable',
+        message: 'Vendeur introuvable',
       })
     }
 
-    console.log(`✅ Groupe de variation mis à jour: ${updated.name}`)
+    console.log(`✅ Vendeur mis à jour: ${updated.name}`)
 
     return {
       success: true,
-      message: 'Groupe de variation mis à jour avec succès',
-      group: updated,
+      message: 'Vendeur mis à jour avec succès',
+      seller: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du groupe de variation:', error)
+    console.error('Erreur lors de la mise à jour du vendeur:', error)
 
     throw createError({
       statusCode: 500,

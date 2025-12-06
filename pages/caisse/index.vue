@@ -24,16 +24,16 @@ onMounted(() => {
     <CaisseHeader />
 
     <!-- 🧩 Grille principale -->
-    <div class="h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 p-4 overflow-hidden">
-      <aside class="p-4 h-full rounded-lg shadow bg-muted/50">
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 p-4 overflow-hidden">
+      <aside class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
         <CaisseColLeft />
       </aside>
 
-      <main class="p-4 rounded-lg shadow space-y-4 overflow-hidden bg-muted/50 h-full">
+      <main class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
         <CaisseColMiddle />
       </main>
 
-      <aside class="flex flex-col justify-between h-full rounded-lg shadow bg-muted/50 p-4">
+      <aside class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
         <CaisseColRight />
       </aside>
     </div>

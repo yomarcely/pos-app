@@ -21,6 +21,9 @@ const variationStore = useVariationGroupsStore()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
 const isDayClosed = ref(false)
+const currentEstablishment = ref<any>(null)
+const registers = ref<any[]>([])
+const currentRegister = ref<any>(null)
 
 const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
 
@@ -34,6 +37,7 @@ onMounted(async () => {
   } catch (error) {
     console.error('Erreur lors de la vérification de clôture:', error)
   }
+  await refreshSelectionsFromStorage()
 })
 
 const totalPaid = computed(() =>
@@ -52,7 +56,45 @@ function removePayment(mode: string) {
   payments.value = payments.value.filter((p) => p.mode !== mode)
 }
 
+async function refreshSelectionsFromStorage() {
+  // Etablissement
+  try {
+    const savedEstablishmentId = localStorage.getItem('pos_selected_establishment')
+    if (savedEstablishmentId) {
+      const response = await $fetch<{ success: boolean; establishment: any }>(`/api/establishments/${savedEstablishmentId}`)
+      if (response.success) {
+        currentEstablishment.value = response.establishment
+      }
+    } else {
+      currentEstablishment.value = null
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'établissement:', error)
+    currentEstablishment.value = null
+  }
+
+  // Caisses
+  try {
+    const registersResponse = await $fetch<{ registers: any[] }>('/api/registers')
+    registers.value = registersResponse.registers
+
+    const savedRegisterId = localStorage.getItem('pos_selected_register')
+    if (savedRegisterId) {
+      const register = registers.value.find(r => r.id === Number(savedRegisterId))
+      currentRegister.value = register || null
+    } else {
+      currentRegister.value = null
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la caisse:', error)
+    currentRegister.value = null
+  }
+}
+
 async function validerVente() {
+  // Toujours utiliser la sélection la plus récente
+  await refreshSelectionsFromStorage()
+
   // 0. Vérifier que la journée n'est pas clôturée
   if (isDayClosed.value) {
     toast.error('⚠️ La journée est clôturée. Impossible d\'enregistrer une vente.')
@@ -78,6 +120,16 @@ async function validerVente() {
   // 2. Vérifier qu'un vendeur est sélectionné
   if (!sellersStore.selectedSeller) {
     toast.warning('Veuillez sélectionner un vendeur')
+    return
+  }
+
+  if (!currentEstablishment.value || !currentEstablishment.value.id) {
+    toast.error('Veuillez sélectionner un établissement')
+    return
+  }
+
+  if (!currentRegister.value || !currentRegister.value.id) {
+    toast.error('Veuillez sélectionner une caisse')
     return
   }
 
@@ -134,6 +186,8 @@ async function validerVente() {
         value: cartStore.globalDiscount,
         type: cartStore.globalDiscountType,
       },
+      establishmentId: currentEstablishment.value.id,
+      registerId: currentRegister.value.id,
     }
 
     // 5. Envoyer à l'API (NF525)
@@ -153,13 +207,22 @@ async function validerVente() {
     console.log('✅ Vente NF525 enregistrée :', response.sale)
 
     // 7. Afficher le récapitulatif
+    const establishment = currentEstablishment.value
     let receipt = `
 ╔════════════════════════════════════╗
 ║         TICKET DE CAISSE           ║
 ╚════════════════════════════════════╝
 
+${establishment ? `${establishment.name}
+${establishment.address || ''}
+${establishment.postalCode ? `${establishment.postalCode} ` : ''}${establishment.city || ''}
+${establishment.phone ? `Tél: ${establishment.phone}` : ''}
+${establishment.email ? `Email: ${establishment.email}` : ''}
+` : ''}────────────────────────────────────
+
 N° Ticket: ${response.sale.ticketNumber}
 Date: ${new Date(response.sale.saleDate).toLocaleString('fr-FR')}
+Caisse: ${currentRegister.value?.name || 'N/A'}
 Vendeur: ${sellersStore.sellers.find(s => s.id === Number(sellersStore.selectedSeller))?.name || 'N/A'}
 ${customerStore.client ? `Client: ${customerStore.clientName}\n` : ''}
 ────────────────────────────────────
@@ -193,7 +256,12 @@ ${balance.value < 0 ? `Rendu: ${Math.abs(balance.value).toFixed(2)} €\n` : ''}
 
 Hash NF525: ${response.sale.hash.substring(0, 16)}...
 Signature: ${response.sale.signature?.substring(0, 16) || 'TEMP'}...
-
+${establishment ? `
+────────────────────────────────────
+${establishment.siret ? `SIRET: ${establishment.siret}` : ''}
+${establishment.naf ? `NAF: ${establishment.naf}` : ''}
+${establishment.tvaNumber ? `TVA: ${establishment.tvaNumber}` : ''}
+` : ''}
 Merci de votre visite !
     `
 
@@ -218,9 +286,9 @@ function printReceipt() {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="h-full flex flex-col gap-4">
     <!-- ⚠️ Message de journée clôturée -->
-    <div v-if="isDayClosed" class="p-4 border-2 border-red-500 rounded-lg bg-red-50 dark:bg-red-950">
+    <div v-if="isDayClosed" class="p-4 border-2 border-red-500 rounded-lg bg-red-50 dark:bg-red-950 flex-shrink-0">
       <div class="flex items-center gap-2 text-red-700 dark:text-red-300">
         <Lock class="w-5 h-5" />
         <div>
@@ -231,7 +299,7 @@ function printReceipt() {
     </div>
 
     <!-- 💰 Montant total -->
-    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4" :class="{ 'opacity-50': isDayClosed }">
+    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4 flex-shrink-0" :class="{ 'opacity-50': isDayClosed }">
       <div class="absolute top-2 left-4 text-xl font-medium text-gray-400 dark:text-black">
         Total TTC
       </div>
@@ -257,7 +325,7 @@ function printReceipt() {
     </div>
 
     <!-- 💳 Boutons de paiement -->
-    <div class="space-y-2" :class="{ 'opacity-50 pointer-events-none': isDayClosed }">
+    <div class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isDayClosed }">
       <label class="text-sm font-semibold">Mode de paiement</label>
       <div class="grid grid-cols-2 gap-2">
         <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed">
@@ -273,7 +341,7 @@ function printReceipt() {
     </div>
 
     <!-- 📦 Paiements sélectionnés -->
-    <div v-if="payments.length > 0" class="space-y-2">
+    <div v-if="payments.length > 0" class="flex flex-col gap-2 flex-shrink-0">
       <div
         v-for="payment in payments"
         :key="payment.mode"
@@ -286,27 +354,27 @@ function printReceipt() {
         <Input v-model.number="payment.amount" type="number" class="w-full text-right" min="0" step="0.01" />
       </div>
     </div>
-  </div>
 
-  <!-- ✅ Bouton de validation -->
-  <div class="pt-4 space-y-2">
-    <Button
-      class="w-full text-lg font-semibold"
-      @click="validerVente"
-      :disabled="totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
-    >
-      <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
-      {{ isDayClosed ? 'Journée clôturée' : 'Valider la vente' }}
-    </Button>
-    
-    <!-- <Button 
-      variant="outline" 
-      class="w-full" 
-      @click="printReceipt"
-      :disabled="cartStore.items.length === 0"
-    >
-      <Printer class="w-4 h-4 mr-2" />
-      Imprimer ticket
-    </Button> -->
+    <!-- ✅ Bouton de validation -->
+    <div class="mt-auto pt-4 flex flex-col gap-2 flex-shrink-0">
+      <Button
+        class="w-full text-lg font-semibold"
+        @click="validerVente"
+        :disabled="totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
+      >
+        <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
+        {{ isDayClosed ? 'Journée clôturée' : 'Valider la vente' }}
+      </Button>
+
+      <!-- <Button
+        variant="outline"
+        class="w-full"
+        @click="printReceipt"
+        :disabled="cartStore.items.length === 0"
+      >
+        <Printer class="w-4 h-4 mr-2" />
+        Imprimer ticket
+      </Button> -->
+    </div>
   </div>
 </template>

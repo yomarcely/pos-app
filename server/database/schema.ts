@@ -38,6 +38,8 @@ export const sales = pgTable('sales', {
   // Relations
   sellerId: integer('seller_id').references(() => sellers.id),
   customerId: integer('customer_id').references(() => customers.id),
+  establishmentId: integer('establishment_id').references(() => establishments.id),
+  registerId: integer('register_id').references(() => registers.id),
 
   // Modes de paiement (stocké en JSON)
   payments: jsonb('payments').notNull(), // [{ mode: 'Espèces', amount: 50.00 }, ...]
@@ -82,6 +84,8 @@ export const sales = pgTable('sales', {
   closureIdIdx: index('sales_closure_id_idx').on(table.closureId),
   sellerIdIdx: index('sales_seller_id_idx').on(table.sellerId),
   customerIdIdx: index('sales_customer_id_idx').on(table.customerId),
+  establishmentIdIdx: index('sales_establishment_id_idx').on(table.establishmentId),
+  registerIdIdx: index('sales_register_id_idx').on(table.registerId),
   statusIdx: index('sales_status_idx').on(table.status),
 }))
 
@@ -354,6 +358,67 @@ export const sellers = pgTable('sellers', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tenantIdIdx: index('sellers_tenant_id_idx').on(table.tenantId),
+}))
+
+// ==========================================
+// 10b. ÉTABLISSEMENTS
+// ==========================================
+
+export const establishments = pgTable('establishments', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Informations de base
+  name: varchar('name', { length: 255 }).notNull(),
+
+  // Adresse
+  address: text('address'),
+  postalCode: varchar('postal_code', { length: 10 }),
+  city: varchar('city', { length: 100 }),
+  country: varchar('country', { length: 100 }).default('France'),
+
+  // Contact
+  phone: varchar('phone', { length: 20 }),
+  email: varchar('email', { length: 255 }),
+
+  // Informations légales
+  siret: varchar('siret', { length: 14 }),
+  naf: varchar('naf', { length: 5 }),
+  tvaNumber: varchar('tva_number', { length: 20 }), // Numéro de TVA intracommunautaire
+
+  // Statut
+  isActive: boolean('is_active').default(true),
+
+  // Audit
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('establishments_tenant_id_idx').on(table.tenantId),
+}))
+
+// ==========================================
+// 10c. CAISSES (REGISTRES)
+// ==========================================
+
+export const registers = pgTable('registers', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Relation avec l'établissement
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id),
+
+  // Informations de base
+  name: varchar('name', { length: 100 }).notNull(), // Ex: "Caisse 1", "Caisse principale"
+
+  // Statut
+  isActive: boolean('is_active').default(true),
+
+  // Audit
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('registers_tenant_id_idx').on(table.tenantId),
+  establishmentIdIdx: index('registers_establishment_id_idx').on(table.establishmentId),
 }))
 
 // ==========================================

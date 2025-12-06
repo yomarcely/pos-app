@@ -4,6 +4,10 @@ export const description = "A two column login page with a cover image."
 <script setup lang="ts">
 import { GalleryVerticalEnd } from "lucide-vue-next"
 import LoginForm from "@/components/login/LoginForm.vue"
+
+definePageMeta({
+  layout: 'auth'
+})
 </script>
 <template>
   <div class="grid min-h-svh lg:grid-cols-2">

@@ -113,7 +113,8 @@ function removeFromCart(id: number, variation: string) {
 </script>
 
 <template>
-  <div class="w-full flex justify-center gap-4">
+  <div class="h-full flex flex-col">
+  <div class="w-full flex justify-center gap-4 mb-4">
     <!-- 📷 Scan code-barres -->
     <div class="relative">
       <Barcode class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -148,7 +149,8 @@ function removeFromCart(id: number, variation: string) {
   </div>
 
   <!-- Liste des produits du panier -->
-  <ScrollArea class="h-[calc(100vh-180px)] w-full rounded-md p-4">
+  <div class="flex-1 min-h-0">
+  <ScrollArea class="h-full w-full rounded-md p-4">
     <div class="flex flex-col gap-2">
       <TransitionGroup tag="div" name="fade-slide" class="flex flex-col gap-2">
         <CaisseCartItem v-for="product in cart" :key="product.id + '-' + product.variation" :product="product"
@@ -158,4 +160,6 @@ function removeFromCart(id: number, variation: string) {
       <div ref="bottomRef" />
     </div>
   </ScrollArea>
+  </div>
+  </div>
 </template>

@@ -15,8 +15,8 @@ export const useSellersStore = defineStore('sellers', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await fetch('/mock/sellers.json')
-      sellers.value = await res.json()
+      const response = await $fetch('/api/sellers')
+      sellers.value = response.sellers || []
       loaded.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)

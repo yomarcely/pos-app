@@ -39,9 +39,9 @@ function openClientHistory() {
 </script>
 
 <template>
-  <div class="max-w-xs mx-auto space-y-4">
+  <div class="h-full flex flex-col gap-4 overflow-auto">
     <!-- Sélecteur vendeur -->
-    <div>
+    <div class="flex-shrink-0">
       <label class="text-sm font-semibold">Vendeur</label>
       <Select v-model="sellersStore.selectedSeller">
         <SelectTrigger>
@@ -56,7 +56,7 @@ function openClientHistory() {
     </div>
 
     <!-- Client -->
-    <div>
+    <div class="flex-shrink-0">
       <label class="text-sm font-semibold">Client</label>
       <div class="flex items-center gap-2 mt-2">
         <!-- 🔍 Recherche -->
@@ -131,7 +131,7 @@ function openClientHistory() {
     </div>
 
     <!-- Remise globale -->
-    <div>
+    <div class="flex-shrink-0">
       <label class="text-sm font-semibold">Remise globale</label>
       <div class="flex gap-2 mt-2">
         <Input type="number" min="0" placeholder="0" class="w-full" v-model.number="cartStore.globalDiscount" />
@@ -156,7 +156,7 @@ function openClientHistory() {
     </div>
 
     <!-- Mise en attente / Reprise -->
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-shrink-0">
       <client-only>
         <!-- Bouton Mise en attente -->
         <Button variant="outline" class="flex-1" @click="cartStore.addPendingCart(customerStore.client ? customerStore.client.id : null);
@@ -181,10 +181,10 @@ function openClientHistory() {
     </div>
 
     <!-- Grille de raccourcis -->
-    <div>
-      <label class="text-sm font-semibold mb-2 block">Raccourcis</label>
-      <div class="grid grid-cols-3 gap-2">
-        <ContextMenu v-for="n in 24" :key="n">
+    <div class="flex-1 min-h-0 flex flex-col">
+      <label class="text-sm font-semibold mb-2 block flex-shrink-0">Raccourcis</label>
+      <div class="grid grid-cols-3 gap-2 overflow-auto flex-1 content-start">
+        <ContextMenu v-for="n in 21" :key="n">
           <ContextMenuTrigger>
             <Button class="h-12 rounded text-sm w-full" variant="secondary">
               Vide
