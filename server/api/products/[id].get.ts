@@ -59,6 +59,7 @@ export default defineEventHandler(async (event) => {
         price: parseFloat(product.price),
         purchasePrice: product.purchasePrice ? parseFloat(product.purchasePrice) : null,
         tva: parseFloat(product.tva || '20'),
+        tvaId: product.tvaId,
         stock: product.stock || 0,
         minStock: product.minStock || 5,
         variationGroupIds: product.variationGroupIds as number[] | undefined,

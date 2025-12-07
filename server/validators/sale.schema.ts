@@ -46,6 +46,7 @@ export const closeDaySchema = z.object({
   date: z.string().min(8, 'Date de clôture manquante'), // format YYYY-MM-DD attendu
   userId: z.number().int().positive().optional().nullable(),
   userName: z.string().optional().nullable(),
+  registerId: z.number().int().positive('Caisse requise'),
 })
 
 // Variante alignée sur le payload existant (totals + globalDiscount)

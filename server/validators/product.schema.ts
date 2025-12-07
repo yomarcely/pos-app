@@ -18,6 +18,7 @@ export const createProductSchema = z.object({
   price: z.string().or(z.number()).transform(val => String(val)),
   purchasePrice: z.string().or(z.number()).transform(val => String(val)).optional().nullable(),
   tva: z.string().or(z.number()).transform(val => String(val)).default('20'),
+  tvaId: z.number().int().positive().optional().nullable(),
   manageStock: z.boolean().optional(),
   stock: z.number().int().min(0).default(0),
   minStock: z.number().int().min(0).default(5),

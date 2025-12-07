@@ -1,10 +1,11 @@
 import { db } from '~/server/database/connection'
-import { sales, closures, auditLogs } from '~/server/database/schema'
+import { sales, closures, registers } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
+import { logClosure } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -25,6 +26,7 @@ interface CloseDayRequest {
   date: string // Format YYYY-MM-DD
   userId?: number
   userName?: string
+  registerId?: number
 }
 
 export default defineEventHandler(async (event) => {
@@ -42,7 +44,28 @@ export default defineEventHandler(async (event) => {
     endOfDay.setHours(23, 59, 59, 999)
 
     // ==========================================
-    // 1. VÉRIFIER SI LA JOURNÉE EST DÉJÀ CLÔTURÉE
+    // 0. RÉCUPÉRER LES INFOS DE LA CAISSE
+    // ==========================================
+    const [register] = await db
+      .select()
+      .from(registers)
+      .where(
+        and(
+          eq(registers.id, body.registerId),
+          eq(registers.tenantId, tenantId)
+        )
+      )
+      .limit(1)
+
+    if (!register) {
+      throw createError({
+        statusCode: 404,
+        message: 'Caisse non trouvée',
+      })
+    }
+
+    // ==========================================
+    // 1. VÉRIFIER SI LA JOURNÉE EST DÉJÀ CLÔTURÉE POUR CETTE CAISSE
     // ==========================================
     const existingClosure = await db
       .select()
@@ -51,6 +74,7 @@ export default defineEventHandler(async (event) => {
         and(
           eq(closures.closureDate, body.date),
           eq(closures.tenantId, tenantId),
+          eq(closures.registerId, body.registerId),
         )
       )
       .limit(1)
@@ -58,12 +82,12 @@ export default defineEventHandler(async (event) => {
     if (existingClosure.length > 0) {
       throw createError({
         statusCode: 400,
-        message: 'Cette journée est déjà clôturée',
+        message: 'Cette journée est déjà clôturée pour cette caisse',
       })
     }
 
     // ==========================================
-    // 2. RÉCUPÉRER TOUTES LES VENTES DU JOUR
+    // 2. RÉCUPÉRER TOUTES LES VENTES DU JOUR POUR CETTE CAISSE
     // ==========================================
     const dailySales = await db
       .select()
@@ -72,7 +96,8 @@ export default defineEventHandler(async (event) => {
         and(
           gte(sales.saleDate, startOfDay),
           lt(sales.saleDate, endOfDay),
-          eq(sales.tenantId, tenantId)
+          eq(sales.tenantId, tenantId),
+          eq(sales.registerId, body.registerId)
         )
       )
       .orderBy(desc(sales.saleDate))
@@ -134,6 +159,8 @@ export default defineEventHandler(async (event) => {
     const [newClosure] = await db.insert(closures).values({
       tenantId,
       closureDate: body.date,
+      registerId: body.registerId,
+      establishmentId: register.establishmentId,
       ticketCount,
       cancelledCount,
       totalHT: totalHT.toFixed(2),
@@ -153,28 +180,17 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 6. ENREGISTRER LA CLÔTURE DANS L'AUDIT LOG (NF525)
     // ==========================================
-    await db.insert(auditLogs).values({
+    await logClosure({
       tenantId,
       userId: body.userId || null,
       userName: body.userName || 'System',
-      entityType: 'closure',
-      entityId: newClosure.id,
-      action: 'create',
-      changes: {
-        closureDate: body.date,
-        ticketCount,
-        cancelledCount,
-        totalHT: totalHT.toFixed(2),
-        totalTVA: totalTVA.toFixed(2),
-        totalTTC: totalTTC.toFixed(2),
-        closureHash,
-      },
-      metadata: {
-        firstTicketNumber,
-        lastTicketNumber,
-        lastTicketHash,
-        paymentMethods,
-      },
+      closureId: newClosure.id,
+      closureDate: body.date,
+      registerId: body.registerId,
+      establishmentId: register.establishmentId,
+      ticketCount,
+      totalTTC,
+      closureHash,
       ipAddress: getRequestIP(event) || null,
     })
 

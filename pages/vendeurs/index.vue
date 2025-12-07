@@ -60,6 +60,10 @@
               maxlength="20"
             />
           </div>
+          <EstablishmentMultiSelect
+            v-model="newSeller.establishmentIds"
+            label="Établissements affectés"
+          />
           <div class="flex items-center space-x-2">
             <Switch id="create-active" v-model="newSeller.isActive" />
             <Label for="create-active">Vendeur actif</Label>
@@ -100,6 +104,10 @@
               maxlength="20"
             />
           </div>
+          <EstablishmentMultiSelect
+            v-model="editSeller.establishmentIds"
+            label="Établissements affectés"
+          />
           <div class="flex items-center space-x-2">
             <Switch id="edit-active" v-model="editSeller.isActive" />
             <Label for="edit-active">Vendeur actif</Label>
@@ -150,6 +158,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import SellerCard from '@/components/sellers/SellerCard.vue'
+import EstablishmentMultiSelect from '@/components/sellers/EstablishmentMultiSelect.vue'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -176,6 +185,7 @@ const newSeller = ref({
   name: '',
   code: '',
   isActive: true,
+  establishmentIds: [] as number[],
 })
 
 const editSeller = ref({
@@ -183,6 +193,7 @@ const editSeller = ref({
   name: '',
   code: '',
   isActive: true,
+  establishmentIds: [] as number[],
 })
 
 const selectedSeller = ref<Seller | null>(null)
@@ -212,6 +223,7 @@ function openCreateDialog() {
     name: '',
     code: '',
     isActive: true,
+    establishmentIds: [],
   }
   createDialogOpen.value = true
 }
@@ -222,16 +234,30 @@ async function createSeller() {
     return
   }
 
+  if (newSeller.value.establishmentIds.length === 0) {
+    toast.error('Sélectionnez au moins un établissement')
+    return
+  }
+
+  console.log('Creating seller with data:', {
+    name: newSeller.value.name,
+    code: newSeller.value.code,
+    isActive: newSeller.value.isActive,
+    establishmentIds: newSeller.value.establishmentIds,
+  })
+
   try {
-    await $fetch('/api/sellers/create', {
+    const response = await $fetch('/api/sellers/create', {
       method: 'POST',
       body: {
         name: newSeller.value.name,
         code: newSeller.value.code || null,
         isActive: newSeller.value.isActive,
+        establishmentIds: newSeller.value.establishmentIds,
       },
     })
 
+    console.log('Server response:', response)
     toast.success('Vendeur créé avec succès')
     createDialogOpen.value = false
     await loadSellers()
@@ -242,19 +268,37 @@ async function createSeller() {
 }
 
 // Modifier
-function openEditDialog(seller: Seller) {
+async function openEditDialog(seller: Seller) {
   editSeller.value = {
     id: seller.id,
     name: seller.name,
     code: seller.code || '',
     isActive: seller.isActive,
+    establishmentIds: [],
   }
+
+  // Charger les établissements affectés au vendeur
+  try {
+    const response = await $fetch<{ establishmentIds: number[] }>(
+      `/api/sellers/${seller.id}/establishments`
+    )
+    editSeller.value.establishmentIds = response.establishmentIds || []
+  } catch (error) {
+    console.error('Erreur lors du chargement des établissements du vendeur:', error)
+    editSeller.value.establishmentIds = []
+  }
+
   editDialogOpen.value = true
 }
 
 async function updateSeller() {
   if (!editSeller.value.name.trim()) {
     toast.error('Le nom du vendeur est obligatoire')
+    return
+  }
+
+  if (editSeller.value.establishmentIds.length === 0) {
+    toast.error('Sélectionnez au moins un établissement')
     return
   }
 
@@ -265,6 +309,7 @@ async function updateSeller() {
         name: editSeller.value.name,
         code: editSeller.value.code || null,
         isActive: editSeller.value.isActive,
+        establishmentIds: editSeller.value.establishmentIds,
       },
     })
 

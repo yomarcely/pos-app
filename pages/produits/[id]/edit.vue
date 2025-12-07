@@ -99,6 +99,7 @@
             price: form.price,
             purchasePrice: form.purchasePrice,
             tva: form.tva,
+            tvaId: form.tvaId,
             categoryId: form.categoryId
           }"
           @update:form="updatePricingForm"
@@ -430,6 +431,7 @@ const form = ref({
   price: '',
   purchasePrice: '',
   tva: '20',
+  tvaId: null as number | null,
   categoryId: null as string | null,
   hasVariations: false,
   variationGroupIds: [] as number[],
@@ -507,6 +509,7 @@ function updatePricingForm(updatedForm: any) {
   form.value.price = updatedForm.price
   form.value.purchasePrice = updatedForm.purchasePrice
   form.value.tva = updatedForm.tva
+  form.value.tvaId = updatedForm.tvaId
   form.value.categoryId = updatedForm.categoryId
 }
 
@@ -714,6 +717,7 @@ async function loadProduct() {
       form.value.price = product.price?.toString() || ''
       form.value.purchasePrice = product.purchasePrice?.toString() || ''
       form.value.tva = product.tva?.toString() || '20'
+      form.value.tvaId = product.tvaId || null
       form.value.categoryId = product.categoryId ? product.categoryId.toString() : null
       form.value.hasVariations = !!product.variationGroupIds && product.variationGroupIds.length > 0
       form.value.variationGroupIds = product.variationGroupIds || []
@@ -800,6 +804,7 @@ async function saveProduct() {
       price: parseFloat(form.value.price) || 0,
       purchasePrice: form.value.purchasePrice ? parseFloat(form.value.purchasePrice) : null,
       tva: parseFloat(form.value.tva),
+      tvaId: form.value.tvaId,
       hasVariations: form.value.hasVariations,
       minStock: form.value.minStock,
       minStockByVariation,

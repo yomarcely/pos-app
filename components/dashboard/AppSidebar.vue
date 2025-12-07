@@ -199,9 +199,8 @@ const data = {
           url: '/etablissements',
         },
         {
-          title: 'Limits',
-          url: '#',
-          disabled: true,
+          title: 'TVA',
+          url: '/tva',
         },
       ],
     },

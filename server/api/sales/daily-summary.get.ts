@@ -20,6 +20,8 @@ export default defineEventHandler(async (event) => {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const dateParam = query.date as string
+    const registerIdParam = query.registerId as string
+    const establishmentIdParam = query.establishmentId as string
 
     // Date par défaut: aujourd'hui
     const targetDate = dateParam ? new Date(dateParam) : new Date()
@@ -31,9 +33,28 @@ export default defineEventHandler(async (event) => {
     const endOfDay = new Date(targetDate)
     endOfDay.setHours(23, 59, 59, 999)
 
+    // Filtres optionnels
+    const registerId = registerIdParam ? Number(registerIdParam) : null
+    const establishmentId = establishmentIdParam ? Number(establishmentIdParam) : null
+
     // ==========================================
     // 1. CALCULER LES STATISTIQUES AVEC SQL
     // ==========================================
+
+    // Construction des conditions WHERE dynamiques
+    const baseConditions = [
+      eq(sales.tenantId, tenantId),
+      gte(sales.saleDate, startOfDay),
+      lt(sales.saleDate, endOfDay),
+    ]
+
+    if (registerId) {
+      baseConditions.push(eq(sales.registerId, registerId))
+    }
+
+    if (establishmentId) {
+      baseConditions.push(eq(sales.establishmentId, establishmentId))
+    }
 
     // Agrégations pour les ventes actives
     const [activeSalesStats] = await db
@@ -46,9 +67,7 @@ export default defineEventHandler(async (event) => {
       .from(sales)
       .where(
         and(
-          eq(sales.tenantId, tenantId),
-          gte(sales.saleDate, startOfDay),
-          lt(sales.saleDate, endOfDay),
+          ...baseConditions,
           eq(sales.status, 'completed')
         )
       )
@@ -61,9 +80,7 @@ export default defineEventHandler(async (event) => {
       .from(sales)
       .where(
         and(
-          eq(sales.tenantId, tenantId),
-          gte(sales.saleDate, startOfDay),
-          lt(sales.saleDate, endOfDay),
+          ...baseConditions,
           eq(sales.status, 'cancelled')
         )
       )
@@ -77,9 +94,7 @@ export default defineEventHandler(async (event) => {
       .innerJoin(sales, eq(saleItems.saleId, sales.id))
       .where(
         and(
-          eq(sales.tenantId, tenantId),
-          gte(sales.saleDate, startOfDay),
-          lt(sales.saleDate, endOfDay),
+          ...baseConditions,
           eq(sales.status, 'completed')
         )
       )
@@ -92,13 +107,7 @@ export default defineEventHandler(async (event) => {
     const dailySales = await db
       .select()
       .from(sales)
-      .where(
-        and(
-          eq(sales.tenantId, tenantId),
-          gte(sales.saleDate, startOfDay),
-          lt(sales.saleDate, endOfDay)
-        )
-      )
+      .where(and(...baseConditions))
       .orderBy(desc(sales.saleDate))
 
     const activeSales = dailySales.filter(s => s.status === 'completed')

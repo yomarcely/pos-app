@@ -3,7 +3,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +25,12 @@ import {
 import PageHeader from '@/components/common/PageHeader.vue'
 import DailySummaryStats from '@/components/synthese/DailySummaryStats.vue'
 import SaleTicketItem from '@/components/synthese/SaleTicketItem.vue'
+import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
+import RegisterSelect from '@/components/shared/RegisterSelect.vue'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+
+// Composable pour la sélection établissement/caisse
+const { selectedEstablishmentId, selectedRegisterId, initialize } = useEstablishmentRegister()
 
 // État
 const selectedDate = ref(new Date().toISOString().split('T')[0])
@@ -44,16 +50,33 @@ const closingDay = ref(false)
 
 // Charger les données
 async function loadDailyData() {
+  if (!selectedRegisterId.value || !selectedDate.value) {
+    return
+  }
+
   loading.value = true
   try {
+    // Construire les paramètres de requête
+    const params = new URLSearchParams()
+    params.append('date', selectedDate.value)
+    params.append('registerId', String(selectedRegisterId.value))
+
+    if (selectedEstablishmentId.value) {
+      params.append('establishmentId', String(selectedEstablishmentId.value))
+    }
+
     // Charger les données de vente
-    const response = await $fetch(`/api/sales/daily-summary?date=${selectedDate.value}`)
+    const response = await $fetch(`/api/sales/daily-summary?${params.toString()}`)
     if (response.success) {
       dailyData.value = response
     }
 
     // Vérifier si la journée est clôturée
-    const closureCheck = await $fetch(`/api/sales/check-closure?date=${selectedDate.value}`)
+    const closureParams = new URLSearchParams()
+    closureParams.append('date', selectedDate.value)
+    closureParams.append('registerId', String(selectedRegisterId.value))
+
+    const closureCheck = await $fetch(`/api/sales/check-closure?${closureParams.toString()}`)
     isClosed.value = closureCheck.isClosed
     closureData.value = closureCheck.closure
   } catch (error) {
@@ -64,12 +87,16 @@ async function loadDailyData() {
   }
 }
 
-// Charger au montage et quand la date change
-watch(selectedDate, () => {
+// Initialiser au montage
+onMounted(async () => {
+  await initialize()
   loadDailyData()
 })
 
-loadDailyData()
+// Charger quand la date, l'établissement ou la caisse change
+watch([selectedDate, selectedEstablishmentId, selectedRegisterId], () => {
+  loadDailyData()
+})
 
 // Ouvrir le dialog d'annulation
 function openCancelDialog(sale: any) {
@@ -115,12 +142,18 @@ async function cancelSale() {
 
 // Clôturer la journée
 async function closeDay() {
+  if (!selectedRegisterId.value) {
+    alert('Veuillez sélectionner une caisse')
+    return
+  }
+
   closingDay.value = true
   try {
     const response = await $fetch('/api/sales/close-day', {
       method: 'POST',
       body: {
         date: selectedDate.value,
+        registerId: selectedRegisterId.value,
         userId: 1, // TODO: Récupérer l'utilisateur connecté
         userName: 'Administrateur', // TODO: Récupérer le nom de l'utilisateur
       },
@@ -172,7 +205,14 @@ const cancelledSales = computed(() => {
       description="Vue d'ensemble des ventes et statistiques"
     >
       <template #actions>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Sélection établissement -->
+          <EstablishmentSelect :show-tooltip="false" min-width="min-w-[200px]" />
+
+          <!-- Sélection caisse -->
+          <RegisterSelect :show-tooltip="false" />
+
+          <!-- Sélection date -->
           <div class="flex items-center gap-2">
             <Calendar class="w-4 h-4 text-muted-foreground" />
             <Input

@@ -16,20 +16,40 @@ export interface TicketData {
   ticketNumber: string
   saleDate: Date
   totalTTC: number
+  totalHT: number
+  totalTVA: number
   sellerId: number
   establishmentNumber: number
   registerNumber: number
+  globalDiscount?: number
+  globalDiscountType?: '%' | '€'
   items: Array<{
     productId: number
     quantity: number
     unitPrice: number
     totalTTC: number
+    tva: number
+    tvaCode?: string // Code TVA NF525 (ex: "T1", "T2")
+    discount?: number
+    discountType?: '%' | '€'
+  }>
+  payments: Array<{
+    mode: string
+    amount: number
   }>
 }
 
 /**
- * Génère le hash SHA-256 d'un ticket
+ * Génère le hash SHA-256 d'un ticket (conforme NF525)
  * Ce hash sert au chaînage cryptographique
+ *
+ * Inclut TOUTES les données fiscales importantes :
+ * - Numéro de ticket et horodatage
+ * - Totaux HT, TVA, TTC
+ * - Remise globale
+ * - Détails des articles (avec TVA et remises)
+ * - Modes de paiement
+ * - Hash précédent (chaînage)
  *
  * @param ticketData - Données du ticket
  * @param previousHash - Hash du ticket précédent (pour chaînage)
@@ -39,18 +59,40 @@ export function generateTicketHash(
   ticketData: TicketData,
   previousHash: string | null = null
 ): string {
-  // Construire la chaîne à hasher
+  // Construire la chaîne à hasher avec TOUTES les données fiscales
   const dataToHash = [
+    // Identifiant unique et horodatage
     ticketData.ticketNumber,
     ticketData.saleDate.toISOString(),
+
+    // Totaux fiscaux (HT, TVA, TTC)
+    ticketData.totalHT.toFixed(2),
+    ticketData.totalTVA.toFixed(2),
     ticketData.totalTTC.toFixed(2),
+
+    // Remise globale (si applicable)
+    ticketData.globalDiscount ? `${ticketData.globalDiscount}${ticketData.globalDiscountType}` : 'NO_GLOBAL_DISCOUNT',
+
+    // Identifiants
     ticketData.sellerId,
     ticketData.establishmentNumber,
     ticketData.registerNumber,
+
+    // Hash précédent (chaînage cryptographique)
     previousHash || 'FIRST_TICKET',
-    // Ajouter les items pour plus de sécurité
+
+    // Articles avec détails fiscaux complets (incluant code TVA NF525)
     ticketData.items
-      .map(item => `${item.productId}:${item.quantity}:${item.unitPrice}:${item.totalTTC}`)
+      .map(item => {
+        const discount = item.discount ? `${item.discount}${item.discountType}` : 'NO_DISCOUNT'
+        const tvaCode = item.tvaCode || `TVA${item.tva}` // Utiliser tvaCode si disponible, sinon fallback
+        return `${item.productId}:${item.quantity}:${item.unitPrice}:${item.totalTTC}:${tvaCode}:${discount}`
+      })
+      .join('|'),
+
+    // Modes de paiement (pour traçabilité complète)
+    ticketData.payments
+      .map(p => `${p.mode}:${p.amount.toFixed(2)}`)
       .join('|')
   ].join('::')
 
@@ -187,10 +229,15 @@ export function verifyTicketChain(
     ticketNumber: string
     saleDate: Date
     totalTTC: number
+    totalHT: number
+    totalTVA: number
     sellerId: number
     establishmentNumber: number
     registerNumber: number
+    globalDiscount?: number
+    globalDiscountType?: '%' | '€'
     items: any[]
+    payments: any[]
     currentHash: string
     previousHash: string | null
   }>
@@ -215,10 +262,15 @@ export function verifyTicketChain(
         ticketNumber: ticket.ticketNumber,
         saleDate: ticket.saleDate,
         totalTTC: ticket.totalTTC,
+        totalHT: ticket.totalHT,
+        totalTVA: ticket.totalTVA,
         sellerId: ticket.sellerId,
         establishmentNumber: ticket.establishmentNumber,
         registerNumber: ticket.registerNumber,
+        globalDiscount: ticket.globalDiscount,
+        globalDiscountType: ticket.globalDiscountType,
         items: ticket.items,
+        payments: ticket.payments,
       },
       ticket.previousHash
     )

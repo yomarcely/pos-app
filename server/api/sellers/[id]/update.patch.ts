@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sellers } from '~/server/database/schema'
+import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
@@ -53,7 +53,31 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    console.log(`✅ Vendeur mis à jour: ${updated.name}`)
+    // Mettre à jour les affectations établissements si fourni
+    if (body.establishmentIds !== undefined) {
+      // Supprimer les anciennes affectations
+      await db
+        .delete(sellerEstablishments)
+        .where(
+          and(
+            eq(sellerEstablishments.sellerId, id),
+            eq(sellerEstablishments.tenantId, tenantId)
+          )
+        )
+
+      // Ajouter les nouvelles affectations
+      if (body.establishmentIds.length > 0) {
+        await db.insert(sellerEstablishments).values(
+          body.establishmentIds.map(establishmentId => ({
+            tenantId,
+            sellerId: id,
+            establishmentId,
+          }))
+        )
+      }
+    }
+
+    console.log(`✅ Vendeur mis à jour: ${updated.name} (${body.establishmentIds?.length || '?'} établissement(s))`)
 
     return {
       success: true,

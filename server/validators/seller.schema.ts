@@ -11,6 +11,7 @@ export const createSellerSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100, 'Le nom est trop long'),
   code: z.string().max(20, 'Le code est trop long').optional().nullable(),
   isActive: z.boolean().default(true),
+  establishmentIds: z.array(z.number()).min(1, 'Sélectionnez au moins un établissement'),
 })
 
 // Schéma de mise à jour d'un vendeur
@@ -18,6 +19,7 @@ export const updateSellerSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100, 'Le nom est trop long').optional(),
   code: z.string().max(20, 'Le code est trop long').optional().nullable(),
   isActive: z.boolean().optional(),
+  establishmentIds: z.array(z.number()).min(1, 'Sélectionnez au moins un établissement').optional(),
 })
 
 // Types TypeScript

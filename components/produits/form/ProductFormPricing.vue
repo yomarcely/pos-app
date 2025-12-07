@@ -58,17 +58,35 @@
 
       <!-- TVA -->
       <div class="space-y-2">
-        <Label for="tva">TVA *</Label>
-        <Select :model-value="form.tva" @update:model-value="$emit('update:form', { ...form, tva: String($event) })">
+        <div class="flex items-center justify-between">
+          <Label for="tva">TVA *</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            @click="navigateTo('/tva')"
+            class="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Gérer les taux
+          </Button>
+        </div>
+        <Select :model-value="normalizedTva" @update:model-value="handleTaxRateChange">
           <SelectTrigger id="tva">
             <SelectValue placeholder="Sélectionner un taux" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="0">0%</SelectItem>
-            <SelectItem value="2.1">2,1%</SelectItem>
-            <SelectItem value="5.5">5,5%</SelectItem>
-            <SelectItem value="10">10%</SelectItem>
-            <SelectItem value="20">20%</SelectItem>
+            <SelectItem v-if="taxRatesLoading" value="" disabled>
+              Chargement...
+            </SelectItem>
+            <SelectItem v-else-if="!taxRates?.length" value="" disabled>
+              Aucun taux de TVA
+            </SelectItem>
+            <SelectItem
+              v-for="rate in taxRates"
+              :key="rate.id"
+              :value="normalizeRate(rate.rate)"
+            >
+              {{ rate.name }} ({{ rate.rate }}%) - {{ rate.code }}
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -98,14 +116,25 @@ import { computed } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
 interface PricingForm {
   price: string
   purchasePrice: string
   tva: string
+  tvaId: number | null
   categoryId: string | null
   coef?: string | number
+}
+
+interface TaxRate {
+  id: number
+  name: string
+  code: string
+  rate: string
+  description: string | null
+  isDefault: boolean
 }
 
 const props = defineProps<{
@@ -115,6 +144,20 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:form': [value: PricingForm]
 }>()
+
+// Récupérer les taux de TVA
+const { data: taxRates, pending: taxRatesLoading } = await useFetch<TaxRate[]>('/api/tax-rates')
+
+// Normaliser le taux (convertir "20.00" en "20" pour la comparaison)
+function normalizeRate(rate: string | number): string {
+  return parseFloat(String(rate)).toString()
+}
+
+// Computed pour normaliser la valeur de TVA du formulaire
+const normalizedTva = computed(() => {
+  if (!props.form.tva) return ''
+  return normalizeRate(props.form.tva)
+})
 
 const coef = computed({
   get() {
@@ -152,6 +195,18 @@ function handlePriceChange(value: string | number) {
 
 function handleCoefChange(value: string | number) {
   coef.value = value
+}
+
+function handleTaxRateChange(rateValue: any) {
+  if (!rateValue || typeof rateValue === 'boolean' || typeof rateValue === 'object') return
+
+  const normalizedValue = normalizeRate(String(rateValue))
+  const selectedRate = taxRates.value?.find(r => normalizeRate(r.rate) === normalizedValue)
+
+  emitUpdate({
+    tva: String(rateValue),
+    tvaId: selectedRate?.id || null
+  })
 }
 
 const margin = computed(() => {

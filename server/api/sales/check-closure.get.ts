@@ -8,9 +8,9 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
  * API: Vérifier si une journée est clôturée
  * ==========================================
  *
- * GET /api/sales/check-closure?date=YYYY-MM-DD
+ * GET /api/sales/check-closure?date=YYYY-MM-DD&registerId=1
  *
- * Vérifie si une journée donnée a été clôturée
+ * Vérifie si une journée donnée a été clôturée pour une caisse spécifique
  */
 
 export default defineEventHandler(async (event) => {
@@ -18,19 +18,26 @@ export default defineEventHandler(async (event) => {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const dateParam = query.date as string
+    const registerIdParam = query.registerId as string
 
     const targetDate = dateParam || new Date().toISOString().split('T')[0]
+    const registerId = registerIdParam ? Number(registerIdParam) : null
 
-    // Chercher une clôture pour cette journée
+    // Construction des conditions WHERE dynamiques
+    const conditions = [
+      eq(closures.tenantId, tenantId),
+      eq(closures.closureDate, targetDate),
+    ]
+
+    if (registerId) {
+      conditions.push(eq(closures.registerId, registerId))
+    }
+
+    // Chercher une clôture pour cette journée et cette caisse
     const [closure] = await db
       .select()
       .from(closures)
-      .where(
-        and(
-          eq(closures.tenantId, tenantId),
-          eq(closures.closureDate, targetDate)
-        )
-      )
+      .where(and(...conditions))
       .limit(1)
 
     return {

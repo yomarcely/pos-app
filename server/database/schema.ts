@@ -112,8 +112,13 @@ export const saleItems = pgTable('sale_items', {
   discount: decimal('discount', { precision: 10, scale: 2 }).default('0'),
   discountType: varchar('discount_type', { length: 1 }).default('%'),
 
-  // TVA
-  tva: decimal('tva', { precision: 5, scale: 2 }).notNull(),
+  // TVA (NF525 - traçabilité complète)
+  tvaId: integer('tva_id').references(() => taxRates.id), // ID du taux de TVA
+  tvaRate: decimal('tva_rate', { precision: 5, scale: 2 }).notNull(), // Taux copié pour archivage
+  tvaCode: varchar('tva_code', { length: 10 }).notNull(), // Code TVA (ex: "T1") pour ticket NF525
+
+  // Ancienne colonne TVA (deprecated - à supprimer après migration)
+  tva: decimal('tva', { precision: 5, scale: 2 }),
 
   // Totaux ligne
   totalHT: decimal('total_ht', { precision: 10, scale: 2 }).notNull(),
@@ -247,6 +252,40 @@ export const brands = pgTable('brands', {
 }))
 
 // ==========================================
+// 7b. TAUX DE TVA (NF525)
+// ==========================================
+export const taxRates = pgTable('tax_rates', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Nom du taux (ex: "TVA 20%", "TVA 10%", "TVA 5.5%", "TVA 2.1%")
+  name: varchar('name', { length: 100 }).notNull(),
+
+  // Taux de TVA (pourcentage)
+  rate: decimal('rate', { precision: 5, scale: 2 }).notNull(),
+
+  // Code de TVA pour identification NF525 (ex: "T1", "T2", "T3")
+  code: varchar('code', { length: 10 }).notNull(),
+
+  // Description optionnelle
+  description: text('description'),
+
+  // Taux par défaut
+  isDefault: boolean('is_default').default(false),
+
+  // Archivage
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('tax_rates_tenant_id_idx').on(table.tenantId),
+  rateIdx: index('tax_rates_rate_idx').on(table.rate),
+  codeIdx: index('tax_rates_code_idx').on(table.code),
+}))
+
+// ==========================================
 // 8. PRODUITS
 // ==========================================
 export const products = pgTable('products', {
@@ -269,8 +308,11 @@ export const products = pgTable('products', {
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   purchasePrice: decimal('purchase_price', { precision: 10, scale: 2 }),
 
-  // TVA
-  tva: decimal('tva', { precision: 5, scale: 2 }).notNull().default('20'),
+  // TVA (référence vers la table tax_rates)
+  tvaId: integer('tva_id').references(() => taxRates.id),
+
+  // Ancienne colonne TVA (deprecated - à supprimer après migration)
+  tva: decimal('tva', { precision: 5, scale: 2 }),
 
   // Stock
   stock: integer('stock').default(0),
@@ -358,6 +400,23 @@ export const sellers = pgTable('sellers', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tenantIdIdx: index('sellers_tenant_id_idx').on(table.tenantId),
+}))
+
+// ==========================================
+// 10a. LIAISON VENDEURS-ÉTABLISSEMENTS
+// ==========================================
+export const sellerEstablishments = pgTable('seller_establishments', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  sellerId: integer('seller_id').notNull().references(() => sellers.id, { onDelete: 'cascade' }),
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('seller_establishments_tenant_id_idx').on(table.tenantId),
+  sellerIdIdx: index('seller_establishments_seller_id_idx').on(table.sellerId),
+  establishmentIdIdx: index('seller_establishments_establishment_id_idx').on(table.establishmentId),
 }))
 
 // ==========================================
@@ -495,7 +554,7 @@ export const auditLogs = pgTable('audit_logs', {
 
   // Quoi
   entityType: varchar('entity_type', { length: 50 }).notNull(), // sale, product, customer, etc.
-  entityId: integer('entity_id').notNull(),
+  entityId: integer('entity_id'), // Nullable pour les événements système génériques
   action: varchar('action', { length: 50 }).notNull(), // create, update, delete, anonymize
 
   // Détails
@@ -523,6 +582,10 @@ export const closures = pgTable('closures', {
 
   // Date de la journée clôturée
   closureDate: varchar('closure_date', { length: 10 }).notNull(), // Format YYYY-MM-DD
+
+  // Caisse et établissement
+  registerId: integer('register_id').notNull().references(() => registers.id),
+  establishmentId: integer('establishment_id').references(() => establishments.id),
 
   // Statistiques de la journée
   ticketCount: integer('ticket_count').notNull().default(0),
@@ -553,6 +616,8 @@ export const closures = pgTable('closures', {
   tenantIdIdx: index('closures_tenant_id_idx').on(table.tenantId),
   closureDateIdx: index('closures_closure_date_idx').on(table.closureDate),
   closureHashIdx: index('closures_closure_hash_idx').on(table.closureHash),
+  registerIdIdx: index('closures_register_id_idx').on(table.registerId),
+  establishmentIdIdx: index('closures_establishment_id_idx').on(table.establishmentId),
 }))
 
 // ==========================================
@@ -563,20 +628,29 @@ export const archives = pgTable('archives', {
   tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Période archivée
+  period: varchar('period', { length: 20 }).notNull(), // Ex: 2024-01 ou 2024
   periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
   periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
 
   // Type d'archive
   archiveType: varchar('archive_type', { length: 50 }).notNull(), // daily, monthly, yearly
 
+  // Scope
+  registerId: integer('register_id'),
+
   // Fichier d'archive
-  filePath: text('file_path').notNull(),
+  filePath: text('file_path'),
   fileSize: integer('file_size'),
-  fileHash: varchar('file_hash', { length: 64 }).notNull(),
+  archiveHash: varchar('archive_hash', { length: 64 }).notNull(),
+  archiveSignature: varchar('archive_signature', { length: 64 }),
 
   // Statistiques
   salesCount: integer('sales_count').notNull(),
+  closuresCount: integer('closures_count').notNull().default(0),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+
+  // Métadonnées supplémentaires
+  metadata: jsonb('metadata').$type<Record<string, any>>().default({}),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
@@ -618,6 +692,10 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
     fields: [saleItems.productId],
     references: [products.id],
   }),
+  taxRate: one(taxRates, {
+    fields: [saleItems.tvaId],
+    references: [taxRates.id],
+  }),
 }))
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
@@ -651,6 +729,11 @@ export const brandsRelations = relations(brands, ({ many }) => ({
   products: many(products),
 }))
 
+export const taxRatesRelations = relations(taxRates, ({ many }) => ({
+  products: many(products),
+  saleItems: many(saleItems),
+}))
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, {
     fields: [products.categoryId],
@@ -664,6 +747,10 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.brandId],
     references: [brands.id],
   }),
+  taxRate: one(taxRates, {
+    fields: [products.tvaId],
+    references: [taxRates.id],
+  }),
   saleItems: many(saleItems),
   stockMovements: many(stockMovements),
 }))
@@ -676,5 +763,37 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   sale: one(sales, {
     fields: [stockMovements.saleId],
     references: [sales.id],
+  }),
+}))
+
+export const sellersRelations = relations(sellers, ({ many }) => ({
+  sales: many(sales),
+  establishments: many(sellerEstablishments),
+}))
+
+export const establishmentsRelations = relations(establishments, ({ many }) => ({
+  registers: many(registers),
+  sales: many(sales),
+  closures: many(closures),
+  sellers: many(sellerEstablishments),
+}))
+
+export const registersRelations = relations(registers, ({ one, many }) => ({
+  establishment: one(establishments, {
+    fields: [registers.establishmentId],
+    references: [establishments.id],
+  }),
+  sales: many(sales),
+  closures: many(closures),
+}))
+
+export const sellerEstablishmentsRelations = relations(sellerEstablishments, ({ one }) => ({
+  seller: one(sellers, {
+    fields: [sellerEstablishments.sellerId],
+    references: [sellers.id],
+  }),
+  establishment: one(establishments, {
+    fields: [sellerEstablishments.establishmentId],
+    references: [establishments.id],
   }),
 }))

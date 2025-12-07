@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products, variations, registers, establishments } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, like, sql } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -7,6 +7,7 @@ import {
   generateTicketSignature,
   type TicketData,
 } from '~/server/utils/nf525'
+import { logSaleCreation } from '~/server/utils/audit'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
@@ -196,6 +197,29 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
+    // VÉRIFIER SI LA JOURNÉE EST CLÔTURÉE POUR CETTE CAISSE
+    // ==========================================
+    const today = new Date().toISOString().split('T')[0]
+    const [todayClosure] = await db
+      .select()
+      .from(closures)
+      .where(
+        and(
+          eq(closures.tenantId, tenantId),
+          eq(closures.closureDate, today),
+          eq(closures.registerId, body.registerId)
+        )
+      )
+      .limit(1)
+
+    if (todayClosure) {
+      throw createError({
+        statusCode: 403,
+        message: `La journée du ${today} est déjà clôturée pour cette caisse. Aucune nouvelle vente ne peut être enregistrée.`,
+      })
+    }
+
+    // ==========================================
     // 1. RÉCUPÉRER LE DERNIER TICKET (CHAÎNAGE)
     // ==========================================
 
@@ -272,19 +296,28 @@ export default defineEventHandler(async (event) => {
       }
     })
 
+    // Préparer les données pour le hash NF525 (avec TOUTES les données fiscales)
     const ticketData: TicketData = {
       ticketNumber,
       saleDate: new Date(),
       totalTTC: Number(body.totals.totalTTC),
+      totalHT: Number(body.totals.totalHT),
+      totalTVA: Number(body.totals.totalTVA),
       sellerId: body.seller.id,
       establishmentNumber,
       registerNumber,
+      globalDiscount: Number(body.globalDiscount?.value || 0),
+      globalDiscountType: body.globalDiscount?.type || '€',
       items: parsedItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        totalTTC: item.quantity * item.unitPrice, // Simplifié pour le hash
+        totalTTC: item.quantity * item.unitPrice,
+        tva: item.tva,
+        discount: item.discount,
+        discountType: item.discountType,
       })),
+      payments: body.payments,
     }
 
     const currentHash = generateTicketHash(ticketData, previousHash)
@@ -330,6 +363,8 @@ export default defineEventHandler(async (event) => {
       const saleItemsData = parsedItems.map(item => {
         const totalTTC = item.unitPrice * item.quantity
         const totalHT = totalTTC / (1 + item.tva / 100)
+        const tvaRate = Number.isFinite(item.tva) ? item.tva : 0
+        const tvaCode = `TVA${tvaRate.toFixed(2)}`
 
         return {
           tenantId,
@@ -341,7 +376,9 @@ export default defineEventHandler(async (event) => {
           originalPrice: null,
           unitPrice: item.unitPrice.toString(),
           discount: item.discount ? item.discount.toString() : '0',
-          discountType: item.discountType,
+          discountType: item.discountType || '%',
+          tvaRate: tvaRate.toFixed(2),
+          tvaCode,
           tva: item.tva.toString(),
           totalHT: totalHT.toFixed(2),
           totalTTC: totalTTC.toFixed(2),
@@ -442,25 +479,19 @@ export default defineEventHandler(async (event) => {
         await tx.insert(stockMovements).values(stockMovementsData)
       }
 
-      // 5.4 Log d'audit
-      await tx.insert(auditLogs).values({
+      // 5.4 Log d'audit NF525 complet
+      await logSaleCreation({
         tenantId,
         userId: body.seller.id,
         userName: body.seller.name,
-        entityType: 'sale',
-        entityId: createdSale.id,
-        action: 'create',
-        changes: {
-          ticketNumber,
-          totalTTC: body.totals.totalTTC,
-          items: body.items.length,
-        },
-        metadata: {
-          hash: currentHash,
-          signature,
-          establishmentId: establishment.id,
-          registerId: register.id,
-        },
+        saleId: createdSale.id,
+        ticketNumber,
+        totalTTC: Number(body.totals.totalTTC),
+        itemsCount: body.items.length,
+        hash: currentHash,
+        signature,
+        establishmentId: establishment.id,
+        registerId: register.id,
         ipAddress: getRequestIP(event) || null,
       })
 

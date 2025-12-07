@@ -1,20 +1,36 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
 import { useVariationGroupsStore } from '@/stores/variationGroups'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const sellersStore = useSellersStore()
 const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
 const variationStore = useVariationGroupsStore()
+const { selectedEstablishmentId } = useEstablishmentRegister()
+
+// Charger les vendeurs en fonction de l'établissement sélectionné
+async function loadSellersForEstablishment() {
+  if (selectedEstablishmentId.value) {
+    await sellersStore.loadSellers(selectedEstablishmentId.value)
+  } else {
+    await sellersStore.loadSellers()
+  }
+}
 
 onMounted(() => {
   productsStore.loadProducts()
   customerStore.loadCustomers()
-  sellersStore.loadSellers()
+  loadSellersForEstablishment()
   variationStore.loadGroups()
+})
+
+// Recharger les vendeurs quand l'établissement change
+watch(selectedEstablishmentId, () => {
+  loadSellersForEstablishment()
 })
 </script>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard, Printer, Lock } from 'lucide-vue-next'
@@ -8,6 +8,7 @@ import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
 import { useVariationGroupsStore } from '@/stores/variationGroups'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/composables/useToast'
 
@@ -18,6 +19,7 @@ const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
 const sellersStore = useSellersStore()
 const variationStore = useVariationGroupsStore()
+const { selectedRegisterId } = useEstablishmentRegister()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
 const isDayClosed = ref(false)
@@ -27,17 +29,35 @@ const currentRegister = ref<any>(null)
 
 const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
 
-// Vérifier si la journée est clôturée au chargement
-onMounted(async () => {
+// Fonction pour vérifier la clôture
+async function checkClosure() {
+  if (!selectedRegisterId.value) {
+    isDayClosed.value = false
+    return
+  }
+
   try {
-    const closureCheck = await $fetch('/api/sales/check-closure')
-    if (closureCheck.isClosed) {
-      isDayClosed.value = true
-    }
+    const closureCheck = await $fetch('/api/sales/check-closure', {
+      params: {
+        registerId: selectedRegisterId.value
+      }
+    })
+    isDayClosed.value = closureCheck.isClosed
   } catch (error) {
     console.error('Erreur lors de la vérification de clôture:', error)
+    isDayClosed.value = false
   }
+}
+
+// Vérifier la clôture au chargement
+onMounted(async () => {
   await refreshSelectionsFromStorage()
+  await checkClosure()
+})
+
+// Revérifier la clôture quand la caisse change
+watch(selectedRegisterId, () => {
+  checkClosure()
 })
 
 const totalPaid = computed(() =>

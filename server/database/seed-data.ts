@@ -1,3 +1,11 @@
+export const taxRatesSeed = [
+  { id: 1, name: 'TVA 20%', rate: 20.00, code: 'T1', description: 'Taux normal', isDefault: true },
+  { id: 2, name: 'TVA 10%', rate: 10.00, code: 'T2', description: 'Taux intermédiaire', isDefault: false },
+  { id: 3, name: 'TVA 5.5%', rate: 5.50, code: 'T3', description: 'Taux réduit', isDefault: false },
+  { id: 4, name: 'TVA 2.1%', rate: 2.10, code: 'T4', description: 'Taux super réduit', isDefault: false },
+  { id: 5, name: 'TVA 0%', rate: 0.00, code: 'T0', description: 'Exonéré', isDefault: false },
+]
+
 export const categoriesSeed = [
   { id: 1, name: 'E-liquides' },
   { id: 2, name: 'Resistances' },

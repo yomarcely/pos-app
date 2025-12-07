@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sellers } from '~/server/database/schema'
+import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSellerSchema, type CreateSellerInput } from '~/server/validators/seller.schema'
@@ -27,7 +27,18 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
-    console.log(`✅ Vendeur créé: ${newSeller.name}`)
+    // Affecter le vendeur aux établissements sélectionnés
+    if (body.establishmentIds && body.establishmentIds.length > 0) {
+      await db.insert(sellerEstablishments).values(
+        body.establishmentIds.map(establishmentId => ({
+          tenantId,
+          sellerId: newSeller.id,
+          establishmentId,
+        }))
+      )
+    }
+
+    console.log(`✅ Vendeur créé: ${newSeller.name} (${body.establishmentIds?.length || 0} établissement(s))`)
 
     return {
       success: true,

@@ -13,6 +13,7 @@ import {
   variations,
   establishments,
   registers,
+  taxRates,
 } from './schema'
 import {
   brandsSeed,
@@ -23,6 +24,7 @@ import {
   suppliersSeed,
   variationGroupsSeed,
   variationsSeed,
+  taxRatesSeed,
 } from './seed-data'
 
 type SeedOptions = {
@@ -31,6 +33,7 @@ type SeedOptions = {
 }
 
 type SeedResult = {
+  taxRates: number
   categories: number
   suppliers: number
   brands: number
@@ -63,6 +66,7 @@ async function resetDatabase(executor: DbExecutor) {
       sellers,
       registers,
       establishments,
+      tax_rates,
       audit_logs,
       closures,
       archives
@@ -226,6 +230,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
     }
 
     const summary: SeedResult = {
+      taxRates: 0,
       categories: 0,
       suppliers: 0,
       brands: 0,
@@ -238,6 +243,17 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
 
     for (const tenant of tenants) {
       console.log(`➡️  Insertion des données pour le tenant ${tenant.label} (${tenant.id})`)
+
+      // Insérer les taux de TVA (communs à tous les tenants français)
+      const insertedTaxRates = await tx
+        .insert(taxRates)
+        .values(taxRatesSeed.map(taxRate => ({
+          ...taxRate,
+          rate: taxRate.rate.toString(),
+          tenantId: tenant.id
+        })))
+        .onConflictDoNothing({ target: taxRates.id })
+        .returning({ id: taxRates.id })
 
       const insertedCategories = await tx
         .insert(categories)
@@ -364,6 +380,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         .values(registerValues)
         .returning({ id: registers.id })
 
+      summary.taxRates += insertedTaxRates.length
       summary.categories += insertedCategories.length
       summary.suppliers += insertedSuppliers.length
       summary.brands += insertedBrands.length
@@ -373,13 +390,13 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       summary.customers += insertedCustomers.length
       summary.products += insertedProducts.length
 
-      console.log(`✅ Tenant ${tenant.label}: ${insertedEstablishments.length} établissements, ${insertedRegisters.length} caisses.`)
+      console.log(`✅ Tenant ${tenant.label}: ${insertedTaxRates.length} taux de TVA, ${insertedEstablishments.length} établissements, ${insertedRegisters.length} caisses.`)
     }
 
     // Synchroniser les séquences PostgreSQL
     console.log('🔄 Synchronisation des séquences...')
     const tables = [
-      'categories', 'suppliers', 'brands', 'variation_groups', 'variations',
+      'tax_rates', 'categories', 'suppliers', 'brands', 'variation_groups', 'variations',
       'sellers', 'customers', 'products', 'establishments', 'registers', 'sales', 'sale_items',
       'movements', 'stock_movements', 'closures', 'audit_logs', 'archives'
     ]

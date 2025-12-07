@@ -9,7 +9,19 @@
     <!-- Filtres -->
     <Card>
       <CardContent class="p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <!-- Établissement -->
+          <div class="space-y-2">
+            <Label>Établissement</Label>
+            <EstablishmentSelect :show-tooltip="false" />
+          </div>
+
+          <!-- Caisse -->
+          <div class="space-y-2">
+            <Label>Caisse</Label>
+            <RegisterSelect :show-tooltip="false" />
+          </div>
+
           <!-- Date de début -->
           <div class="space-y-2">
             <Label for="startDate">Date de début</Label>
@@ -17,7 +29,6 @@
               id="startDate"
               v-model="startDate"
               type="date"
-              @change="loadClosures"
             />
           </div>
 
@@ -28,7 +39,6 @@
               id="endDate"
               v-model="endDate"
               type="date"
-              @change="loadClosures"
             />
           </div>
 
@@ -54,6 +64,9 @@
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Date
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Caisse
                 </th>
                 <th class="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Tickets
@@ -86,6 +99,14 @@
               >
                 <td class="px-6 py-4 whitespace-nowrap font-medium">
                   {{ formatDate(closure.closureDate) }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm">
+                    <div class="font-medium">{{ closure.registerName || 'N/A' }}</div>
+                    <div v-if="closure.establishmentName" class="text-xs text-muted-foreground">
+                      {{ closure.establishmentName }}
+                    </div>
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-center">
                   <span class="px-2 py-1 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
@@ -226,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { Eye, CalendarDays } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -243,11 +264,17 @@ import {
 import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
+import RegisterSelect from '@/components/shared/RegisterSelect.vue'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { formatPrice, formatDate, formatDateTime } from '@/utils/formatters'
 
 definePageMeta({
   layout: 'dashboard'
 })
+
+// Composable pour la sélection établissement/caisse
+const { selectedEstablishmentId, selectedRegisterId, initialize } = useEstablishmentRegister()
 
 interface Closure {
   id: number
@@ -261,6 +288,10 @@ interface Closure {
   closureHash: string
   createdAt: string
   closedAt?: string
+  registerId: number
+  establishmentId: number | null
+  registerName: string | null
+  establishmentName: string | null
 }
 
 // State
@@ -280,6 +311,8 @@ async function loadClosures() {
     const params: any = {}
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
+    if (selectedRegisterId.value) params.registerId = selectedRegisterId.value
+    if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
     const response = await $fetch('/api/closures', { params })
     closures.value = response.closures
@@ -304,8 +337,14 @@ function viewDetails(closure: Closure) {
   isDetailsDialogOpen.value = true
 }
 
-// Charger au montage
-onMounted(() => {
+// Initialiser au montage
+onMounted(async () => {
+  await initialize()
+  loadClosures()
+})
+
+// Charger quand les filtres changent
+watch([startDate, endDate, selectedEstablishmentId, selectedRegisterId], () => {
   loadClosures()
 })
 </script>

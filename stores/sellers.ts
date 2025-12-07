@@ -10,14 +10,21 @@ export const useSellersStore = defineStore('sellers', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function loadSellers() {
-    if (loaded.value || loading.value) return
+  async function loadSellers(establishmentId?: number) {
+    // Si on filtre par établissement, on recharge toujours
+    if (!establishmentId && (loaded.value || loading.value)) return
+
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch('/api/sellers')
+      const params = establishmentId ? { establishmentId } : {}
+      const response = await $fetch('/api/sellers', { params })
       sellers.value = response.sellers || []
-      loaded.value = true
+
+      // On marque comme chargé seulement si c'est un chargement complet (sans filtre)
+      if (!establishmentId) {
+        loaded.value = true
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
     } finally {

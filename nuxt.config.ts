@@ -66,6 +66,52 @@ export default defineNuxtConfig({
     externals: {
       inline: ['@supabase/supabase-js'],
     },
+    // ==========================================
+    // HEADERS DE SÉCURITÉ (NF525 + RGPD)
+    // ==========================================
+    routeRules: {
+      '/**': {
+        headers: {
+          // Content Security Policy - Prévient XSS et injection de contenu
+          'Content-Security-Policy': [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Note: 'unsafe-eval' requis pour Vue/Nuxt en dev
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            "img-src 'self' data: https: blob:",
+            "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+          ].join('; '),
+
+          // X-Frame-Options - Prévient le clickjacking
+          'X-Frame-Options': 'DENY',
+
+          // X-Content-Type-Options - Prévient le MIME sniffing
+          'X-Content-Type-Options': 'nosniff',
+
+          // X-XSS-Protection - Protection XSS des navigateurs anciens
+          'X-XSS-Protection': '1; mode=block',
+
+          // Referrer-Policy - Contrôle les informations de référence
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+
+          // Permissions-Policy - Désactive les APIs dangereuses
+          'Permissions-Policy': [
+            'camera=()',
+            'microphone=()',
+            'geolocation=()',
+            'interest-cohort=()', // Désactive FLoC de Google
+          ].join(', '),
+
+          // Strict-Transport-Security - Force HTTPS (uniquement en production)
+          ...(process.env.NODE_ENV === 'production' ? {
+            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload'
+          } : {}),
+        },
+      },
+    },
   },
   shadcn: {
     /**
