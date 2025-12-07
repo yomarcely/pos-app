@@ -32,6 +32,8 @@ ALTER TABLE establishments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE archives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seller_establishments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_rates ENABLE ROW LEVEL SECURITY;
 
 -- ==========================================
 -- 2. PRODUCTS - Politiques RLS
@@ -461,7 +463,57 @@ TO authenticated
 USING (tenant_id = auth.uid()::TEXT);
 
 -- ==========================================
--- 18. VÉRIFICATION DES POLITIQUES
+-- 18. SELLER_ESTABLISHMENTS - Politiques RLS
+-- ==========================================
+
+CREATE POLICY "Users can view their own seller establishments"
+ON seller_establishments FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own seller establishments"
+ON seller_establishments FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own seller establishments"
+ON seller_establishments FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own seller establishments"
+ON seller_establishments FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 19. TAX_RATES - Politiques RLS
+-- ==========================================
+
+CREATE POLICY "Users can view their own tax rates"
+ON tax_rates FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own tax rates"
+ON tax_rates FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own tax rates"
+ON tax_rates FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own tax rates"
+ON tax_rates FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 20. VÉRIFICATION DES POLITIQUES
 -- ==========================================
 
 -- Pour vérifier que les politiques sont bien appliquées :
