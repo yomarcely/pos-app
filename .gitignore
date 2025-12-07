@@ -24,6 +24,7 @@ logs
 .env.development
 .env.staging
 .env.production
+.env.backup
 .envrc
 !.env.example
 
@@ -47,3 +48,5 @@ notes/
 
 
 coverage/
+
+docs/
