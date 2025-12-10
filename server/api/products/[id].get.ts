@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { products } from '~/server/database/schema'
+import { products, productEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
@@ -17,6 +17,8 @@ export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const id = getRouterParam(event, 'id')
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     if (!id) {
       throw createError({
@@ -25,9 +27,45 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const [product] = await db
-      .select()
+    const queryBuilder = db
+      .select({
+        id: products.id,
+        name: products.name,
+        description: products.description,
+        image: products.image,
+        barcode: products.barcode,
+        barcodeByVariation: products.barcodeByVariation,
+        supplierCode: products.supplierCode,
+        categoryId: products.categoryId,
+        supplierId: products.supplierId,
+        brandId: products.brandId,
+        price: products.price,
+        purchasePrice: products.purchasePrice,
+        tva: products.tva,
+        tvaId: products.tvaId,
+        stock: products.stock,
+        minStock: products.minStock,
+        variationGroupIds: products.variationGroupIds,
+        stockByVariation: products.stockByVariation,
+        minStockByVariation: products.minStockByVariation,
+        priceOverride: productEstablishments.priceOverride,
+        purchasePriceOverride: productEstablishments.purchasePriceOverride,
+        establishmentId: productEstablishments.establishmentId,
+      })
       .from(products)
+      .leftJoin(
+        productEstablishments,
+        establishmentId
+          ? and(
+            eq(productEstablishments.productId, products.id),
+            eq(productEstablishments.establishmentId, establishmentId),
+            eq(productEstablishments.tenantId, tenantId)
+          )
+          : and(
+            eq(productEstablishments.productId, products.id),
+            eq(productEstablishments.tenantId, tenantId)
+          )
+      )
       .where(
         and(
           eq(products.id, parseInt(id)),
@@ -35,6 +73,8 @@ export default defineEventHandler(async (event) => {
         )
       )
       .limit(1)
+
+    const [product] = await queryBuilder
 
     if (!product) {
       throw createError({
@@ -58,6 +98,17 @@ export default defineEventHandler(async (event) => {
         brandId: product.brandId,
         price: parseFloat(product.price),
         purchasePrice: product.purchasePrice ? parseFloat(product.purchasePrice) : null,
+        // Overrides pour l'établissement courant s'il existe
+        priceOverride: product.priceOverride ? parseFloat(product.priceOverride) : undefined,
+        purchasePriceOverride: product.purchasePriceOverride ? parseFloat(product.purchasePriceOverride) : undefined,
+        establishmentId: product.establishmentId ?? establishmentId ?? null,
+        // Valeur affichée (priorité à l'override)
+        effectivePrice: product.priceOverride
+          ? parseFloat(product.priceOverride)
+          : parseFloat(product.price),
+        effectivePurchasePrice: product.purchasePriceOverride
+          ? parseFloat(product.purchasePriceOverride)
+          : product.purchasePrice ? parseFloat(product.purchasePrice) : null,
         tva: parseFloat(product.tva || '20'),
         tvaId: product.tvaId,
         stock: product.stock || 0,

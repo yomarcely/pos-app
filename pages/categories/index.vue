@@ -3,7 +3,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/composables/useToast'
 import PageHeader from '@/components/common/PageHeader.vue'
 import CategoryTreeItem from '@/components/categories/CategoryTreeItem.vue'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
 
@@ -40,6 +41,7 @@ interface Category {
 const categories = ref<Category[]>([])
 const loading = ref(false)
 const expandedCategories = ref<Set<number>>(new Set())
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 // Dialogs
 const showCreateDialog = ref(false)
@@ -59,7 +61,9 @@ const parentCategory = ref<Category | null>(null)
 async function loadCategories() {
   loading.value = true
   try {
-    const response = await $fetch('/api/categories')
+    const response = await $fetch('/api/categories', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
     if (response.success) {
       categories.value = response.categories
     }
@@ -174,8 +178,13 @@ async function deleteCategory() {
   }
 }
 
-onMounted(() => {
-  loadCategories()
+onMounted(async () => {
+  await initializeEstablishments()
+  await loadCategories()
+})
+
+watch(selectedEstablishmentId, async () => {
+  await loadCategories()
 })
 </script>
 

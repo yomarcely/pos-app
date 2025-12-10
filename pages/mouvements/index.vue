@@ -81,6 +81,7 @@ import type {
   Brand,
   MovementType
 } from '@/types/mouvements'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 definePageMeta({
   layout: 'dashboard'
@@ -107,6 +108,7 @@ const categories = ref<Category[]>([])
 const suppliers = ref<Supplier[]>([])
 const brands = ref<Brand[]>([])
 const allVariations = ref<Variation[]>([])
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 function normalizeProduct(raw: any): Product {
   const normalizedVariationIds = Array.isArray(raw.variationGroupIds)
@@ -159,7 +161,10 @@ watch(searchQuery, () => {
 
     try {
       const response = await $fetch('/api/products', {
-        params: { search: searchQuery.value.trim() }
+        params: {
+          search: searchQuery.value.trim(),
+          ...(selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {})
+        }
       })
       searchSuggestions.value = (response.products as any[]).map(normalizeProduct)
     } catch (error) {
@@ -251,6 +256,7 @@ async function loadCatalogProducts() {
     if (selectedCategoryFilter.value) params.categoryId = selectedCategoryFilter.value
     if (selectedSupplierFilter.value) params.supplierId = selectedSupplierFilter.value
     if (selectedBrandFilter.value) params.brandId = selectedBrandFilter.value
+    if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
     const response = await $fetch('/api/products', { params })
     catalogProducts.value = (response.products as any[]).map(normalizeProduct)
@@ -264,7 +270,9 @@ async function loadCatalogProducts() {
 // Charger les catégories
 async function loadCategories() {
   try {
-    const response = await $fetch('/api/categories')
+    const response = await $fetch('/api/categories', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
 
     const flattenCategories = (cats: any[], level = 0): Category[] => {
       let result: Category[] = []
@@ -309,7 +317,9 @@ async function loadBrands() {
 // Charger les variations
 async function loadVariations() {
   try {
-    const response = await $fetch('/api/variations')
+    const response = await $fetch('/api/variations/groups', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
     // Aplatir tous les groupes et leurs variations
     const flatVariations: Variation[] = []
     for (const group of response.groups as any) {
@@ -549,6 +559,12 @@ watch(movementType, (newType) => {
 
 // Charger au montage
 onMounted(async () => {
-  await Promise.all([loadCategories(), loadSuppliers(), loadBrands(), loadVariations()])
+  await initializeEstablishments()
+  await Promise.all([loadCategories(), loadSuppliers(), loadBrands(), loadVariations(), loadCatalogProducts()])
+})
+
+watch(selectedEstablishmentId, async () => {
+  searchSuggestions.value = []
+  await Promise.all([loadCategories(), loadVariations(), loadCatalogProducts()])
 })
 </script>

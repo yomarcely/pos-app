@@ -179,6 +179,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/composables/useToast'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import FormDialog from '@/components/common/FormDialog.vue'
 import ProductFormGeneral from '@/components/produits/form/ProductFormGeneral.vue'
 import ProductFormVariations from '@/components/produits/form/ProductFormVariations.vue'
@@ -188,6 +189,7 @@ import ProductFormBarcode from '@/components/produits/form/ProductFormBarcode.vu
 import CategorySelector from '@/components/produits/CategorySelector.vue'
 
 const toast = useToast()
+const { selectedEstablishmentId } = useEstablishmentRegister()
 const activeTab = ref('general')
 
 // Form data
@@ -406,7 +408,8 @@ async function saveProduct() {
 
     const response = await $fetch('/api/products/create', {
       method: 'POST',
-      body: payload
+      body: payload,
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined
     })
 
     if (response.success) {

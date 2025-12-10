@@ -66,8 +66,10 @@ import ProductsGridView from '@/components/produits/ProductsGridView.vue'
 import ProductsEmptyState from '@/components/produits/ProductsEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { Product, Category } from '@/types'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
+type ProductsResponse = { products: Product[]; count: number }
 
 // State
 const loading = ref(true)
@@ -77,6 +79,7 @@ const searchQuery = ref('')
 const selectedCategoryId = ref<number | null>(null)
 const viewMode = ref<'list' | 'grid'>('grid')
 const filteredCount = ref(0)
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 // Debounced search
 let searchTimeout: NodeJS.Timeout
@@ -97,8 +100,9 @@ async function loadProducts() {
       params.search = searchQuery.value.trim()
     }
     if (selectedCategoryId.value) params.categoryId = selectedCategoryId.value
+    if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
-    const response = await $fetch('/api/products', { params })
+    const response = await $fetch<ProductsResponse>('/api/products', { params })
     products.value = response.products
     filteredCount.value = response.count
   } catch (error) {
@@ -112,7 +116,9 @@ async function loadProducts() {
 // Charger les catégories
 async function loadCategories() {
   try {
-    const response = await $fetch('/api/categories')
+    const response = await $fetch('/api/categories', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
 
     // Aplatir l'arbre des catégories
     const flattenCategories = (cats: any[], level = 0): Category[] => {
@@ -162,6 +168,11 @@ async function deleteProduct(product: Product) {
 
 // Charger au montage
 onMounted(async () => {
+  await initializeEstablishments()
+  await Promise.all([loadCategories(), loadProducts()])
+})
+
+watch(selectedEstablishmentId, async () => {
   await Promise.all([loadCategories(), loadProducts()])
 })
 </script>

@@ -293,8 +293,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useToast } from '@/composables/useToast'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
+const { selectedEstablishmentId } = useEstablishmentRegister()
 const loading = ref(false)
 const loadingPostalCode = ref(false)
 const postalCodeError = ref('')
@@ -395,6 +397,7 @@ async function handleSubmit() {
 
     await $fetch('/api/clients', {
       method: 'POST',
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       body: {
         firstName: form.value.firstName || null,
         lastName: form.value.lastName || null,

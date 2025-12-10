@@ -513,7 +513,188 @@ TO authenticated
 USING (tenant_id = auth.uid()::TEXT);
 
 -- ==========================================
--- 20. VÉRIFICATION DES POLITIQUES
+-- 20. SYNC_GROUPS - Politiques RLS (Synchronisation)
+-- ==========================================
+
+ALTER TABLE sync_groups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own sync groups"
+ON sync_groups FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own sync groups"
+ON sync_groups FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own sync groups"
+ON sync_groups FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own sync groups"
+ON sync_groups FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 21. SYNC_GROUP_ESTABLISHMENTS - Politiques RLS
+-- ==========================================
+
+ALTER TABLE sync_group_establishments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own sync group establishments"
+ON sync_group_establishments FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own sync group establishments"
+ON sync_group_establishments FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own sync group establishments"
+ON sync_group_establishments FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own sync group establishments"
+ON sync_group_establishments FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 22. SYNC_RULES - Politiques RLS
+-- ==========================================
+
+ALTER TABLE sync_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own sync rules"
+ON sync_rules FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own sync rules"
+ON sync_rules FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own sync rules"
+ON sync_rules FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own sync rules"
+ON sync_rules FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 23. PRODUCT_STOCKS - Politiques RLS
+-- ==========================================
+
+ALTER TABLE product_stocks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own product stocks"
+ON product_stocks FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own product stocks"
+ON product_stocks FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own product stocks"
+ON product_stocks FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own product stocks"
+ON product_stocks FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 24. PRODUCT_ESTABLISHMENTS - Politiques RLS
+-- ==========================================
+
+ALTER TABLE product_establishments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own product establishments"
+ON product_establishments FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own product establishments"
+ON product_establishments FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own product establishments"
+ON product_establishments FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own product establishments"
+ON product_establishments FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 25. CUSTOMER_ESTABLISHMENTS - Politiques RLS
+-- ==========================================
+
+ALTER TABLE customer_establishments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own customer establishments"
+ON customer_establishments FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own customer establishments"
+ON customer_establishments FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can update their own customer establishments"
+ON customer_establishments FOR UPDATE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT)
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can delete their own customer establishments"
+ON customer_establishments FOR DELETE
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+-- ==========================================
+-- 26. SYNC_LOGS - Politiques RLS (Audit - READ ONLY)
+-- ==========================================
+
+ALTER TABLE sync_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own sync logs"
+ON sync_logs FOR SELECT
+TO authenticated
+USING (tenant_id = auth.uid()::TEXT);
+
+CREATE POLICY "Users can create their own sync logs"
+ON sync_logs FOR INSERT
+TO authenticated
+WITH CHECK (tenant_id = auth.uid()::TEXT);
+
+-- Note: Les logs de synchronisation ne doivent jamais être modifiés ou supprimés
+-- (conformité NF525 - traçabilité). On autorise uniquement SELECT et INSERT.
+
+-- ==========================================
+-- 27. VÉRIFICATION DES POLITIQUES
 -- ==========================================
 
 -- Pour vérifier que les politiques sont bien appliquées :

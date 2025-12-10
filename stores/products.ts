@@ -1,29 +1,43 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Product } from '@/types'
 import { useVariationGroupsStore } from './variationGroups'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 export const useProductsStore = defineStore('products', () => {
+  type ProductsResponse = { success: boolean; products: Product[]; count: number }
   // État
   const products = ref<Product[]>([])
   const loaded = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const currentEstablishmentId = ref<number | null>(null)
 
   // Historique des mouvements de stock pour audit
   const stockHistory = ref<StockMovement[]>([])
 
+  const {
+    selectedEstablishmentId,
+    initialize: initializeEstablishments,
+  } = useEstablishmentRegister()
+
   // Actions
-  async function loadProducts() {
-    if (loaded.value || loading.value) return
+  async function loadProducts(establishmentId?: number | null) {
+    if (loading.value) return
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch('/api/products')
+      await initializeEstablishments()
+
+      const targetEstablishmentId = establishmentId ?? selectedEstablishmentId.value ?? undefined
+      const response = await $fetch<ProductsResponse>('/api/products', {
+        params: targetEstablishmentId ? { establishmentId: targetEstablishmentId } : undefined,
+      })
 
       if (response.success) {
         products.value = response.products
         loaded.value = true
+        currentEstablishmentId.value = targetEstablishmentId ?? null
       } else {
         throw new Error('Erreur lors de la récupération des produits')
       }
@@ -34,6 +48,13 @@ export const useProductsStore = defineStore('products', () => {
       loading.value = false
     }
   }
+
+  // Recharger lorsque l'établissement change
+  watch(selectedEstablishmentId, (newId, oldId) => {
+    if (newId === oldId && loaded.value) return
+    loaded.value = false
+    loadProducts(newId)
+  })
 
   /**
    * Vérifie si un produit a suffisamment de stock
@@ -409,6 +430,7 @@ export const useProductsStore = defineStore('products', () => {
     loaded,
     loading,
     error,
+    currentEstablishmentId,
     stockHistory,
 
     // Getters

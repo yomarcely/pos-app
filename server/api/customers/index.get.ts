@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { customers } from '~/server/database/schema'
-import { desc, eq } from 'drizzle-orm'
+import { customers, customerEstablishments, syncGroupEstablishments } from '~/server/database/schema'
+import { desc, eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
@@ -17,28 +17,63 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+
+    if (establishmentId) {
+      const syncLink = await db
+        .select({ id: syncGroupEstablishments.id })
+        .from(syncGroupEstablishments)
+        .where(
+          and(
+            eq(syncGroupEstablishments.tenantId, tenantId),
+            eq(syncGroupEstablishments.establishmentId, establishmentId)
+          )
+        )
+        .limit(1)
+
+      if (syncLink.length === 0) {
+        return { success: true, customers: [], count: 0 }
+      }
+    }
 
     // Récupérer tous les clients, triés par date de création (plus récents en premier)
-    const allCustomers = await db
-      .select({
-        id: customers.id,
-        firstName: customers.firstName,
-        lastName: customers.lastName,
-        email: customers.email,
-        phone: customers.phone,
-        address: customers.address,
-        discount: customers.discount,
-        loyaltyProgram: customers.loyaltyProgram,
-        gdprConsent: customers.gdprConsent,
-        marketingConsent: customers.marketingConsent,
-        notes: customers.notes,
-        alerts: customers.alerts,
-        metadata: customers.metadata,
-        createdAt: customers.createdAt,
-      })
-      .from(customers)
-      .where(eq(customers.tenantId, tenantId))
-      .orderBy(desc(customers.createdAt))
+    const baseSelect = {
+      id: customers.id,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      email: customers.email,
+      phone: customers.phone,
+      address: customers.address,
+      discount: customers.discount,
+      loyaltyProgram: customers.loyaltyProgram,
+      gdprConsent: customers.gdprConsent,
+      marketingConsent: customers.marketingConsent,
+      notes: customers.notes,
+      alerts: customers.alerts,
+      metadata: customers.metadata,
+      createdAt: customers.createdAt,
+    }
+
+    const allCustomers = establishmentId
+      ? await db
+        .select(baseSelect)
+        .from(customers)
+        .innerJoin(
+          customerEstablishments,
+          and(
+            eq(customerEstablishments.customerId, customers.id),
+            eq(customerEstablishments.establishmentId, establishmentId),
+            eq(customerEstablishments.tenantId, tenantId)
+          )
+        )
+        .where(eq(customers.tenantId, tenantId))
+        .orderBy(desc(customers.createdAt))
+      : await db
+        .select(baseSelect)
+        .from(customers)
+        .where(eq(customers.tenantId, tenantId))
+        .orderBy(desc(customers.createdAt))
 
     // Transformer les données pour correspondre au format attendu par le frontend
     const formattedCustomers = allCustomers.map(customer => {

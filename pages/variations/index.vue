@@ -107,6 +107,7 @@ definePageMeta({
 })
 
 import { Plus, Layers } from 'lucide-vue-next'
+import { ref, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -115,6 +116,7 @@ import FormDialog from '@/components/common/FormDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import VariationGroupCard from '@/components/variations/VariationGroupCard.vue'
 import { useToast } from '@/composables/useToast'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
 
@@ -133,6 +135,7 @@ interface VariationGroup {
 // State
 const loading = ref(true)
 const variationGroups = ref<VariationGroup[]>([])
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 // Dialog states - Groupes
 const createGroupDialogOpen = ref(false)
@@ -154,7 +157,9 @@ const selectedVariation = ref<Variation | null>(null)
 async function loadVariations() {
   try {
     loading.value = true
-    const response = await $fetch('/api/variations')
+    const response = await $fetch('/api/variations/groups', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
     variationGroups.value = response.groups
   } catch (error) {
     console.error('Erreur lors du chargement des variations:', error)
@@ -316,7 +321,12 @@ async function deleteVariation() {
 }
 
 // Charger au montage
-onMounted(() => {
-  loadVariations()
+onMounted(async () => {
+  await initializeEstablishments()
+  await loadVariations()
+})
+
+watch(selectedEstablishmentId, async () => {
+  await loadVariations()
 })
 </script>

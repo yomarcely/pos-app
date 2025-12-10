@@ -41,12 +41,5 @@ archives/
 # Clés de certification INFOCERT (SENSIBLE!)
 *.pem
 *.key
-infocert/
-
-# Notes
-notes/
-
-
-coverage/
 
 docs/

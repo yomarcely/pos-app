@@ -407,6 +407,7 @@ import CategorySelector from '@/components/produits/CategorySelector.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
 const route = useRoute()
@@ -420,6 +421,7 @@ const productId = computed(() => parseInt(route.params.id as string))
 
 // Original product data
 const originalProduct = ref<any>(null)
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 // Form data
 const form = ref({
@@ -702,7 +704,9 @@ async function saveNewBrand() {
 async function loadProduct() {
   try {
     loadingProduct.value = true
-    const response = await $fetch(`/api/products/${productId.value}`)
+    const response = await $fetch(`/api/products/${productId.value}`, {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
 
     if (response.success && response.product) {
       originalProduct.value = response.product
@@ -714,8 +718,10 @@ async function loadProduct() {
       form.value.supplierId = product.supplierId ? product.supplierId.toString() : null
       form.value.brandId = product.brandId ? product.brandId.toString() : null
       form.value.image = product.image || null
-      form.value.price = product.price?.toString() || ''
-      form.value.purchasePrice = product.purchasePrice?.toString() || ''
+      const effectivePrice = product.effectivePrice ?? product.price
+      const effectivePurchase = product.effectivePurchasePrice ?? product.purchasePrice
+      form.value.price = effectivePrice?.toString() || ''
+      form.value.purchasePrice = effectivePurchase?.toString() || ''
       form.value.tva = product.tva?.toString() || '20'
       form.value.tvaId = product.tvaId || null
       form.value.categoryId = product.categoryId ? product.categoryId.toString() : null
@@ -756,7 +762,9 @@ async function loadBrands() {
 
 async function loadCategories() {
   try {
-    const response: any = await $fetch('/api/categories')
+    const response: any = await $fetch('/api/categories', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
     categories.value = response.categories || []
   } catch (error) {
     console.error('Erreur lors du chargement des catégories:', error)
@@ -765,7 +773,9 @@ async function loadCategories() {
 
 async function loadVariationGroups() {
   try {
-    const response: any = await $fetch('/api/variations/groups')
+    const response: any = await $fetch('/api/variations/groups', {
+      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+    })
     variationGroups.value = response.groups || []
   } catch (error) {
     console.error('Erreur lors du chargement des variations:', error)
@@ -793,6 +803,17 @@ async function saveProduct() {
     ? Object.fromEntries(selectedVariationIds.map(id => [id, form.value.minStockByVariation[id] ?? 0]))
     : null
 
+  const targetEstablishmentId = selectedEstablishmentId.value
+  const originalEffectivePrice = originalProduct.value?.effectivePrice ?? originalProduct.value?.price
+  const originalEffectivePurchase = originalProduct.value?.effectivePurchasePrice ?? originalProduct.value?.purchasePrice
+  const priceChanged = form.value.price !== (originalEffectivePrice?.toString() || '')
+  const purchasePriceChanged = form.value.purchasePrice !== (originalEffectivePurchase?.toString() || '')
+
+  if (!targetEstablishmentId && (priceChanged || purchasePriceChanged)) {
+    toast.error('Sélectionnez un établissement pour modifier les prix locaux')
+    return
+  }
+
   loading.value = true
   try {
     const payload = {
@@ -818,7 +839,8 @@ async function saveProduct() {
 
     const response: any = await $fetch(`/api/products/${productId.value}`, {
       method: 'PUT',
-      body: payload
+      body: payload,
+      params: targetEstablishmentId ? { establishmentId: targetEstablishmentId } : undefined,
     })
 
     if (response?.success) {
@@ -835,6 +857,7 @@ async function saveProduct() {
 
 // Init
 onMounted(async () => {
+  await initializeEstablishments()
   await Promise.all([
     loadSuppliers(),
     loadBrands(),
@@ -842,5 +865,9 @@ onMounted(async () => {
     loadVariationGroups(),
     loadProduct()
   ])
+})
+
+watch(selectedEstablishmentId, async () => {
+  await Promise.all([loadCategories(), loadVariationGroups(), loadProduct()])
 })
 </script>

@@ -3,6 +3,7 @@ import { customers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
+import { syncCustomerToGroup } from '~/server/utils/sync'
 
 /**
  * ==========================================
@@ -17,6 +18,8 @@ import { createClientSchema, type CreateClientInput } from '~/server/validators/
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
     const body = await validateBody<CreateClientInput>(event, createClientSchema)
 
     // Préparer les données
@@ -45,6 +48,17 @@ export default defineEventHandler(async (event) => {
       .insert(customers)
       .values(clientData)
       .returning()
+
+    // Synchroniser le client vers les autres établissements du groupe si un establishmentId est fourni
+    if (establishmentId) {
+      try {
+        await syncCustomerToGroup(tenantId, newClient.id, establishmentId)
+        console.log(`✅ Client ${newClient.id} synchronisé depuis l'établissement ${establishmentId}`)
+      } catch (syncError) {
+        console.error('❌ Erreur lors de la synchronisation du client:', syncError)
+        // On ne bloque pas la création, juste un warning
+      }
+    }
 
     return {
       success: true,

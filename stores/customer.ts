@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Customer } from '@/types'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 export const useCustomerStore = defineStore('customer', () => {
   // État
@@ -9,15 +10,20 @@ export const useCustomerStore = defineStore('customer', () => {
   const loaded = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
   // Actions
   async function loadCustomers() {
-    if (loaded.value || loading.value) return
+    if (loading.value) return
     loading.value = true
     error.value = null
 
     try {
-      const response = await $fetch('/api/customers')
+      await initializeEstablishments()
+
+      const response = await $fetch('/api/customers', {
+        params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
+      })
 
       if (response.success) {
         clients.value = response.customers
@@ -60,4 +66,10 @@ export const useCustomerStore = defineStore('customer', () => {
     selectClient,
     clearClient
   }
+
+  // Recharger quand l'établissement change
+  watch(selectedEstablishmentId, () => {
+    loaded.value = false
+    loadCustomers()
+  })
 })

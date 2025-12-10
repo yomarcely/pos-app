@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { variationGroups, variations } from '~/server/database/schema'
+import { variationGroups, variations, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
@@ -29,6 +29,25 @@ interface VariationGroup {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+
+    if (establishmentId) {
+      const syncLink = await db
+        .select({ id: syncGroupEstablishments.id })
+        .from(syncGroupEstablishments)
+        .where(
+          and(
+            eq(syncGroupEstablishments.tenantId, tenantId),
+            eq(syncGroupEstablishments.establishmentId, establishmentId)
+          )
+        )
+        .limit(1)
+
+      if (syncLink.length === 0) {
+        return { success: true, groups: [] }
+      }
+    }
 
     // Récupérer tous les groupes non archivés
     const groups = await db

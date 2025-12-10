@@ -3,6 +3,7 @@ import { customers, auditLogs } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { createCustomerSchema, type CreateCustomerInput } from '~/server/validators/customer.schema'
 import { validateBody } from '~/server/utils/validation'
+import { syncCustomerToGroup } from '~/server/utils/sync'
 
 /**
  * ==========================================
@@ -15,6 +16,8 @@ import { validateBody } from '~/server/utils/validation'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     // Validation avec Zod
     const body = await validateBody<CreateCustomerInput>(event, createCustomerSchema)
@@ -80,7 +83,21 @@ export default defineEventHandler(async (event) => {
     })
 
     // ==========================================
-    // 3. RETOURNER LA RÉPONSE
+    // 3. SYNCHRONISER VERS LES AUTRES ÉTABLISSEMENTS
+    // ==========================================
+
+    if (establishmentId) {
+      try {
+        await syncCustomerToGroup(tenantId, newCustomer.id, establishmentId)
+        console.log(`✅ Client ${newCustomer.id} synchronisé depuis l'établissement ${establishmentId}`)
+      } catch (syncError) {
+        console.error('❌ Erreur lors de la synchronisation du client:', syncError)
+        // On ne bloque pas la création, juste un warning
+      }
+    }
+
+    // ==========================================
+    // 4. RETOURNER LA RÉPONSE
     // ==========================================
 
     return {

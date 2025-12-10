@@ -140,7 +140,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { Plus, User, Phone, Star, Eye, Edit, Trash2, Users } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -150,6 +150,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 // Fonction pour formater les prix
 function formatPrice(price: number): string {
@@ -187,6 +188,7 @@ const loading = ref(true)
 const clients = ref<Customer[]>([])
 const searchQuery = ref('')
 const filteredCount = ref(0)
+const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
 // Debounced search
 let searchTimeout: NodeJS.Timeout
@@ -206,6 +208,7 @@ async function loadClients() {
     if (searchQuery.value && searchQuery.value.trim() !== '') {
       params.search = searchQuery.value.trim()
     }
+    if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
     const response = await $fetch('/api/clients', { params })
     clients.value = response.clients as unknown as Customer[]
@@ -252,7 +255,12 @@ async function deleteClient(client: Customer) {
 }
 
 // Charger au montage
-onMounted(() => {
-  loadClients()
+onMounted(async () => {
+  await initializeEstablishments()
+  await loadClients()
+})
+
+watch(selectedEstablishmentId, async () => {
+  await loadClients()
 })
 </script>

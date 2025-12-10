@@ -19,6 +19,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
 
 const route = useRoute()
 
@@ -71,8 +72,8 @@ const breadcrumbs = computed(() => {
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset>
-      <header class="flex h-16 shrink-0 items-center gap-2">
-        <div class="flex items-center gap-2 px-4">
+      <header class="flex h-16 shrink-0 items-center justify-between gap-3 px-4">
+        <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-2 h-4" />
           <Breadcrumb>
@@ -92,6 +93,9 @@ const breadcrumbs = computed(() => {
               </template>
             </BreadcrumbList>
           </Breadcrumb>
+        </div>
+        <div class="flex items-center gap-2">
+          <EstablishmentSelect :show-tooltip="true" min-width="min-w-[210px]" />
         </div>
       </header>
       <slot />

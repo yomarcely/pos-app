@@ -3,10 +3,13 @@ import { products } from '~/server/database/schema'
 import { createProductSchema, type CreateProductInput } from '~/server/validators/product.schema'
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { syncProductToGroup } from '~/server/utils/sync'
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     // Validation avec Zod
     const validatedData = await validateBody<CreateProductInput>(event, createProductSchema)
@@ -22,6 +25,17 @@ export default defineEventHandler(async (event) => {
       .insert(products)
       .values(productData)
       .returning()
+
+    // Synchroniser le produit vers les autres établissements du groupe si un establishmentId est fourni
+    if (establishmentId) {
+      try {
+        await syncProductToGroup(tenantId, newProduct.id, establishmentId)
+        console.log(`✅ Produit ${newProduct.id} synchronisé depuis l'établissement ${establishmentId}`)
+      } catch (syncError) {
+        console.error('❌ Erreur lors de la synchronisation du produit:', syncError)
+        // On ne bloque pas la création, juste un warning
+      }
+    }
 
     return {
       success: true,

@@ -6,6 +6,10 @@
       description="Gérez vos différents points de vente et établissements"
     >
       <template #actions>
+        <Button variant="outline" @click="goToSync">
+          <Network class="w-4 h-4 mr-2" />
+          Synchronisation
+        </Button>
         <Button @click="openCreateDialog">
           <Plus class="w-4 h-4 mr-2" />
           Nouvel établissement
@@ -409,7 +413,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { Plus, Building2 } from 'lucide-vue-next'
+import { Plus, Building2, Network } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -810,6 +814,11 @@ async function deleteRegister() {
     console.error('Erreur lors de la suppression de la caisse:', error)
     toast.error('Impossible de supprimer la caisse')
   }
+}
+
+// Navigation vers la synchronisation
+function goToSync() {
+  navigateTo('/etablissements/synchronisation')
 }
 
 // Charger au montage

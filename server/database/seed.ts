@@ -14,6 +14,12 @@ import {
   establishments,
   registers,
   taxRates,
+  productStocks,
+  productEstablishments,
+  customerEstablishments,
+  syncGroups,
+  syncGroupEstablishments,
+  syncRules,
 } from './schema'
 import {
   brandsSeed,
@@ -56,6 +62,13 @@ async function resetDatabase(executor: DbExecutor) {
       sales,
       stock_movements,
       movements,
+      product_stocks,
+      product_establishments,
+      customer_establishments,
+      sync_logs,
+      sync_rules,
+      sync_group_establishments,
+      sync_groups,
       products,
       categories,
       variations,
@@ -114,6 +127,19 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
           phone: '0405060708',
           email: 'sud@vapecentre.test',
           siret: '12345678900029',
+          naf: '4726Z',
+          tvaNumber: 'FR48123456789',
+        },
+        {
+          id: 3,
+          name: 'Vape Shop Ouest',
+          address: '28 quai de la Fosse',
+          postalCode: '44000',
+          city: 'Nantes',
+          country: 'France',
+          phone: '0240506070',
+          email: 'ouest@vapecentre.test',
+          siret: '12345678900037',
           naf: '4726Z',
           tvaNumber: 'FR48123456789',
         },
@@ -195,7 +221,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       ],
       establishments: [
         {
-          id: 3,
+          id: 4,
           name: 'Boutique Mode Centre',
           address: '8 place Bellecour',
           postalCode: '69002',
@@ -208,7 +234,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
           tvaNumber: 'FR48987654321',
         },
         {
-          id: 4,
+          id: 5,
           name: 'Boutique Mode Atlantique',
           address: '15 quai des Chartrons',
           postalCode: '33000',
@@ -219,6 +245,181 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
           siret: '98765432100025',
           naf: '4771Z',
           tvaNumber: 'FR48987654321',
+        },
+      ],
+    },
+    {
+      id: 'c4e7b3f5-9a21-4d8c-b6e3-1f5a8c9d2e4b',
+      label: 'Librairie',
+      categories: [
+        { id: 201, name: 'Romans' },
+        { id: 202, name: 'Science-Fiction' },
+        { id: 203, name: 'BD & Mangas' },
+        { id: 204, name: 'Jeunesse' },
+        { id: 205, name: 'Essais' },
+      ],
+      suppliers: [
+        { id: 201, name: 'Éditions Gallimard', email: 'contact@gallimard.test', phone: '0601010101' },
+        { id: 202, name: 'Hachette Livre', email: 'info@hachette.test', phone: '0602020202' },
+        { id: 203, name: 'Glenat', email: 'ventes@glenat.test', phone: '0603030303' },
+      ],
+      brands: [
+        { id: 201, name: 'Folio' },
+        { id: 202, name: 'Pocket' },
+        { id: 203, name: 'Glénat Manga' },
+      ],
+      variationGroups: [
+        { id: 201, name: 'Format' },
+      ],
+      variations: [
+        { id: 201, groupId: 201, name: 'Poche', sortOrder: 1 },
+        { id: 202, groupId: 201, name: 'Broché', sortOrder: 2 },
+        { id: 203, groupId: 201, name: 'Relié', sortOrder: 3 },
+      ],
+      sellers: [
+        { id: 201, name: 'Sophie', code: 'SLR-201' },
+        { id: 202, name: 'Thomas', code: 'SLR-202' },
+        { id: 203, name: 'Emma', code: 'SLR-203' },
+      ],
+      customers: [
+        { id: 201, firstName: 'Julie', lastName: 'Rousseau', city: 'Toulouse', postalCode: '31000' },
+        { id: 202, firstName: 'Marc', lastName: 'Lefebvre', city: 'Lille', postalCode: '59000' },
+        { id: 203, firstName: 'Isabelle', lastName: 'Bernard', city: 'Nantes', postalCode: '44000' },
+        { id: 204, firstName: 'Pierre', lastName: 'Moreau', city: 'Strasbourg', postalCode: '67000' },
+      ],
+      products: [
+        {
+          id: 201,
+          name: 'Le Seigneur des Anneaux - Intégrale',
+          price: 29.90,
+          purchasePrice: 15,
+          tva: 5.5,
+          categoryId: 201,
+          supplierId: 201,
+          brandId: 201,
+          stock: 25,
+          barcode: '9782070612888',
+          image: null,
+        },
+        {
+          id: 202,
+          name: 'Fondation - Isaac Asimov',
+          price: 8.50,
+          purchasePrice: 4.25,
+          tva: 5.5,
+          categoryId: 202,
+          supplierId: 202,
+          brandId: 202,
+          stock: 40,
+          barcode: '9782070415335',
+          image: null,
+        },
+        {
+          id: 203,
+          name: 'One Piece - Tome 1',
+          price: 6.90,
+          purchasePrice: 3.50,
+          tva: 5.5,
+          categoryId: 203,
+          supplierId: 203,
+          brandId: 203,
+          stock: 60,
+          barcode: '9782723434485',
+          image: null,
+        },
+        {
+          id: 204,
+          name: 'Harry Potter - Coffret 7 tomes',
+          price: 79.90,
+          purchasePrice: 45,
+          tva: 5.5,
+          categoryId: 204,
+          supplierId: 201,
+          brandId: 201,
+          variationIds: [201, 202, 203],
+          stockByVariation: { '201': 8, '202': 12, '203': 5 },
+          barcode: '9782070643028',
+          image: null,
+        },
+        {
+          id: 205,
+          name: 'Sapiens - Yuval Noah Harari',
+          price: 24.00,
+          purchasePrice: 12,
+          tva: 5.5,
+          categoryId: 205,
+          supplierId: 202,
+          brandId: 201,
+          stock: 30,
+          barcode: '9782226257017',
+          image: null,
+        },
+        {
+          id: 206,
+          name: 'Naruto - Coffret Intégral',
+          price: 149.90,
+          purchasePrice: 80,
+          tva: 5.5,
+          categoryId: 203,
+          supplierId: 203,
+          brandId: 203,
+          stock: 10,
+          barcode: '9782505064923',
+          image: null,
+        },
+        {
+          id: 207,
+          name: 'Le Petit Prince',
+          price: 5.90,
+          purchasePrice: 2.50,
+          tva: 5.5,
+          categoryId: 204,
+          supplierId: 201,
+          brandId: 201,
+          stock: 100,
+          barcode: '9782070612758',
+          image: null,
+        },
+      ],
+      establishments: [
+        {
+          id: 6,
+          name: 'Librairie du Capitole',
+          address: '22 rue du Taur',
+          postalCode: '31000',
+          city: 'Toulouse',
+          country: 'France',
+          phone: '0606060606',
+          email: 'capitole@librairie.test',
+          siret: '45678912300018',
+          naf: '4761Z',
+          tvaNumber: 'FR48456789123',
+        },
+        {
+          id: 7,
+          name: 'Librairie des Flandres',
+          address: '18 rue de Béthune',
+          postalCode: '59000',
+          city: 'Lille',
+          country: 'France',
+          phone: '0707070707',
+          email: 'flandres@librairie.test',
+          siret: '45678912300026',
+          naf: '4761Z',
+          tvaNumber: 'FR48456789123',
+        },
+        {
+          id: 8,
+          name: 'Librairie Atlantique',
+          address: '9 place du Commerce',
+          postalCode: '44000',
+          city: 'Nantes',
+          country: 'France',
+          phone: '0808080808',
+          email: 'atlantique@librairie.test',
+          siret: '45678912300034',
+          naf: '4761Z',
+          tvaNumber: 'FR48456789123',
         },
       ],
     },
@@ -390,6 +591,166 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       summary.customers += insertedCustomers.length
       summary.products += insertedProducts.length
 
+      // Paramètres produits par établissement (prix locaux, dispo)
+      const productEstablishmentValues = tenant.establishments.flatMap(est =>
+        insertedProducts.map(({ id }) => ({
+          tenantId: tenant.id,
+          productId: id,
+          establishmentId: est.id,
+          priceOverride: null,
+          purchasePriceOverride: null,
+          isAvailable: true,
+          notes: null,
+        }))
+      )
+
+      if (productEstablishmentValues.length > 0) {
+        await tx.insert(productEstablishments).values(productEstablishmentValues)
+      }
+
+      // Liaison clients / établissements
+      const customerEstablishmentValues = tenant.establishments.flatMap(est =>
+        insertedCustomers.map(({ id }) => ({
+          tenantId: tenant.id,
+          customerId: id,
+          establishmentId: est.id,
+          localDiscount: null,
+          localNotes: null,
+          localLoyaltyPoints: 0,
+          firstPurchaseDate: null,
+          lastPurchaseDate: null,
+          totalPurchases: '0',
+          purchaseCount: 0,
+        }))
+      )
+
+      if (customerEstablishmentValues.length > 0) {
+        await tx.insert(customerEstablishments).values(customerEstablishmentValues)
+      }
+
+      // Stock par établissement : répartir le stock existant sur chaque établissement
+      const productById = new Map(tenant.products.map(p => [p.id, p]))
+      const weightsFor = (total: number) => {
+        if (total <= 1) return [1]
+        if (total === 2) return [0.7, 0.3]
+        if (total === 3) return [0.5, 0.3, 0.2]
+        const first = 0.4
+        const remaining = 0.6
+        const rest = remaining / (total - 1)
+        return [first, ...Array.from({ length: total - 1 }, () => rest)]
+      }
+      const allocate = (total: number, estIndex: number, totalEstabs: number, weights: number[]) => {
+        if (total <= 0) return 0
+        const weight = weights[estIndex] ?? (1 / totalEstabs)
+        const floorValue = Math.floor(total * weight)
+        if (estIndex === totalEstabs - 1) {
+          const distributed = weights
+            .slice(0, estIndex)
+            .reduce((sum, _w, idx) => sum + Math.floor(total * (weights[idx] ?? 0)), 0)
+          return Math.max(0, total - distributed)
+        }
+        return Math.max(0, floorValue)
+      }
+
+      const stockValues = tenant.establishments.flatMap((est, estIndex) =>
+        insertedProducts.map(({ id }) => {
+          const original = productById.get(id) as any
+          const totalEstabs = tenant.establishments.length || 1
+          const baseStock = Number(original?.stock ?? 0)
+          const weights = weightsFor(totalEstabs)
+          const distributedStock = allocate(baseStock, estIndex, totalEstabs, weights)
+
+          let stockByVariation: Record<string, number> | null = null
+          if (original?.stockByVariation) {
+            const varWeights = weightsFor(totalEstabs)
+            stockByVariation = Object.fromEntries(
+              Object.entries(original.stockByVariation).map(([variationId, stockValue]) => {
+                const total = Number(stockValue ?? 0)
+                const perEst = allocate(total, estIndex, totalEstabs, varWeights)
+                return [variationId, perEst]
+              })
+            )
+          }
+
+          return {
+            tenantId: tenant.id,
+            productId: id,
+            establishmentId: est.id,
+            stock: stockByVariation ? null : distributedStock,
+            stockByVariation: stockByVariation ?? null,
+            minStock: 5,
+            minStockByVariation: null,
+          }
+        })
+      )
+
+      if (stockValues.length > 0) {
+        await tx.insert(productStocks).values(stockValues)
+      }
+
+      // Créer un groupe de synchronisation par défaut pour le tenant principal
+      // Mise en situation : synchroniser les produits et clients entre les deux premiers établissements seulement
+      if (tenant.establishments.length >= 2) {
+        const [est1, est2] = tenant.establishments
+
+        // Insérer le groupe
+        const [insertedGroup] = await tx
+          .insert(syncGroups)
+          .values({
+            name: `${tenant.label} - Groupe Sync Démo`,
+            description: 'Synchronisation démo entre les deux premiers établissements',
+            tenantId: tenant.id,
+          })
+          .returning({ id: syncGroups.id })
+
+        // Lier uniquement les 2 premiers établissements au groupe de synchronisation
+        await tx.insert(syncGroupEstablishments).values([
+          {
+            syncGroupId: insertedGroup.id,
+            establishmentId: est1.id,
+            tenantId: tenant.id,
+          },
+          {
+            syncGroupId: insertedGroup.id,
+            establishmentId: est2.id,
+            tenantId: tenant.id,
+          },
+        ])
+
+        // Règles produits (groupe)
+        await tx.insert(syncRules).values({
+          syncGroupId: insertedGroup.id,
+          entityType: 'product',
+          syncName: true,
+          syncDescription: true,
+          syncBarcode: true,
+          syncCategory: true,
+          syncSupplier: true,
+          syncBrand: true,
+          syncPriceHt: true,
+          syncPriceTtc: false, // prix local par établissement
+          syncTva: true,
+          syncImage: true,
+          syncVariations: true,
+          tenantId: tenant.id,
+        })
+
+        // Règles clients (groupe)
+        await tx.insert(syncRules).values({
+          syncGroupId: insertedGroup.id,
+          entityType: 'customer',
+          syncCustomerInfo: true,
+          syncCustomerContact: true,
+          syncCustomerAddress: true,
+          syncCustomerGdpr: true,
+          syncLoyaltyProgram: false,
+          syncDiscount: false,
+          tenantId: tenant.id,
+        })
+
+        console.log(`🔗 Groupe de synchronisation démo créé pour ${tenant.label} (ID ${insertedGroup.id})`)
+      }
+
       console.log(`✅ Tenant ${tenant.label}: ${insertedTaxRates.length} taux de TVA, ${insertedEstablishments.length} établissements, ${insertedRegisters.length} caisses.`)
     }
 
@@ -397,8 +758,9 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
     console.log('🔄 Synchronisation des séquences...')
     const tables = [
       'tax_rates', 'categories', 'suppliers', 'brands', 'variation_groups', 'variations',
-      'sellers', 'customers', 'products', 'establishments', 'registers', 'sales', 'sale_items',
-      'movements', 'stock_movements', 'closures', 'audit_logs', 'archives'
+      'sellers', 'customers', 'products', 'product_stocks', 'product_establishments', 'customer_establishments', 'establishments', 'registers', 'sales', 'sale_items',
+      'movements', 'stock_movements', 'closures', 'audit_logs', 'archives',
+      'sync_groups', 'sync_group_establishments', 'sync_rules', 'sync_logs'
     ]
 
     for (const table of tables) {

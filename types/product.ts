@@ -51,6 +51,11 @@ export interface Product {
   minStock?: number
   minStockByVariation?: Record<string, number>
   isArchived?: boolean | null
+  // Contexte établissement (synchronisation multi-établissements)
+  establishmentId?: number | null
+  priceOverride?: number
+  purchasePriceOverride?: number
+  isAvailable?: boolean | null
 }
 
 // Données de formulaire produit (création/édition)

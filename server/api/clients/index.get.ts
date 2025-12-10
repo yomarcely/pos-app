@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { customers, sales } from '~/server/database/schema'
+import { customers, sales, customerEstablishments } from '~/server/database/schema'
 import { desc, or, like, sql, eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
@@ -21,6 +21,13 @@ export default defineEventHandler(async (event) => {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const searchTerm = query.search as string | undefined
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+
+    // Note: Un établissement sans groupe de synchro peut voir tous les clients,
+    // mais ne bénéficie pas des règles de synchronisation automatique
+
+    // Conditions de base
+    const baseConditions = [eq(customers.tenantId, tenantId)]
 
     // Query optimisée avec LEFT JOIN pour calculer le CA en une seule requête
     let queryBuilder = db
@@ -48,7 +55,25 @@ export default defineEventHandler(async (event) => {
         eq(customers.id, sales.customerId),
         eq(sales.tenantId, tenantId)
       ))
-      .where(eq(customers.tenantId, tenantId))
+
+    // Restreindre aux clients liés à l'établissement si fourni
+    if (establishmentId) {
+      queryBuilder = queryBuilder
+        .innerJoin(
+          customerEstablishments,
+          and(
+            eq(customerEstablishments.customerId, customers.id),
+            eq(customerEstablishments.establishmentId, establishmentId),
+            eq(customerEstablishments.tenantId, tenantId)
+          )
+        )
+      baseConditions.push(eq(customerEstablishments.establishmentId, establishmentId))
+      baseConditions.push(eq(customerEstablishments.tenantId, tenantId))
+    }
+
+    // Appliquer les conditions avant le groupBy
+    const groupedQuery = queryBuilder
+      .where(and(...baseConditions))
       .groupBy(
         customers.id,
         customers.firstName,
@@ -67,10 +92,12 @@ export default defineEventHandler(async (event) => {
         customers.updatedAt
       )
 
+    let finalQuery = groupedQuery
+
     // Appliquer la recherche si présente
     if (searchTerm && searchTerm.trim() !== '') {
       const searchPattern = `%${searchTerm.trim()}%`
-      queryBuilder = queryBuilder.having(
+      finalQuery = finalQuery.having(
         or(
           like(customers.firstName, searchPattern),
           like(customers.lastName, searchPattern),
@@ -82,7 +109,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Ordonner par date de création (plus récents en premier)
-    const allClients = await queryBuilder.orderBy(desc(customers.createdAt))
+    const allClients = await finalQuery.orderBy(desc(customers.createdAt))
 
     // Transformer les résultats
     const clientsWithCA = allClients.map((client) => {

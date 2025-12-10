@@ -520,6 +520,9 @@ export const stockMovements = pgTable('stock_movements', {
   productId: integer('product_id').notNull().references(() => products.id),
   variation: varchar('variation', { length: 100 }),
 
+  // Établissement concerné par le mouvement
+  establishmentId: integer('establishment_id').references(() => establishments.id),
+
   // Mouvement
   quantity: integer('quantity').notNull(), // Positif = entrée, Négatif = sortie
   oldStock: integer('old_stock').notNull(),
@@ -537,6 +540,7 @@ export const stockMovements = pgTable('stock_movements', {
   tenantIdIdx: index('stock_movements_tenant_id_idx').on(table.tenantId),
   productIdIdx: index('stock_movements_product_id_idx').on(table.productId),
   movementIdIdx: index('stock_movements_movement_id_idx').on(table.movementId),
+  establishmentIdIdx: index('stock_movements_establishment_id_idx').on(table.establishmentId),
   reasonIdx: index('stock_movements_reason_idx').on(table.reason),
   createdAtIdx: index('stock_movements_created_at_idx').on(table.createdAt),
 }))
@@ -660,6 +664,180 @@ export const archives = pgTable('archives', {
 }))
 
 // ==========================================
+// 15. GROUPES DE SYNCHRONISATION
+// ==========================================
+export const syncGroups = pgTable('sync_groups', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('sync_groups_tenant_id_idx').on(table.tenantId),
+}))
+
+// ==========================================
+// 16. ÉTABLISSEMENTS DANS LES GROUPES DE SYNC
+// ==========================================
+export const syncGroupEstablishments = pgTable('sync_group_establishments', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  syncGroupId: integer('sync_group_id').notNull().references(() => syncGroups.id, { onDelete: 'cascade' }),
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('sync_group_establishments_tenant_id_idx').on(table.tenantId),
+  syncGroupIdIdx: index('sync_group_establishments_sync_group_id_idx').on(table.syncGroupId),
+  establishmentIdIdx: index('sync_group_establishments_establishment_id_idx').on(table.establishmentId),
+}))
+
+// ==========================================
+// 17. RÈGLES DE SYNCHRONISATION
+// ==========================================
+export const syncRules = pgTable('sync_rules', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  syncGroupId: integer('sync_group_id').notNull().references(() => syncGroups.id, { onDelete: 'cascade' }),
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'product' ou 'customer'
+
+  // Champs à synchroniser pour les PRODUITS
+  syncName: boolean('sync_name').default(true),
+  syncDescription: boolean('sync_description').default(true),
+  syncBarcode: boolean('sync_barcode').default(true),
+  syncCategory: boolean('sync_category').default(true),
+  syncSupplier: boolean('sync_supplier').default(true),
+  syncBrand: boolean('sync_brand').default(true),
+  syncPriceHt: boolean('sync_price_ht').default(true),
+  syncPriceTtc: boolean('sync_price_ttc').default(false), // Prix TTC peut être différent par établissement
+  syncTva: boolean('sync_tva').default(true),
+  syncImage: boolean('sync_image').default(true),
+  syncVariations: boolean('sync_variations').default(true),
+
+  // Champs à synchroniser pour les CLIENTS
+  syncCustomerInfo: boolean('sync_customer_info').default(true), // nom, prénom
+  syncCustomerContact: boolean('sync_customer_contact').default(true), // email, tel
+  syncCustomerAddress: boolean('sync_customer_address').default(true),
+  syncCustomerGdpr: boolean('sync_customer_gdpr').default(true),
+  syncLoyaltyProgram: boolean('sync_loyalty_program').default(false), // fidélité locale ou partagée ?
+  syncDiscount: boolean('sync_discount').default(false),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('sync_rules_tenant_id_idx').on(table.tenantId),
+  syncGroupIdIdx: index('sync_rules_sync_group_id_idx').on(table.syncGroupId),
+}))
+
+// ==========================================
+// 18. STOCK PAR ÉTABLISSEMENT
+// ==========================================
+export const productStocks = pgTable('product_stocks', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id, { onDelete: 'cascade' }),
+
+  // Stock global ou par variation
+  stock: integer('stock').default(0),
+  stockByVariation: jsonb('stock_by_variation').default('[]'),
+
+  minStock: integer('min_stock').default(5),
+  minStockByVariation: jsonb('min_stock_by_variation'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('product_stocks_tenant_id_idx').on(table.tenantId),
+  productIdIdx: index('product_stocks_product_id_idx').on(table.productId),
+  establishmentIdIdx: index('product_stocks_establishment_id_idx').on(table.establishmentId),
+}))
+
+// ==========================================
+// 19. PARAMÈTRES PRODUITS PAR ÉTABLISSEMENT
+// ==========================================
+export const productEstablishments = pgTable('product_establishments', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id, { onDelete: 'cascade' }),
+
+  // Prix spécifiques par établissement (si sync_price_ttc = FALSE)
+  priceOverride: decimal('price_override', { precision: 10, scale: 2 }), // Prix TTC local si différent
+  purchasePriceOverride: decimal('purchase_price_override', { precision: 10, scale: 2 }),
+
+  // Autres paramètres locaux
+  isAvailable: boolean('is_available').default(true), // Produit disponible dans cet établissement ?
+  notes: text('notes'), // Notes spécifiques à l'établissement
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('product_establishments_tenant_id_idx').on(table.tenantId),
+  productIdIdx: index('product_establishments_product_id_idx').on(table.productId),
+  establishmentIdIdx: index('product_establishments_establishment_id_idx').on(table.establishmentId),
+}))
+
+// ==========================================
+// 20. CLIENTS PAR ÉTABLISSEMENT
+// ==========================================
+export const customerEstablishments = pgTable('customer_establishments', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  customerId: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id, { onDelete: 'cascade' }),
+
+  // Paramètres locaux
+  localDiscount: decimal('local_discount', { precision: 5, scale: 2 }), // Remise spécifique à cet établissement
+  localNotes: text('local_notes'),
+
+  // Fidélité locale ou globale ?
+  localLoyaltyPoints: integer('local_loyalty_points').default(0),
+
+  firstPurchaseDate: timestamp('first_purchase_date', { withTimezone: true }),
+  lastPurchaseDate: timestamp('last_purchase_date', { withTimezone: true }),
+  totalPurchases: decimal('total_purchases', { precision: 10, scale: 2 }).default('0'),
+  purchaseCount: integer('purchase_count').default(0),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('customer_establishments_tenant_id_idx').on(table.tenantId),
+  customerIdIdx: index('customer_establishments_customer_id_idx').on(table.customerId),
+  establishmentIdIdx: index('customer_establishments_establishment_id_idx').on(table.establishmentId),
+}))
+
+// ==========================================
+// 21. LOGS DE SYNCHRONISATION
+// ==========================================
+export const syncLogs = pgTable('sync_logs', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  syncGroupId: integer('sync_group_id').notNull().references(() => syncGroups.id, { onDelete: 'cascade' }),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  entityId: integer('entity_id').notNull(),
+  sourceEstablishmentId: integer('source_establishment_id').references(() => establishments.id),
+  action: varchar('action', { length: 50 }).notNull(), // 'create', 'update', 'delete'
+  syncedFields: jsonb('synced_fields'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('sync_logs_tenant_id_idx').on(table.tenantId),
+  syncGroupIdIdx: index('sync_logs_sync_group_id_idx').on(table.syncGroupId),
+  entityTypeIdx: index('sync_logs_entity_type_idx').on(table.entityType),
+  createdAtIdx: index('sync_logs_created_at_idx').on(table.createdAt),
+}))
+
+// ==========================================
 // RELATIONS
 // ==========================================
 
@@ -753,6 +931,8 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   saleItems: many(saleItems),
   stockMovements: many(stockMovements),
+  productStocks: many(productStocks),
+  productEstablishments: many(productEstablishments),
 }))
 
 export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
@@ -763,6 +943,10 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   sale: one(sales, {
     fields: [stockMovements.saleId],
     references: [sales.id],
+  }),
+  establishment: one(establishments, {
+    fields: [stockMovements.establishmentId],
+    references: [establishments.id],
   }),
 }))
 
@@ -776,6 +960,10 @@ export const establishmentsRelations = relations(establishments, ({ many }) => (
   sales: many(sales),
   closures: many(closures),
   sellers: many(sellerEstablishments),
+  syncGroups: many(syncGroupEstablishments),
+  productStocks: many(productStocks),
+  productEstablishments: many(productEstablishments),
+  customerEstablishments: many(customerEstablishments),
 }))
 
 export const registersRelations = relations(registers, ({ one, many }) => ({
@@ -794,6 +982,78 @@ export const sellerEstablishmentsRelations = relations(sellerEstablishments, ({ 
   }),
   establishment: one(establishments, {
     fields: [sellerEstablishments.establishmentId],
+    references: [establishments.id],
+  }),
+}))
+
+// ==========================================
+// NOUVELLES RELATIONS - SYNCHRONISATION
+// ==========================================
+
+export const syncGroupsRelations = relations(syncGroups, ({ many }) => ({
+  establishments: many(syncGroupEstablishments),
+  rules: many(syncRules),
+  logs: many(syncLogs),
+}))
+
+export const syncGroupEstablishmentsRelations = relations(syncGroupEstablishments, ({ one }) => ({
+  syncGroup: one(syncGroups, {
+    fields: [syncGroupEstablishments.syncGroupId],
+    references: [syncGroups.id],
+  }),
+  establishment: one(establishments, {
+    fields: [syncGroupEstablishments.establishmentId],
+    references: [establishments.id],
+  }),
+}))
+
+export const syncRulesRelations = relations(syncRules, ({ one }) => ({
+  syncGroup: one(syncGroups, {
+    fields: [syncRules.syncGroupId],
+    references: [syncGroups.id],
+  }),
+}))
+
+export const productStocksRelations = relations(productStocks, ({ one }) => ({
+  product: one(products, {
+    fields: [productStocks.productId],
+    references: [products.id],
+  }),
+  establishment: one(establishments, {
+    fields: [productStocks.establishmentId],
+    references: [establishments.id],
+  }),
+}))
+
+export const productEstablishmentsRelations = relations(productEstablishments, ({ one }) => ({
+  product: one(products, {
+    fields: [productEstablishments.productId],
+    references: [products.id],
+  }),
+  establishment: one(establishments, {
+    fields: [productEstablishments.establishmentId],
+    references: [establishments.id],
+  }),
+}))
+
+export const customerEstablishmentsRelations = relations(customerEstablishments, ({ one }) => ({
+  customer: one(customers, {
+    fields: [customerEstablishments.customerId],
+    references: [customers.id],
+  }),
+  establishment: one(establishments, {
+    fields: [customerEstablishments.establishmentId],
+    references: [establishments.id],
+  }),
+}))
+
+export const syncLogsRelations = relations(syncLogs, ({ one }) => ({
+  syncGroup: one(syncGroups, {
+    fields: [syncLogs.syncGroupId],
+    references: [syncGroups.id],
+  }),
+  sourceEstablishment: one(establishments, {
+    fields: [syncLogs.sourceEstablishmentId],
     references: [establishments.id],
   }),
 }))
