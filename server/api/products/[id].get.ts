@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { products, productEstablishments } from '~/server/database/schema'
+import { products, productEstablishments, productStocks } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const queryBuilder = db
+    let queryBuilder = db
       .select({
         id: products.id,
         name: products.name,
@@ -50,6 +50,16 @@ export default defineEventHandler(async (event) => {
         minStockByVariation: products.minStockByVariation,
         priceOverride: productEstablishments.priceOverride,
         purchasePriceOverride: productEstablishments.purchasePriceOverride,
+        nameOverride: productEstablishments.nameOverride,
+        descriptionOverride: productEstablishments.descriptionOverride,
+        barcodeOverride: productEstablishments.barcodeOverride,
+        supplierIdOverride: productEstablishments.supplierIdOverride,
+        categoryIdOverride: productEstablishments.categoryIdOverride,
+        brandIdOverride: productEstablishments.brandIdOverride,
+        tvaOverride: productEstablishments.tvaOverride,
+        tvaIdOverride: productEstablishments.tvaIdOverride,
+        imageOverride: productEstablishments.imageOverride,
+        variationGroupIdsOverride: productEstablishments.variationGroupIdsOverride,
         establishmentId: productEstablishments.establishmentId,
       })
       .from(products)
@@ -66,6 +76,21 @@ export default defineEventHandler(async (event) => {
             eq(productEstablishments.tenantId, tenantId)
           )
       )
+
+    // Si un établissement est spécifié, vérifier qu'il a un stock pour ce produit
+    // Cela garantit qu'un nouvel établissement ne voit que ses propres produits
+    if (establishmentId) {
+      queryBuilder = queryBuilder.innerJoin(
+        productStocks,
+        and(
+          eq(productStocks.productId, products.id),
+          eq(productStocks.establishmentId, establishmentId),
+          eq(productStocks.tenantId, tenantId)
+        )
+      )
+    }
+
+    const [product] = await queryBuilder
       .where(
         and(
           eq(products.id, parseInt(id)),
@@ -73,8 +98,6 @@ export default defineEventHandler(async (event) => {
         )
       )
       .limit(1)
-
-    const [product] = await queryBuilder
 
     if (!product) {
       throw createError({
@@ -87,15 +110,19 @@ export default defineEventHandler(async (event) => {
       success: true,
       product: {
         id: product.id,
-        name: product.name,
-        description: product.description || '',
-        image: product.image || null,
-        barcode: product.barcode || '',
+        // Utiliser les overrides si disponibles
+        name: product.nameOverride ?? product.name,
+        description: product.descriptionOverride ?? product.description ?? '',
+        image: product.imageOverride ?? product.image ?? null,
+        barcode: product.barcodeOverride ?? product.barcode ?? '',
         barcodeByVariation: product.barcodeByVariation as Record<string, string> | undefined,
         supplierCode: product.supplierCode || '',
-        categoryId: product.categoryId,
-        supplierId: product.supplierId,
-        brandId: product.brandId,
+        categoryId: product.categoryIdOverride ?? product.categoryId,
+        supplierId: product.supplierIdOverride ?? product.supplierId,
+        brandId: product.brandIdOverride ?? product.brandId,
+        tva: product.tvaOverride ? parseFloat(product.tvaOverride) : parseFloat(product.tva || '20'),
+        tvaId: product.tvaIdOverride ?? product.tvaId,
+        variationGroupIds: product.variationGroupIdsOverride ?? product.variationGroupIds as number[] | undefined,
         price: parseFloat(product.price),
         purchasePrice: product.purchasePrice ? parseFloat(product.purchasePrice) : null,
         // Overrides pour l'établissement courant s'il existe
@@ -109,11 +136,8 @@ export default defineEventHandler(async (event) => {
         effectivePurchasePrice: product.purchasePriceOverride
           ? parseFloat(product.purchasePriceOverride)
           : product.purchasePrice ? parseFloat(product.purchasePrice) : null,
-        tva: parseFloat(product.tva || '20'),
-        tvaId: product.tvaId,
         stock: product.stock || 0,
         minStock: product.minStock || 5,
-        variationGroupIds: product.variationGroupIds as number[] | undefined,
         stockByVariation: product.stockByVariation as Record<string, number> | undefined,
         minStockByVariation: product.minStockByVariation as Record<string, number> | undefined,
       },

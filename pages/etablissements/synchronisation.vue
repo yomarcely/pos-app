@@ -426,6 +426,68 @@
       confirm-label="Supprimer"
       @confirm="deleteGroup"
     />
+
+    <!-- Dialog: Resynchronisation -->
+    <Dialog v-model:open="resyncDialogOpen">
+      <DialogContent class="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Resynchroniser les données</DialogTitle>
+        </DialogHeader>
+
+        <div class="space-y-4 py-4">
+          <div class="space-y-2">
+            <p class="text-sm text-gray-700">
+              Vous avez réactivé la synchronisation pour les champs suivants :
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="field in resyncData.fields"
+                :key="field"
+                class="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium"
+              >
+                {{ fieldLabels[field] || field }}
+              </span>
+            </div>
+          </div>
+
+          <div class="rounded-lg bg-amber-50 border border-amber-200 p-3">
+            <p class="text-sm text-amber-800">
+              <strong>⚠️ Attention :</strong> Les valeurs actuelles de ces champs sont différentes entre vos établissements.
+              Choisissez l'établissement source dont les valeurs doivent être copiées vers les autres.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">Établissement source</Label>
+            <select
+              v-model="resyncData.sourceEstablishmentId"
+              class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option :value="null" disabled>Sélectionner un établissement...</option>
+              <option
+                v-for="estab in resyncData.establishments"
+                :key="estab.id"
+                :value="estab.id"
+              >
+                {{ estab.name }}{{ estab.city ? ` - ${estab.city}` : '' }}
+              </option>
+            </select>
+            <p class="text-xs text-gray-500">
+              Les valeurs de cet établissement seront copiées vers tous les autres établissements du groupe.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="skipResync">
+            Ignorer
+          </Button>
+          <Button @click="performResync" :disabled="!resyncData.sourceEstablishmentId">
+            Resynchroniser
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -475,14 +537,40 @@ interface Establishment {
   city?: string
 }
 
+type ProductRules = {
+  syncName: boolean
+  syncDescription: boolean
+  syncBarcode: boolean
+  syncCategory: boolean
+  syncSupplier: boolean
+  syncBrand: boolean
+  syncPriceHt: boolean
+  syncPriceTtc: boolean
+  syncTva: boolean
+  syncImage: boolean
+  syncVariations: boolean
+}
+
+type CustomerRules = {
+  syncCustomerInfo: boolean
+  syncCustomerContact: boolean
+  syncCustomerAddress: boolean
+  syncCustomerGdpr: boolean
+  syncLoyaltyProgram: boolean
+  syncDiscount: boolean
+}
+
+type ProductRuleKey = keyof ProductRules
+type CustomerRuleKey = keyof CustomerRules
+
 interface SyncGroup {
   id: number
   name: string
   description?: string
   establishmentCount: number
   establishments: Establishment[]
-  productRules?: any
-  customerRules?: any
+  productRules?: Partial<ProductRules>
+  customerRules?: Partial<CustomerRules>
 }
 
 // Helpers
@@ -555,6 +643,46 @@ const editGroup = reactive({
 })
 
 const selectedGroup = ref<SyncGroup | null>(null)
+
+// Labels pour les champs
+const fieldLabels: Record<string, string> = {
+  // Produits
+  price: 'Prix TTC',
+  purchasePrice: 'Prix HT',
+  name: 'Nom',
+  description: 'Description',
+  barcode: 'Code-barres',
+  supplierId: 'Fournisseur',
+  categoryId: 'Catégorie',
+  brandId: 'Marque',
+  tva: 'TVA',
+  tvaId: 'TVA',
+  image: 'Image',
+  variationGroupIds: 'Variations',
+  // Clients
+  firstName: 'Prénom',
+  lastName: 'Nom',
+  email: 'Email',
+  phone: 'Téléphone',
+  address: 'Adresse',
+  metadata: 'Métadonnées',
+  gdprConsent: 'Consentement RGPD',
+  gdprConsentDate: 'Date consentement RGPD',
+  marketingConsent: 'Consentement marketing',
+  loyaltyProgram: 'Programme de fidélité',
+  discount: 'Remise',
+}
+
+// Resync dialog
+const resyncDialogOpen = ref(false)
+const resyncData = reactive({
+  groupId: 0,
+  groupName: '',
+  entityType: 'product' as 'product' | 'customer',
+  fields: [] as string[],
+  sourceEstablishmentId: null as number | null,
+  establishments: [] as any[],
+})
 
 // Charger les données
 async function loadSyncGroups() {
@@ -702,6 +830,53 @@ function openEditGroupDialog(group: SyncGroup) {
 async function updateGroupRules() {
   if (!selectedGroup.value) return
 
+  // Détecter les options qui viennent d'être réactivées (false -> true)
+  const originalProductRules: Partial<ProductRules> = selectedGroup.value.productRules || {}
+  const originalCustomerRules: Partial<CustomerRules> = selectedGroup.value.customerRules || {}
+
+  const reactivatedProductFields: string[] = []
+  const reactivatedCustomerFields: string[] = []
+
+  // Vérifier les champs produits
+  const productFieldsMap: Record<ProductRuleKey, string> = {
+    syncPriceTtc: 'price',
+    syncPriceHt: 'purchasePrice',
+    syncName: 'name',
+    syncDescription: 'description',
+    syncBarcode: 'barcode',
+    syncSupplier: 'supplierId',
+    syncCategory: 'categoryId',
+    syncBrand: 'brandId',
+    syncTva: 'tva',
+    syncImage: 'image',
+    syncVariations: 'variationGroupIds',
+  }
+
+  for (const ruleKey of Object.keys(productFieldsMap) as ProductRuleKey[]) {
+    const fieldName = productFieldsMap[ruleKey]
+    if (!originalProductRules[ruleKey] && editGroup.productRules[ruleKey]) {
+      reactivatedProductFields.push(fieldName)
+    }
+  }
+
+  // Vérifier les champs clients
+  const customerFieldsMap: Record<CustomerRuleKey, string> = {
+    syncCustomerInfo: 'firstName,lastName',
+    syncCustomerContact: 'email,phone',
+    syncCustomerAddress: 'address,metadata',
+    syncCustomerGdpr: 'gdprConsent,gdprConsentDate,marketingConsent',
+    syncLoyaltyProgram: 'loyaltyProgram',
+    syncDiscount: 'discount',
+  }
+
+  for (const ruleKey of Object.keys(customerFieldsMap) as CustomerRuleKey[]) {
+    const fieldNames = customerFieldsMap[ruleKey]
+    if (!originalCustomerRules[ruleKey] && editGroup.customerRules[ruleKey]) {
+      // Plusieurs champs peuvent être associés à une règle (ex: syncCustomerInfo = firstName + lastName)
+      reactivatedCustomerFields.push(...fieldNames.split(','))
+    }
+  }
+
   try {
     // Mettre à jour les règles produits
     await $fetch(`/api/sync-groups/${selectedGroup.value.id}/rules`, {
@@ -723,7 +898,15 @@ async function updateGroupRules() {
 
     toast.success('Règles de synchronisation mises à jour')
     editGroupDialogOpen.value = false
-    await loadSyncGroups()
+
+    // Si des options ont été réactivées, proposer la resynchronisation
+    if (reactivatedProductFields.length > 0) {
+      showResyncDialog(selectedGroup.value, 'product', reactivatedProductFields)
+    } else if (reactivatedCustomerFields.length > 0) {
+      showResyncDialog(selectedGroup.value, 'customer', reactivatedCustomerFields)
+    } else {
+      await loadSyncGroups()
+    }
   } catch (error: any) {
     console.error('Erreur lors de la mise à jour:', error)
     toast.error(error.data?.message || 'Impossible de mettre à jour les règles')
@@ -751,6 +934,47 @@ async function deleteGroup() {
     console.error('Erreur lors de la suppression:', error)
     toast.error('Impossible de supprimer le groupe')
   }
+}
+
+// Resynchronisation
+function showResyncDialog(group: SyncGroup, entityType: 'product' | 'customer', fields: string[]) {
+  resyncData.groupId = group.id
+  resyncData.groupName = group.name
+  resyncData.entityType = entityType
+  resyncData.fields = fields
+  resyncData.sourceEstablishmentId = null
+  resyncData.establishments = group.establishments || []
+  resyncDialogOpen.value = true
+}
+
+async function performResync() {
+  if (!resyncData.sourceEstablishmentId) {
+    toast.error('Veuillez sélectionner un établissement source')
+    return
+  }
+
+  try {
+    const response: any = await $fetch(`/api/sync-groups/${resyncData.groupId}/resync`, {
+      method: 'POST',
+      body: {
+        sourceEstablishmentId: resyncData.sourceEstablishmentId,
+        entityType: resyncData.entityType,
+        fields: resyncData.fields,
+      },
+    })
+
+    toast.success(response.message || 'Resynchronisation effectuée avec succès')
+    resyncDialogOpen.value = false
+    await loadSyncGroups()
+  } catch (error: any) {
+    console.error('Erreur lors de la resynchronisation:', error)
+    toast.error(error.data?.message || 'Erreur lors de la resynchronisation')
+  }
+}
+
+function skipResync() {
+  resyncDialogOpen.value = false
+  loadSyncGroups()
 }
 
 // Charger au montage

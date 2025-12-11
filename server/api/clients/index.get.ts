@@ -23,8 +23,10 @@ export default defineEventHandler(async (event) => {
     const searchTerm = query.search as string | undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
-    // Note: Un établissement sans groupe de synchro peut voir tous les clients,
-    // mais ne bénéficie pas des règles de synchronisation automatique
+    // Logique de visibilité des clients par établissement :
+    // - Si l'établissement a une liaison avec un client (dans customer_establishments), il le voit
+    // - Cela permet aux nouveaux établissements de démarrer vides
+    // - Et aux établissements désynchro de garder leurs clients
 
     // Conditions de base
     const baseConditions = [eq(customers.tenantId, tenantId)]
@@ -56,7 +58,10 @@ export default defineEventHandler(async (event) => {
         eq(sales.tenantId, tenantId)
       ))
 
-    // Restreindre aux clients liés à l'établissement si fourni
+    // INNER JOIN pour ne retourner QUE les clients liés à cet établissement
+    // Cela permet :
+    // - Nouvel établissement = aucun client (pas de liaison)
+    // - Établissement désynchro = garde ses clients (a toujours la liaison)
     if (establishmentId) {
       queryBuilder = queryBuilder
         .innerJoin(

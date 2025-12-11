@@ -34,6 +34,7 @@ export async function getGlobalProductFields(
 
   if (groups.length === 0) {
     // Pas de groupe de sync, tous les champs sont globaux
+    console.log(`📋 Établissement ${establishmentId} : Pas de groupe de synchro, tous les champs autorisés`)
     return fields
   }
 
@@ -45,8 +46,19 @@ export async function getGlobalProductFields(
 
   if (!rules) {
     // Pas de règles produit, tous les champs sont globaux
+    console.log(`📋 Établissement ${establishmentId} : Pas de règles produit, tous les champs autorisés`)
     return fields
   }
+
+  // Logger les règles actives pour debug
+  console.log(`📋 Règles de synchro actives pour établissement ${establishmentId}:`, {
+    syncSupplier: rules.syncSupplier,
+    syncCategory: rules.syncCategory,
+    syncBrand: rules.syncBrand,
+    syncName: rules.syncName,
+    syncPriceTtc: rules.syncPriceTtc,
+    syncPriceHt: rules.syncPriceHt,
+  })
 
   // Filtrer selon les règles
   if (rules.syncName && fields.name !== undefined) {
@@ -97,6 +109,12 @@ export async function getGlobalProductFields(
     blockedFields.push('brandId')
   }
 
+  if (rules.syncPriceTtc && fields.price !== undefined) {
+    allowedFields.price = fields.price
+  } else if (fields.price !== undefined) {
+    blockedFields.push('price')
+  }
+
   if (rules.syncPriceHt && fields.purchasePrice !== undefined) {
     allowedFields.purchasePrice = fields.purchasePrice
   } else if (fields.purchasePrice !== undefined) {
@@ -137,6 +155,130 @@ export async function getGlobalProductFields(
   if (fields.updatedAt !== undefined) allowedFields.updatedAt = fields.updatedAt
   if (fields.minStock !== undefined) allowedFields.minStock = fields.minStock
   if (fields.minStockByVariation !== undefined) allowedFields.minStockByVariation = fields.minStockByVariation
+
+  // Logger les champs bloqués pour debug
+  if (blockedFields.length > 0) {
+    console.log(`⚠️  Champs non synchronisés ignorés: ${blockedFields.join(', ')}`)
+  }
+
+  return allowedFields
+}
+
+/**
+ * Filtre les champs d'un client selon les règles de synchronisation
+ * Retourne uniquement les champs qui PEUVENT être modifiés globalement
+ */
+export async function getGlobalCustomerFields(
+  tenantId: string,
+  establishmentId: number,
+  fields: Record<string, any>
+): Promise<Record<string, any>> {
+  // Récupérer les règles de synchronisation
+  const groups = await getSyncGroupsForEstablishment(tenantId, establishmentId)
+
+  if (groups.length === 0) {
+    // Pas de groupe de sync, tous les champs sont globaux
+    console.log(`📋 Établissement ${establishmentId} : Pas de groupe de synchro, tous les champs autorisés`)
+    return fields
+  }
+
+  const allowedFields: Record<string, any> = {}
+  const blockedFields: string[] = []
+
+  // Prendre les règles du premier groupe (on suppose qu'un établissement n'est que dans un seul groupe)
+  const rules = groups[0]?.customerRules
+
+  if (!rules) {
+    // Pas de règles client, tous les champs sont globaux
+    console.log(`📋 Établissement ${establishmentId} : Pas de règles client, tous les champs autorisés`)
+    return fields
+  }
+
+  // Logger les règles actives pour debug
+  console.log(`📋 Règles de synchro actives pour établissement ${establishmentId}:`, {
+    syncCustomerInfo: rules.syncCustomerInfo,
+    syncCustomerContact: rules.syncCustomerContact,
+    syncCustomerAddress: rules.syncCustomerAddress,
+    syncCustomerGdpr: rules.syncCustomerGdpr,
+    syncLoyaltyProgram: rules.syncLoyaltyProgram,
+    syncDiscount: rules.syncDiscount,
+  })
+
+  // Filtrer selon les règles - Informations client
+  if (rules.syncCustomerInfo && fields.firstName !== undefined) {
+    allowedFields.firstName = fields.firstName
+  } else if (fields.firstName !== undefined) {
+    blockedFields.push('firstName')
+  }
+
+  if (rules.syncCustomerInfo && fields.lastName !== undefined) {
+    allowedFields.lastName = fields.lastName
+  } else if (fields.lastName !== undefined) {
+    blockedFields.push('lastName')
+  }
+
+  // Contact
+  if (rules.syncCustomerContact && fields.email !== undefined) {
+    allowedFields.email = fields.email
+  } else if (fields.email !== undefined) {
+    blockedFields.push('email')
+  }
+
+  if (rules.syncCustomerContact && fields.phone !== undefined) {
+    allowedFields.phone = fields.phone
+  } else if (fields.phone !== undefined) {
+    blockedFields.push('phone')
+  }
+
+  // Adresse
+  if (rules.syncCustomerAddress && fields.address !== undefined) {
+    allowedFields.address = fields.address
+  } else if (fields.address !== undefined) {
+    blockedFields.push('address')
+  }
+
+  if (rules.syncCustomerAddress && fields.metadata !== undefined) {
+    allowedFields.metadata = fields.metadata
+  } else if (fields.metadata !== undefined) {
+    blockedFields.push('metadata')
+  }
+
+  // RGPD
+  if (rules.syncCustomerGdpr && fields.gdprConsent !== undefined) {
+    allowedFields.gdprConsent = fields.gdprConsent
+  } else if (fields.gdprConsent !== undefined) {
+    blockedFields.push('gdprConsent')
+  }
+
+  if (rules.syncCustomerGdpr && fields.gdprConsentDate !== undefined) {
+    allowedFields.gdprConsentDate = fields.gdprConsentDate
+  } else if (fields.gdprConsentDate !== undefined) {
+    blockedFields.push('gdprConsentDate')
+  }
+
+  if (rules.syncCustomerGdpr && fields.marketingConsent !== undefined) {
+    allowedFields.marketingConsent = fields.marketingConsent
+  } else if (fields.marketingConsent !== undefined) {
+    blockedFields.push('marketingConsent')
+  }
+
+  // Fidélité et remise
+  if (rules.syncLoyaltyProgram && fields.loyaltyProgram !== undefined) {
+    allowedFields.loyaltyProgram = fields.loyaltyProgram
+  } else if (fields.loyaltyProgram !== undefined) {
+    blockedFields.push('loyaltyProgram')
+  }
+
+  if (rules.syncDiscount && fields.discount !== undefined) {
+    allowedFields.discount = fields.discount
+  } else if (fields.discount !== undefined) {
+    blockedFields.push('discount')
+  }
+
+  // Les champs qui sont TOUJOURS autorisés (non liés à la sync)
+  if (fields.updatedAt !== undefined) allowedFields.updatedAt = fields.updatedAt
+  if (fields.notes !== undefined) allowedFields.notes = fields.notes
+  if (fields.alerts !== undefined) allowedFields.alerts = fields.alerts
 
   // Logger les champs bloqués pour debug
   if (blockedFields.length > 0) {

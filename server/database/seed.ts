@@ -592,7 +592,11 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       summary.products += insertedProducts.length
 
       // Paramètres produits par établissement (prix locaux, dispo)
-      const productEstablishmentValues = tenant.establishments.flatMap(est =>
+      // IMPORTANT : Ne créer les liaisons QUE pour les 2 premiers établissements
+      // Le 3ème établissement sera isolé (pas de produits/clients au départ)
+      const establishmentsWithData = tenant.establishments.slice(0, 2)
+
+      const productEstablishmentValues = establishmentsWithData.flatMap(est =>
         insertedProducts.map(({ id }) => ({
           tenantId: tenant.id,
           productId: id,
@@ -609,7 +613,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       }
 
       // Liaison clients / établissements
-      const customerEstablishmentValues = tenant.establishments.flatMap(est =>
+      const customerEstablishmentValues = establishmentsWithData.flatMap(est =>
         insertedCustomers.map(({ id }) => ({
           tenantId: tenant.id,
           customerId: id,
@@ -628,7 +632,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         await tx.insert(customerEstablishments).values(customerEstablishmentValues)
       }
 
-      // Stock par établissement : répartir le stock existant sur chaque établissement
+      // Stock par établissement : répartir le stock existant UNIQUEMENT sur les 2 premiers établissements
       const productById = new Map(tenant.products.map(p => [p.id, p]))
       const weightsFor = (total: number) => {
         if (total <= 1) return [1]
@@ -652,10 +656,10 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         return Math.max(0, floorValue)
       }
 
-      const stockValues = tenant.establishments.flatMap((est, estIndex) =>
+      const stockValues = establishmentsWithData.flatMap((est, estIndex) =>
         insertedProducts.map(({ id }) => {
           const original = productById.get(id) as any
-          const totalEstabs = tenant.establishments.length || 1
+          const totalEstabs = establishmentsWithData.length || 1
           const baseStock = Number(original?.stock ?? 0)
           const weights = weightsFor(totalEstabs)
           const distributedStock = allocate(baseStock, estIndex, totalEstabs, weights)

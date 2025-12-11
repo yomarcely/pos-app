@@ -773,6 +773,18 @@ export const productEstablishments = pgTable('product_establishments', {
   priceOverride: decimal('price_override', { precision: 10, scale: 2 }), // Prix TTC local si différent
   purchasePriceOverride: decimal('purchase_price_override', { precision: 10, scale: 2 }),
 
+  // Overrides pour les champs non synchronisés (produits)
+  supplierIdOverride: integer('supplier_id_override'), // Fournisseur local si syncSupplier = false
+  categoryIdOverride: integer('category_id_override'), // Catégorie locale si syncCategory = false
+  brandIdOverride: integer('brand_id_override'), // Marque locale si syncBrand = false
+  nameOverride: varchar('name_override', { length: 255 }), // Nom local si syncName = false
+  descriptionOverride: text('description_override'), // Description locale si syncDescription = false
+  barcodeOverride: varchar('barcode_override', { length: 128 }), // Code-barres local si syncBarcode = false
+  tvaOverride: decimal('tva_override', { precision: 5, scale: 2 }), // TVA locale si syncTva = false
+  tvaIdOverride: integer('tva_id_override'), // ID TVA local si syncTva = false
+  imageOverride: text('image_override'), // Image locale si syncImage = false
+  variationGroupIdsOverride: integer('variation_group_ids_override').array(), // Variations locales si syncVariations = false
+
   // Autres paramètres locaux
   isAvailable: boolean('is_available').default(true), // Produit disponible dans cet établissement ?
   notes: text('notes'), // Notes spécifiques à l'établissement
@@ -801,6 +813,19 @@ export const customerEstablishments = pgTable('customer_establishments', {
 
   // Fidélité locale ou globale ?
   localLoyaltyPoints: integer('local_loyalty_points').default(0),
+
+  // Overrides pour les champs non synchronisés (clients)
+  firstNameOverride: varchar('first_name_override', { length: 100 }),
+  lastNameOverride: varchar('last_name_override', { length: 100 }),
+  emailOverride: varchar('email_override', { length: 255 }),
+  phoneOverride: varchar('phone_override', { length: 20 }),
+  addressOverride: text('address_override'),
+  metadataOverride: jsonb('metadata_override'),
+  gdprConsentOverride: boolean('gdpr_consent_override'),
+  gdprConsentDateOverride: timestamp('gdpr_consent_date_override', { withTimezone: true }),
+  marketingConsentOverride: boolean('marketing_consent_override'),
+  loyaltyProgramOverride: boolean('loyalty_program_override'),
+  discountOverride: decimal('discount_override', { precision: 5, scale: 2 }),
 
   firstPurchaseDate: timestamp('first_purchase_date', { withTimezone: true }),
   lastPurchaseDate: timestamp('last_purchase_date', { withTimezone: true }),

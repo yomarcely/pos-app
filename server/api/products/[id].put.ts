@@ -33,17 +33,63 @@ export default defineEventHandler(async (event) => {
     // Validation avec Zod
     const validatedData = await validateBody(event, updateProductSchema)
 
-    // Si un établissement est fourni, isoler le prix en override local, mais mettre à jour les autres champs globaux
-    const { price, purchasePrice, ...rest } = validatedData as any
-
     // Filtrer les champs autorisés selon les règles de synchronisation
-    let globalFields = rest
+    let globalFields = validatedData as any
+    let localOverrides: any = {}
+    let priceOverride: string | null = null
+    let purchasePriceOverride: string | null = null
+
     if (establishmentId) {
-      globalFields = await getGlobalProductFields(tenantId, establishmentId, rest)
+      globalFields = await getGlobalProductFields(tenantId, establishmentId, validatedData as any)
+
+      // Identifier les champs bloqués (non synchronisés) qui doivent être stockés localement
+      const blockedFields = Object.keys(validatedData as any).filter(key => !(key in globalFields))
+
+      // Stocker TOUS les champs bloqués dans les overrides locaux
+      const data = validatedData as any
+      if (blockedFields.includes('price') && data.price !== undefined) {
+        priceOverride = String(data.price)
+      }
+      if (blockedFields.includes('purchasePrice') && data.purchasePrice !== undefined) {
+        purchasePriceOverride = String(data.purchasePrice)
+      }
+      if (blockedFields.includes('name') && data.name !== undefined) {
+        localOverrides.nameOverride = data.name
+      }
+      if (blockedFields.includes('description') && data.description !== undefined) {
+        localOverrides.descriptionOverride = data.description
+      }
+      if (blockedFields.includes('barcode') && data.barcode !== undefined) {
+        localOverrides.barcodeOverride = data.barcode
+      }
+      if (blockedFields.includes('supplierId') && data.supplierId !== undefined) {
+        localOverrides.supplierIdOverride = data.supplierId
+      }
+      if (blockedFields.includes('categoryId') && data.categoryId !== undefined) {
+        localOverrides.categoryIdOverride = data.categoryId
+      }
+      if (blockedFields.includes('brandId') && data.brandId !== undefined) {
+        localOverrides.brandIdOverride = data.brandId
+      }
+      if (blockedFields.includes('tva') && data.tva !== undefined) {
+        localOverrides.tvaOverride = data.tva
+      }
+      if (blockedFields.includes('tvaId') && data.tvaId !== undefined) {
+        localOverrides.tvaIdOverride = data.tvaId
+      }
+      if (blockedFields.includes('image') && data.image !== undefined) {
+        localOverrides.imageOverride = data.image
+      }
+      if (blockedFields.includes('variationGroupIds') && data.variationGroupIds !== undefined) {
+        localOverrides.variationGroupIdsOverride = data.variationGroupIds
+      }
+
+      console.log(`📋 Champs bloqués stockés localement pour établissement ${establishmentId}:`, blockedFields)
     }
 
     // Si le tenant a un groupe avec syncPriceTtc = false, empêcher la mise à jour globale sans établissement
-    if (!establishmentId && price !== undefined) {
+    const data = validatedData as any
+    if (!establishmentId && data.price !== undefined) {
       const hasLocalPriceRules = await db
         .select({ id: syncRules.id })
         .from(syncRules)
@@ -87,18 +133,18 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Mettre à jour le prix local si un établissement est ciblé
+    // Mettre à jour les overrides locaux (prix + champs non synchronisés) si un établissement est ciblé
     if (establishmentId) {
-      const priceOverride = price !== undefined && price !== null ? String(price) : null
-      const purchasePriceOverride = purchasePrice !== undefined && purchasePrice !== null ? String(purchasePrice) : null
+      const establishmentData: any = {
+        priceOverride,
+        purchasePriceOverride,
+        isAvailable: true,
+        ...localOverrides, // Ajouter les overrides des champs non synchronisés
+      }
 
       const updateResult = await db
         .update(productEstablishments)
-        .set({
-          priceOverride,
-          purchasePriceOverride,
-          isAvailable: true,
-        })
+        .set(establishmentData)
         .where(
           and(
             eq(productEstablishments.productId, parseInt(id)),
@@ -113,38 +159,16 @@ export default defineEventHandler(async (event) => {
           tenantId,
           productId: parseInt(id),
           establishmentId,
-          priceOverride,
-          purchasePriceOverride,
-          isAvailable: true,
+          ...establishmentData,
           notes: null,
         })
       }
-    } else {
-      // Pas d'établissement: mise à jour du prix global
-      await db
-        .update(products)
-        .set({
-          price: price !== undefined ? String(price) : undefined,
-          purchasePrice: purchasePrice !== undefined ? String(purchasePrice) : undefined,
-        } as any)
-        .where(
-          and(
-            eq(products.id, parseInt(id)),
-            eq(products.tenantId, tenantId)
-          )
-        )
     }
 
-    // Synchroniser les modifications vers les autres établissements du groupe
-    if (establishmentId) {
-      try {
-        await syncProductToGroup(tenantId, parseInt(id), establishmentId)
-        console.log(`✅ Produit ${id} synchronisé depuis l'établissement ${establishmentId}`)
-      } catch (syncError) {
-        console.error('❌ Erreur lors de la synchronisation du produit:', syncError)
-        // On ne bloque pas la modification, juste un warning
-      }
-    }
+    // NOTE: Pas besoin de syncProductToGroup() ici car le produit est global
+    // Les modifications sont déjà appliquées à tous les établissements via la table products
+    // syncProductToGroup() est uniquement utile lors de la CRÉATION pour dupliquer
+    // les entrées product_stocks et product_establishments
 
     return {
       success: true,

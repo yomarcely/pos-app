@@ -6,7 +6,6 @@ import {
   suppliers,
   productStocks,
   productEstablishments,
-  syncGroupEstablishments,
 } from '~/server/database/schema'
 import { sql, eq, and } from 'drizzle-orm'
 
@@ -36,7 +35,6 @@ export default defineEventHandler(async (event) => {
     const supplierId = query.supplierId ? Number(query.supplierId) : undefined
     const brandId = query.brandId ? Number(query.brandId) : undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
-    let isIsolatedEstablishment = false
 
     // Construction de la requête avec filtres
     const conditions: any[] = []
@@ -74,20 +72,6 @@ export default defineEventHandler(async (event) => {
     // - Si l'établissement a un stock pour un produit (dans product_stocks), il le voit
     // - Cela permet aux nouveaux établissements de démarrer vides
     // - Et aux établissements désynchro de garder leurs produits
-    if (establishmentId) {
-      const syncLink = await db
-        .select({ id: syncGroupEstablishments.id })
-        .from(syncGroupEstablishments)
-        .where(
-          and(
-            eq(syncGroupEstablishments.tenantId, tenantId),
-            eq(syncGroupEstablishments.establishmentId, establishmentId)
-          )
-        )
-        .limit(1)
-
-      isIsolatedEstablishment = syncLink.length === 0
-    }
 
     // Sélection de base
     const selectFields: Record<string, any> = {
@@ -116,7 +100,7 @@ export default defineEventHandler(async (event) => {
       updatedAt: products.updatedAt,
     }
 
-    // Champs spécifiques à un établissement (stock + prix locaux)
+    // Champs spécifiques à un établissement (stock + prix locaux + overrides)
     if (establishmentId) {
       Object.assign(selectFields, {
         establishmentId: productStocks.establishmentId,
@@ -126,6 +110,16 @@ export default defineEventHandler(async (event) => {
         establishmentMinStockByVariation: productStocks.minStockByVariation,
         priceOverride: productEstablishments.priceOverride,
         purchasePriceOverride: productEstablishments.purchasePriceOverride,
+        nameOverride: productEstablishments.nameOverride,
+        descriptionOverride: productEstablishments.descriptionOverride,
+        barcodeOverride: productEstablishments.barcodeOverride,
+        supplierIdOverride: productEstablishments.supplierIdOverride,
+        categoryIdOverride: productEstablishments.categoryIdOverride,
+        brandIdOverride: productEstablishments.brandIdOverride,
+        tvaOverride: productEstablishments.tvaOverride,
+        tvaIdOverride: productEstablishments.tvaIdOverride,
+        imageOverride: productEstablishments.imageOverride,
+        variationGroupIdsOverride: productEstablishments.variationGroupIdsOverride,
         isAvailableLocally: productEstablishments.isAvailable,
       })
     }
@@ -139,8 +133,12 @@ export default defineEventHandler(async (event) => {
       .leftJoin(brands, eq(products.brandId, brands.id))
 
     if (establishmentId) {
+      // INNER JOIN pour ne retourner QUE les produits qui ont un stock pour cet établissement
+      // Cela permet :
+      // - Nouvel établissement = aucun produit (pas de stock)
+      // - Établissement désynchro = garde ses produits (a toujours le stock)
       queryBuilder = queryBuilder
-        .leftJoin(
+        .innerJoin(
           productStocks,
           and(
             eq(productStocks.productId, products.id),
@@ -165,11 +163,38 @@ export default defineEventHandler(async (event) => {
     // Transformer les données pour correspondre au format attendu par le frontend
     const formattedProducts = allProducts.map(product => ({
       id: product.id,
-      name: product.name,
-      barcode: product.barcode || '',
+      // Utiliser les overrides si disponibles pour cet établissement
+      name: establishmentId && (product as any).nameOverride
+        ? (product as any).nameOverride
+        : product.name,
+      description: establishmentId && (product as any).descriptionOverride
+        ? (product as any).descriptionOverride
+        : (product.description || ''),
+      barcode: establishmentId && (product as any).barcodeOverride
+        ? (product as any).barcodeOverride
+        : (product.barcode || ''),
       barcodeByVariation: product.barcodeByVariation as Record<string, string> | undefined,
-      categoryId: product.categoryId,
+      categoryId: establishmentId && (product as any).categoryIdOverride
+        ? (product as any).categoryIdOverride
+        : product.categoryId,
       categoryName: product.categoryName || null,
+      supplierId: establishmentId && (product as any).supplierIdOverride
+        ? (product as any).supplierIdOverride
+        : product.supplierId,
+      supplierName: (product as any).supplierName || null,
+      brandId: establishmentId && (product as any).brandIdOverride
+        ? (product as any).brandIdOverride
+        : product.brandId,
+      brandName: product.brandName || null,
+      image: establishmentId && (product as any).imageOverride
+        ? (product as any).imageOverride
+        : (product.image || null),
+      tva: establishmentId && (product as any).tvaOverride
+        ? parseFloat((product as any).tvaOverride)
+        : parseFloat(product.tva || '20'),
+      variationGroupIds: establishmentId && (product as any).variationGroupIdsOverride
+        ? (product as any).variationGroupIdsOverride as number[]
+        : product.variationGroupIds as number[] | undefined,
       price: establishmentId && product.priceOverride
         ? parseFloat(product.priceOverride)
         : parseFloat(product.price),
@@ -182,7 +207,6 @@ export default defineEventHandler(async (event) => {
       purchasePriceOverride: establishmentId && product.purchasePriceOverride
         ? parseFloat(product.purchasePriceOverride)
         : undefined,
-      tva: parseFloat(product.tva || '20'),
       stock: establishmentId
         ? (product as any).establishmentStock ?? 0
         : product.stock || 0,
@@ -195,16 +219,9 @@ export default defineEventHandler(async (event) => {
       minStockByVariation: establishmentId
         ? ((product as any).establishmentMinStockByVariation as Record<string, number> | undefined)
         : product.minStockByVariation as Record<string, number> | undefined,
-      variationGroupIds: product.variationGroupIds as number[] | undefined,
-      image: product.image || null,
-      description: product.description || '',
       isArchived: product.isArchived,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
-      supplierId: product.supplierId,
-      supplierName: (product as any).supplierName || null,
-      brandId: product.brandId,
-      brandName: product.brandName || null,
       establishmentId: establishmentId || (product as any).establishmentId || null,
       isAvailable: establishmentId
         ? ((product as any).isAvailableLocally ?? true)
