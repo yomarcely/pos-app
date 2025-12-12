@@ -149,6 +149,9 @@ export const categories = pgTable('categories', {
   icon: varchar('icon', { length: 50 }), // Nom de l'icône
   color: varchar('color', { length: 20 }), // Code couleur hex
 
+  // Établissement qui a créé cette catégorie (pour isolation multi-établissement)
+  createdByEstablishmentId: integer('created_by_establishment_id'),
+
   // Archivage
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
@@ -159,6 +162,7 @@ export const categories = pgTable('categories', {
   tenantIdIdx: index('categories_tenant_id_idx').on(table.tenantId),
   parentIdIdx: index('categories_parent_id_idx').on(table.parentId),
   nameIdx: index('categories_name_idx').on(table.name),
+  establishmentIdx: index('categories_establishment_idx').on(table.createdByEstablishmentId),
 }))
 
 // ==========================================
@@ -170,6 +174,9 @@ export const variationGroups = pgTable('variation_groups', {
 
   name: varchar('name', { length: 100 }).notNull(), // Ex: "Couleur", "Taille"
 
+  // Établissement qui a créé ce groupe de variations (pour isolation multi-établissement)
+  createdByEstablishmentId: integer('created_by_establishment_id'),
+
   // Archivage
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
@@ -179,6 +186,7 @@ export const variationGroups = pgTable('variation_groups', {
 }, (table) => ({
   tenantIdIdx: index('variation_groups_tenant_id_idx').on(table.tenantId),
   nameIdx: index('variation_groups_name_idx').on(table.name),
+  establishmentIdx: index('variation_groups_establishment_idx').on(table.createdByEstablishmentId),
 }))
 
 // ==========================================
@@ -220,6 +228,9 @@ export const suppliers = pgTable('suppliers', {
   phone: varchar('phone', { length: 20 }),
   address: text('address'),
 
+  // Établissement qui a créé ce fournisseur (pour isolation multi-établissement)
+  createdByEstablishmentId: integer('created_by_establishment_id'),
+
   // Archivage
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
@@ -229,6 +240,7 @@ export const suppliers = pgTable('suppliers', {
 }, (table) => ({
   tenantIdIdx: index('suppliers_tenant_id_idx').on(table.tenantId),
   nameIdx: index('suppliers_name_idx').on(table.name),
+  establishmentIdx: index('suppliers_establishment_idx').on(table.createdByEstablishmentId),
 }))
 
 // ==========================================
@@ -240,6 +252,9 @@ export const brands = pgTable('brands', {
 
   name: varchar('name', { length: 255 }).notNull(),
 
+  // Établissement qui a créé cette marque (pour isolation multi-établissement)
+  createdByEstablishmentId: integer('created_by_establishment_id'),
+
   // Archivage
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
@@ -249,6 +264,7 @@ export const brands = pgTable('brands', {
 }, (table) => ({
   tenantIdIdx: index('brands_tenant_id_idx').on(table.tenantId),
   nameIdx: index('brands_name_idx').on(table.name),
+  establishmentIdx: index('brands_establishment_idx').on(table.createdByEstablishmentId),
 }))
 
 // ==========================================

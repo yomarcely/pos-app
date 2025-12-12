@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { categories, syncGroupEstablishments } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray, or, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
@@ -76,9 +76,13 @@ export default defineEventHandler(async (event) => {
     const includeArchived = query.includeArchived === 'true'
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
+    let allCategories
+
+    // Si un établissement est spécifié
     if (establishmentId) {
-      const syncLink = await db
-        .select({ id: syncGroupEstablishments.id })
+      // Récupérer les groupes de sync auxquels appartient cet établissement
+      const syncGroupIds = await db
+        .select({ syncGroupId: syncGroupEstablishments.syncGroupId })
         .from(syncGroupEstablishments)
         .where(
           and(
@@ -86,24 +90,50 @@ export default defineEventHandler(async (event) => {
             eq(syncGroupEstablishments.establishmentId, establishmentId)
           )
         )
-        .limit(1)
 
-      if (syncLink.length === 0) {
-        return { success: true, categories: [], totalCount: 0 }
+      let allowedEstablishmentIds = [establishmentId]
+
+      // Si l'établissement est dans un groupe de sync, inclure aussi les autres établissements du groupe
+      if (syncGroupIds.length > 0) {
+        const groupEstablishments = await db
+          .select({ establishmentId: syncGroupEstablishments.establishmentId })
+          .from(syncGroupEstablishments)
+          .where(
+            and(
+              eq(syncGroupEstablishments.tenantId, tenantId),
+              inArray(syncGroupEstablishments.syncGroupId, syncGroupIds.map(g => g.syncGroupId))
+            )
+          )
+
+        allowedEstablishmentIds = groupEstablishments.map(e => e.establishmentId)
       }
-    }
 
-    // Récupérer toutes les catégories filtrées par tenant_id
-    let allCategories
-    if (includeArchived) {
-      allCategories = await db.select().from(categories).where(eq(categories.tenantId, tenantId))
+      // Retourner les catégories créées par l'établissement OU par les établissements du même groupe
+      const conditions = [
+        eq(categories.tenantId, tenantId),
+        or(
+          inArray(categories.createdByEstablishmentId, allowedEstablishmentIds),
+          // Catégories globales (créées sans établissement) visibles partout
+          sql`${categories.createdByEstablishmentId} IS NULL`,
+        ),
+      ]
+      if (!includeArchived) {
+        conditions.push(eq(categories.isArchived, false))
+      }
+      allCategories = await db.select().from(categories).where(and(...conditions))
     } else {
-      allCategories = await db.select().from(categories).where(
-        and(
-          eq(categories.tenantId, tenantId),
-          eq(categories.isArchived, false)
-        )
-      )
+      // Sans établissement, retourner toutes les catégories du tenant
+      const conditions = [
+        eq(categories.tenantId, tenantId),
+        // Pas d'établissement : ne retourner que les catégories globales (créées sans établissement)
+        sql`${categories.createdByEstablishmentId} IS NULL`,
+      ]
+
+      if (!includeArchived) {
+        conditions.push(eq(categories.isArchived, false))
+      }
+
+      allCategories = await db.select().from(categories).where(and(...conditions))
     }
 
     // Construire l'arbre

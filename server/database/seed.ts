@@ -456,27 +456,59 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         .onConflictDoNothing({ target: taxRates.id })
         .returning({ id: taxRates.id })
 
+      // Insérer les établissements EN PREMIER pour pouvoir les référencer
+      const insertedEstablishments = await tx
+        .insert(establishments)
+        .values(
+          tenant.establishments.map(est => ({
+            ...est,
+            tenantId: tenant.id,
+            isActive: true,
+          }))
+        )
+        .onConflictDoNothing({ target: establishments.id })
+        .returning({ id: establishments.id })
+
+      // Assigner chaque entité au premier établissement du tenant pour la seed
+      const firstEstablishmentId = insertedEstablishments[0]?.id
+
       const insertedCategories = await tx
         .insert(categories)
-        .values(tenant.categories.map(category => ({ ...category, tenantId: tenant.id })))
+        .values(tenant.categories.map(category => ({
+          ...category,
+          tenantId: tenant.id,
+          createdByEstablishmentId: firstEstablishmentId
+        })))
         .onConflictDoNothing({ target: categories.id })
         .returning({ id: categories.id })
 
       const insertedSuppliers = await tx
         .insert(suppliers)
-        .values(tenant.suppliers.map(supplier => ({ ...supplier, tenantId: tenant.id })))
+        .values(tenant.suppliers.map(supplier => ({
+          ...supplier,
+          tenantId: tenant.id,
+          createdByEstablishmentId: firstEstablishmentId
+        })))
         .onConflictDoNothing({ target: suppliers.id })
         .returning({ id: suppliers.id })
 
       const insertedBrands = await tx
         .insert(brands)
-        .values(tenant.brands.map(brand => ({ ...brand, tenantId: tenant.id })))
+        .values(tenant.brands.map(brand => ({
+          ...brand,
+          tenantId: tenant.id,
+          createdByEstablishmentId: firstEstablishmentId
+        })))
         .onConflictDoNothing({ target: brands.id })
         .returning({ id: brands.id })
 
       const insertedVariationGroups = await tx
         .insert(variationGroups)
-        .values(tenant.variationGroups.map(group => ({ ...group, tenantId: tenant.id })))
+        .values(tenant.variationGroups.map(group => ({
+          ...group,
+          tenantId: tenant.id,
+          createdByEstablishmentId: firstEstablishmentId
+        })))
         .onConflictDoNothing({ target: variationGroups.id })
         .returning({ id: variationGroups.id })
 
@@ -547,19 +579,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         .onConflictDoNothing({ target: products.id })
         .returning({ id: products.id })
 
-      // Établissements
-      const insertedEstablishments = await tx
-        .insert(establishments)
-        .values(
-          tenant.establishments.map(est => ({
-            ...est,
-            tenantId: tenant.id,
-            isActive: true,
-          }))
-        )
-        .onConflictDoNothing({ target: establishments.id })
-        .returning({ id: establishments.id })
-
+      // Les établissements ont déjà été insérés plus haut (ligne 460)
       // Caisses : 2 par établissement
       const registerValues = tenant.establishments.flatMap(est => ([
         {

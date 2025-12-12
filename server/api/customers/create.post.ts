@@ -1,9 +1,10 @@
 import { db } from '~/server/database/connection'
-import { customers, auditLogs } from '~/server/database/schema'
+import { customers, auditLogs, customerEstablishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { createCustomerSchema, type CreateCustomerInput } from '~/server/validators/customer.schema'
 import { validateBody } from '~/server/utils/validation'
 import { syncCustomerToGroup } from '~/server/utils/sync'
+import { eq, and } from 'drizzle-orm'
 
 /**
  * ==========================================
@@ -83,7 +84,40 @@ export default defineEventHandler(async (event) => {
     })
 
     // ==========================================
-    // 3. SYNCHRONISER VERS LES AUTRES ÉTABLISSEMENTS
+    // 3. LIAISON AVEC L'ÉTABLISSEMENT SOURCE
+    // ==========================================
+
+    if (establishmentId) {
+      const existingLink = await db
+        .select({ id: customerEstablishments.id })
+        .from(customerEstablishments)
+        .where(
+          and(
+            eq(customerEstablishments.tenantId, tenantId),
+            eq(customerEstablishments.customerId, newCustomer.id),
+            eq(customerEstablishments.establishmentId, establishmentId)
+          )
+        )
+        .limit(1)
+
+      if (existingLink.length === 0) {
+        await db.insert(customerEstablishments).values({
+          tenantId,
+          customerId: newCustomer.id,
+          establishmentId,
+          localDiscount: null,
+          localNotes: null,
+          localLoyaltyPoints: 0,
+          firstPurchaseDate: null,
+          lastPurchaseDate: null,
+          totalPurchases: '0',
+          purchaseCount: 0,
+        })
+      }
+    }
+
+    // ==========================================
+    // 4. SYNCHRONISER VERS LES AUTRES ÉTABLISSEMENTS
     // ==========================================
 
     if (establishmentId) {
@@ -97,7 +131,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
-    // 4. RETOURNER LA RÉPONSE
+    // 5. RETOURNER LA RÉPONSE
     // ==========================================
 
     return {

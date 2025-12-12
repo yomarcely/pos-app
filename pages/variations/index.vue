@@ -190,9 +190,11 @@ async function createGroup() {
   if (!newGroupName.value.trim()) return
 
   try {
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined
     await $fetch('/api/variations/groups/create', {
       method: 'POST',
       body: { name: newGroupName.value },
+      params,
     })
 
     toast.success('Groupe de variation créé avec succès')

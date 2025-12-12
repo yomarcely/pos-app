@@ -1,9 +1,10 @@
 import { db } from '~/server/database/connection'
-import { customers } from '~/server/database/schema'
+import { customers, customerEstablishments, establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 import { syncCustomerToGroup } from '~/server/utils/sync'
+import { and, eq } from 'drizzle-orm'
 
 /**
  * ==========================================
@@ -13,14 +14,64 @@ import { syncCustomerToGroup } from '~/server/utils/sync'
  * POST /api/clients
  *
  * Crée un nouveau client dans la base de données
- */
+  */
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
-    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+    const parseEstablishmentId = (value: any) => {
+      if (Array.isArray(value)) return parseEstablishmentId(value[0])
+      const num = Number(value)
+      return Number.isFinite(num) ? num : undefined
+    }
+
+    const headers = event.node.req.headers || {}
+    const headerCandidates = ['x-establishment-id', 'establishment-id', 'establishmentid', 'x-establishment']
+    let establishmentIdFromHeader: number | undefined
+    for (const key of headerCandidates) {
+      if (key in headers) {
+        establishmentIdFromHeader = parseEstablishmentId(headers[key])
+        if (establishmentIdFromHeader) break
+      }
+    }
+    if (!establishmentIdFromHeader) {
+      for (const [k, v] of Object.entries(headers)) {
+        if (k.toLowerCase().includes('establishment')) {
+          establishmentIdFromHeader = parseEstablishmentId(v)
+          if (establishmentIdFromHeader) break
+        }
+      }
+    }
+
     const body = await validateBody<CreateClientInput>(event, createClientSchema)
+    const establishmentIdFromBody = parseEstablishmentId((body as any).establishmentId)
+    const establishmentIdFromQuery = parseEstablishmentId((query as any).establishmentId)
+
+    const cookieCandidates = [
+      getCookie(event, 'pos_selected_establishment'),
+      getCookie(event, 'establishmentId'),
+      getCookie(event, 'establishment_id'),
+    ]
+    const establishmentIdFromCookie = cookieCandidates
+      .map(parseEstablishmentId)
+      .find(id => !!id)
+
+    let establishmentId = establishmentIdFromQuery
+      ?? establishmentIdFromBody
+      ?? establishmentIdFromHeader
+      ?? establishmentIdFromCookie
+
+    if (!establishmentId) {
+      const estabs = await db
+        .select({ id: establishments.id })
+        .from(establishments)
+        .where(eq(establishments.tenantId, tenantId))
+        .limit(2)
+      if (estabs.length === 1) {
+        establishmentId = estabs[0].id
+      }
+    }
 
     // Préparer les données
     const now = new Date()
@@ -48,6 +99,36 @@ export default defineEventHandler(async (event) => {
       .insert(customers)
       .values(clientData)
       .returning()
+
+    // Lier le client à l'établissement source (même hors synchro)
+    if (establishmentId) {
+      const existingLink = await db
+        .select({ id: customerEstablishments.id })
+        .from(customerEstablishments)
+        .where(
+          and(
+            eq(customerEstablishments.tenantId, tenantId),
+            eq(customerEstablishments.customerId, newClient.id),
+            eq(customerEstablishments.establishmentId, establishmentId)
+          )
+        )
+        .limit(1)
+
+      if (existingLink.length === 0) {
+        await db.insert(customerEstablishments).values({
+          tenantId,
+          customerId: newClient.id,
+          establishmentId,
+          localDiscount: null,
+          localNotes: null,
+          localLoyaltyPoints: 0,
+          firstPurchaseDate: null,
+          lastPurchaseDate: null,
+          totalPurchases: '0',
+          purchaseCount: 0,
+        })
+      }
+    }
 
     // Synchroniser le client vers les autres établissements du groupe si un establishmentId est fourni
     if (establishmentId) {

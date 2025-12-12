@@ -118,9 +118,11 @@ async function createCategory() {
   }
 
   try {
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined
     const response = await $fetch('/api/categories/create', {
       method: 'POST',
       body: formData.value,
+      params,
     })
 
     if (response.success) {

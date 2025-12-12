@@ -7,6 +7,8 @@ import { createBrandSchema, type CreateBrandInput } from '~/server/validators/br
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     const body = await validateBody<CreateBrandInput>(event, createBrandSchema)
 
@@ -14,9 +16,12 @@ export default defineEventHandler(async (event) => {
       .insert(brands)
       .values({
         tenantId,
+        createdByEstablishmentId: establishmentId,
         name: body.name.trim(),
       })
       .returning()
+
+    console.log(`✅ Marque créée: ${newBrand.name} (ID: ${newBrand.id}) par établissement ${establishmentId}`)
 
     return newBrand
   }

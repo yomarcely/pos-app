@@ -171,80 +171,98 @@ async function resyncProducts(
 
   let syncedCount = 0
 
+  // On traite les overrides pour toutes les entités du groupe (source + cibles)
+  const establishmentIdsForOverrides = [sourceEstablishmentId, ...targetEstablishmentIds]
+
   // Pour chaque établissement cible
-  for (const targetEstId of targetEstablishmentIds) {
-    // Pour chaque produit
-    for (const product of globalProducts) {
-      const sourceOverride = overrideMap.get(product.id)
-      const updateData: any = {}
+  for (const product of globalProducts) {
+    const sourceOverride = overrideMap.get(product.id)
 
-      // Construire l'objet de mise à jour selon les champs demandés
-      if (fields.includes('price')) {
-        updateData.priceOverride = sourceOverride?.priceOverride ?? product.price
-      }
-      if (fields.includes('purchasePrice')) {
-        updateData.purchasePriceOverride = sourceOverride?.purchasePriceOverride ?? product.purchasePrice
-      }
-      if (fields.includes('name')) {
-        updateData.nameOverride = sourceOverride?.nameOverride ?? product.name
-      }
-      if (fields.includes('description')) {
-        updateData.descriptionOverride = sourceOverride?.descriptionOverride ?? product.description
-      }
-      if (fields.includes('barcode')) {
-        updateData.barcodeOverride = sourceOverride?.barcodeOverride ?? product.barcode
-      }
-      if (fields.includes('supplierId')) {
-        updateData.supplierIdOverride = sourceOverride?.supplierIdOverride ?? product.supplierId
-      }
-      if (fields.includes('categoryId')) {
-        updateData.categoryIdOverride = sourceOverride?.categoryIdOverride ?? product.categoryId
-      }
-      if (fields.includes('brandId')) {
-        updateData.brandIdOverride = sourceOverride?.brandIdOverride ?? product.brandId
-      }
-      if (fields.includes('tva')) {
-        updateData.tvaOverride = sourceOverride?.tvaOverride ?? product.tva
-      }
-      if (fields.includes('tvaId')) {
-        updateData.tvaIdOverride = sourceOverride?.tvaIdOverride ?? product.tvaId
-      }
-      if (fields.includes('image')) {
-        updateData.imageOverride = sourceOverride?.imageOverride ?? product.image
-      }
-      if (fields.includes('variationGroupIds')) {
-        updateData.variationGroupIdsOverride = sourceOverride?.variationGroupIdsOverride ?? product.variationGroupIds
-      }
+    // Déterminer la valeur source (override s'il existe, sinon globale)
+    const sourceValues: any = {
+      price: sourceOverride?.priceOverride ?? product.price,
+      purchasePrice: sourceOverride?.purchasePriceOverride ?? product.purchasePrice,
+      name: sourceOverride?.nameOverride ?? product.name,
+      description: sourceOverride?.descriptionOverride ?? product.description,
+      barcode: sourceOverride?.barcodeOverride ?? product.barcode,
+      supplierId: sourceOverride?.supplierIdOverride ?? product.supplierId,
+      categoryId: sourceOverride?.categoryIdOverride ?? product.categoryId,
+      brandId: sourceOverride?.brandIdOverride ?? product.brandId,
+      tva: sourceOverride?.tvaOverride ?? product.tva,
+      tvaId: sourceOverride?.tvaIdOverride ?? product.tvaId,
+      image: sourceOverride?.imageOverride ?? product.image,
+      variationGroupIds: sourceOverride?.variationGroupIdsOverride ?? product.variationGroupIds,
+    }
 
-      if (Object.keys(updateData).length === 0) continue
+    // Mettre à jour le produit global si nécessaire
+    const globalUpdate: any = {}
+    if (fields.includes('price')) globalUpdate.price = sourceValues.price
+    if (fields.includes('purchasePrice')) globalUpdate.purchasePrice = sourceValues.purchasePrice
+    if (fields.includes('name')) globalUpdate.name = sourceValues.name
+    if (fields.includes('description')) globalUpdate.description = sourceValues.description
+    if (fields.includes('barcode')) globalUpdate.barcode = sourceValues.barcode
+    if (fields.includes('supplierId')) globalUpdate.supplierId = sourceValues.supplierId
+    if (fields.includes('categoryId')) globalUpdate.categoryId = sourceValues.categoryId
+    if (fields.includes('brandId')) globalUpdate.brandId = sourceValues.brandId
+    if (fields.includes('tva')) {
+      globalUpdate.tva = sourceValues.tva
+    }
+    if (fields.includes('tvaId')) {
+      globalUpdate.tvaId = sourceValues.tvaId
+    }
+    if (fields.includes('image')) globalUpdate.image = sourceValues.image
+    if (fields.includes('variationGroupIds')) globalUpdate.variationGroupIds = sourceValues.variationGroupIds
 
-      // Mettre à jour l'override pour l'établissement cible
+    if (Object.keys(globalUpdate).length > 0) {
+      await db
+        .update(products)
+        .set(globalUpdate)
+        .where(and(eq(products.tenantId, tenantId), eq(products.id, product.id)))
+    }
+
+    // Supprimer les overrides pour les champs resynchronisés (ils redeviendront globaux)
+    const overrideReset: any = {}
+    if (fields.includes('price')) overrideReset.priceOverride = null
+    if (fields.includes('purchasePrice')) overrideReset.purchasePriceOverride = null
+    if (fields.includes('name')) overrideReset.nameOverride = null
+    if (fields.includes('description')) overrideReset.descriptionOverride = null
+    if (fields.includes('barcode')) overrideReset.barcodeOverride = null
+    if (fields.includes('supplierId')) overrideReset.supplierIdOverride = null
+    if (fields.includes('categoryId')) overrideReset.categoryIdOverride = null
+    if (fields.includes('brandId')) overrideReset.brandIdOverride = null
+    if (fields.includes('tva')) overrideReset.tvaOverride = null
+    if (fields.includes('tvaId')) overrideReset.tvaIdOverride = null
+    if (fields.includes('image')) overrideReset.imageOverride = null
+    if (fields.includes('variationGroupIds')) overrideReset.variationGroupIdsOverride = null
+
+    if (Object.keys(overrideReset).length === 0) continue
+
+    for (const estId of establishmentIdsForOverrides) {
       const result = await db
         .update(productEstablishments)
-        .set(updateData)
+        .set(overrideReset)
         .where(
           and(
             eq(productEstablishments.tenantId, tenantId),
             eq(productEstablishments.productId, product.id),
-            eq(productEstablishments.establishmentId, targetEstId)
+            eq(productEstablishments.establishmentId, estId)
           )
         )
         .returning({ id: productEstablishments.id })
 
-      // Si l'entrée n'existe pas, la créer
       if (result.length === 0) {
         await db.insert(productEstablishments).values({
           tenantId,
           productId: product.id,
-          establishmentId: targetEstId,
-          ...updateData,
+          establishmentId: estId,
+          ...overrideReset,
           isAvailable: true,
           notes: null,
         })
       }
-
-      syncedCount++
     }
+
+    syncedCount++
   }
 
   console.log(`✅ ${syncedCount} produits resynchronisés depuis établissement ${sourceEstablishmentId}`)
@@ -310,70 +328,82 @@ async function resyncCustomers(
 
   let syncedCount = 0
 
+  const establishmentIdsForOverrides = [sourceEstablishmentId, ...targetEstablishmentIds]
+
   // Pour chaque établissement cible
-  for (const targetEstId of targetEstablishmentIds) {
-    // Pour chaque client
-    for (const customer of globalCustomers) {
-      const sourceOverride = overrideMap.get(customer.id)
-      const updateData: any = {}
+  for (const customer of globalCustomers) {
+    const sourceOverride = overrideMap.get(customer.id)
 
-      // Construire l'objet de mise à jour selon les champs demandés
-      if (fields.includes('firstName')) {
-        updateData.firstNameOverride = sourceOverride?.firstNameOverride ?? customer.firstName
-      }
-      if (fields.includes('lastName')) {
-        updateData.lastNameOverride = sourceOverride?.lastNameOverride ?? customer.lastName
-      }
-      if (fields.includes('email')) {
-        updateData.emailOverride = sourceOverride?.emailOverride ?? customer.email
-      }
-      if (fields.includes('phone')) {
-        updateData.phoneOverride = sourceOverride?.phoneOverride ?? customer.phone
-      }
-      if (fields.includes('address')) {
-        updateData.addressOverride = sourceOverride?.addressOverride ?? customer.address
-      }
-      if (fields.includes('metadata')) {
-        updateData.metadataOverride = sourceOverride?.metadataOverride ?? customer.metadata
-      }
-      if (fields.includes('gdprConsent')) {
-        updateData.gdprConsentOverride = sourceOverride?.gdprConsentOverride ?? customer.gdprConsent
-      }
-      if (fields.includes('gdprConsentDate')) {
-        updateData.gdprConsentDateOverride = sourceOverride?.gdprConsentDateOverride ?? customer.gdprConsentDate
-      }
-      if (fields.includes('marketingConsent')) {
-        updateData.marketingConsentOverride = sourceOverride?.marketingConsentOverride ?? customer.marketingConsent
-      }
-      if (fields.includes('loyaltyProgram')) {
-        updateData.loyaltyProgramOverride = sourceOverride?.loyaltyProgramOverride ?? customer.loyaltyProgram
-      }
-      if (fields.includes('discount')) {
-        updateData.discountOverride = sourceOverride?.discountOverride ?? customer.discount
-      }
+    const sourceValues: any = {
+      firstName: sourceOverride?.firstNameOverride ?? customer.firstName,
+      lastName: sourceOverride?.lastNameOverride ?? customer.lastName,
+      email: sourceOverride?.emailOverride ?? customer.email,
+      phone: sourceOverride?.phoneOverride ?? customer.phone,
+      address: sourceOverride?.addressOverride ?? customer.address,
+      metadata: sourceOverride?.metadataOverride ?? customer.metadata,
+      gdprConsent: sourceOverride?.gdprConsentOverride ?? customer.gdprConsent,
+      gdprConsentDate: sourceOverride?.gdprConsentDateOverride ?? customer.gdprConsentDate,
+      marketingConsent: sourceOverride?.marketingConsentOverride ?? customer.marketingConsent,
+      loyaltyProgram: sourceOverride?.loyaltyProgramOverride ?? customer.loyaltyProgram,
+      discount: sourceOverride?.discountOverride ?? customer.discount,
+    }
 
-      if (Object.keys(updateData).length === 0) continue
+    // Mettre à jour le client global
+    const globalUpdate: any = {}
+    if (fields.includes('firstName')) globalUpdate.firstName = sourceValues.firstName
+    if (fields.includes('lastName')) globalUpdate.lastName = sourceValues.lastName
+    if (fields.includes('email')) globalUpdate.email = sourceValues.email
+    if (fields.includes('phone')) globalUpdate.phone = sourceValues.phone
+    if (fields.includes('address')) globalUpdate.address = sourceValues.address
+    if (fields.includes('metadata')) globalUpdate.metadata = sourceValues.metadata
+    if (fields.includes('gdprConsent')) globalUpdate.gdprConsent = sourceValues.gdprConsent
+    if (fields.includes('gdprConsentDate')) globalUpdate.gdprConsentDate = sourceValues.gdprConsentDate
+    if (fields.includes('marketingConsent')) globalUpdate.marketingConsent = sourceValues.marketingConsent
+    if (fields.includes('loyaltyProgram')) globalUpdate.loyaltyProgram = sourceValues.loyaltyProgram
+    if (fields.includes('discount')) globalUpdate.discount = sourceValues.discount
 
-      // Mettre à jour l'override pour l'établissement cible
+    if (Object.keys(globalUpdate).length > 0) {
+      await db
+        .update(customers)
+        .set(globalUpdate)
+        .where(and(eq(customers.tenantId, tenantId), eq(customers.id, customer.id)))
+    }
+
+    // Remettre les overrides à null pour les champs resynchronisés
+    const overrideReset: any = {}
+    if (fields.includes('firstName')) overrideReset.firstNameOverride = null
+    if (fields.includes('lastName')) overrideReset.lastNameOverride = null
+    if (fields.includes('email')) overrideReset.emailOverride = null
+    if (fields.includes('phone')) overrideReset.phoneOverride = null
+    if (fields.includes('address')) overrideReset.addressOverride = null
+    if (fields.includes('metadata')) overrideReset.metadataOverride = null
+    if (fields.includes('gdprConsent')) overrideReset.gdprConsentOverride = null
+    if (fields.includes('gdprConsentDate')) overrideReset.gdprConsentDateOverride = null
+    if (fields.includes('marketingConsent')) overrideReset.marketingConsentOverride = null
+    if (fields.includes('loyaltyProgram')) overrideReset.loyaltyProgramOverride = null
+    if (fields.includes('discount')) overrideReset.discountOverride = null
+
+    if (Object.keys(overrideReset).length === 0) continue
+
+    for (const estId of establishmentIdsForOverrides) {
       const result = await db
         .update(customerEstablishments)
-        .set(updateData)
+        .set(overrideReset)
         .where(
           and(
             eq(customerEstablishments.tenantId, tenantId),
             eq(customerEstablishments.customerId, customer.id),
-            eq(customerEstablishments.establishmentId, targetEstId)
+            eq(customerEstablishments.establishmentId, estId)
           )
         )
         .returning({ id: customerEstablishments.id })
 
-      // Si l'entrée n'existe pas, la créer
       if (result.length === 0) {
         await db.insert(customerEstablishments).values({
           tenantId,
           customerId: customer.id,
-          establishmentId: targetEstId,
-          ...updateData,
+          establishmentId: estId,
+          ...overrideReset,
           localDiscount: null,
           localNotes: null,
           localLoyaltyPoints: 0,
@@ -383,9 +413,9 @@ async function resyncCustomers(
           purchaseCount: 0,
         })
       }
-
-      syncedCount++
     }
+
+    syncedCount++
   }
 
   console.log(`✅ ${syncedCount} clients resynchronisés depuis établissement ${sourceEstablishmentId}`)

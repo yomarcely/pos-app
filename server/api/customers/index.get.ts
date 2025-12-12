@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { customers, customerEstablishments, syncGroupEstablishments } from '~/server/database/schema'
+import { customers, customerEstablishments } from '~/server/database/schema'
 import { desc, eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
@@ -19,23 +19,6 @@ export default defineEventHandler(async (event) => {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
-
-    if (establishmentId) {
-      const syncLink = await db
-        .select({ id: syncGroupEstablishments.id })
-        .from(syncGroupEstablishments)
-        .where(
-          and(
-            eq(syncGroupEstablishments.tenantId, tenantId),
-            eq(syncGroupEstablishments.establishmentId, establishmentId)
-          )
-        )
-        .limit(1)
-
-      if (syncLink.length === 0) {
-        return { success: true, customers: [], count: 0 }
-      }
-    }
 
     // Récupérer tous les clients, triés par date de création (plus récents en premier)
     const baseSelect = {
@@ -57,23 +40,23 @@ export default defineEventHandler(async (event) => {
 
     const allCustomers = establishmentId
       ? await db
-        .select(baseSelect)
-        .from(customers)
-        .innerJoin(
-          customerEstablishments,
-          and(
-            eq(customerEstablishments.customerId, customers.id),
-            eq(customerEstablishments.establishmentId, establishmentId),
-            eq(customerEstablishments.tenantId, tenantId)
+          .select(baseSelect)
+          .from(customers)
+          .innerJoin(
+            customerEstablishments,
+            and(
+              eq(customerEstablishments.customerId, customers.id),
+              eq(customerEstablishments.establishmentId, establishmentId),
+              eq(customerEstablishments.tenantId, tenantId)
+            )
           )
-        )
-        .where(eq(customers.tenantId, tenantId))
-        .orderBy(desc(customers.createdAt))
+          .where(eq(customers.tenantId, tenantId))
+          .orderBy(desc(customers.createdAt))
       : await db
-        .select(baseSelect)
-        .from(customers)
-        .where(eq(customers.tenantId, tenantId))
-        .orderBy(desc(customers.createdAt))
+          .select(baseSelect)
+          .from(customers)
+          .where(eq(customers.tenantId, tenantId))
+          .orderBy(desc(customers.createdAt))
 
     // Transformer les données pour correspondre au format attendu par le frontend
     const formattedCustomers = allCustomers.map(customer => {

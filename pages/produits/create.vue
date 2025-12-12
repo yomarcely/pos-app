@@ -273,9 +273,11 @@ function openAddBrandDialog() {
 async function saveNewCategory() {
   if (!newCategoryName.value.trim()) return
   try {
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
     const response = await $fetch('/api/categories/create', {
       method: 'POST',
-      body: { name: newCategoryName.value, parentId: null }
+      body: { name: newCategoryName.value, parentId: null },
+      params
     })
     if (response.success) {
       toast.success('Catégorie créée avec succès')
@@ -290,9 +292,11 @@ async function saveNewCategory() {
 async function saveNewSupplier() {
   if (!newSupplierName.value.trim()) return
   try {
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
     const response: any = await $fetch('/api/suppliers/create', {
       method: 'POST',
-      body: { name: newSupplierName.value }
+      body: { name: newSupplierName.value },
+      params
     })
     const created = response?.supplier || response
     if (created?.id) {
@@ -309,9 +313,11 @@ async function saveNewSupplier() {
 async function saveNewBrand() {
   if (!newBrandName.value.trim()) return
   try {
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
     const response: any = await $fetch('/api/brands/create', {
       method: 'POST',
-      body: { name: newBrandName.value }
+      body: { name: newBrandName.value },
+      params
     })
     const created = response?.brand || response
     if (created?.id) {
@@ -328,7 +334,8 @@ async function saveNewBrand() {
 // Load data
 async function loadSuppliers() {
   try {
-    const response: any = await $fetch('/api/suppliers')
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
+    const response: any = await $fetch('/api/suppliers', { params })
     suppliers.value = Array.isArray(response) ? response : (response.suppliers || [])
   } catch (error) {
     console.error('Erreur lors du chargement des fournisseurs:', error)
@@ -337,7 +344,8 @@ async function loadSuppliers() {
 
 async function loadBrands() {
   try {
-    const response: any = await $fetch('/api/brands')
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
+    const response: any = await $fetch('/api/brands', { params })
     brands.value = Array.isArray(response) ? response : (response.brands || [])
   } catch (error) {
     console.error('Erreur lors du chargement des marques:', error)
@@ -346,7 +354,8 @@ async function loadBrands() {
 
 async function loadCategories() {
   try {
-    const response = await $fetch('/api/categories')
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
+    const response = await $fetch('/api/categories', { params })
     categories.value = response.categories || []
   } catch (error) {
     console.error('Erreur lors du chargement des catégories:', error)
@@ -355,7 +364,8 @@ async function loadCategories() {
 
 async function loadVariationGroups() {
   try {
-    const response = await $fetch('/api/variations/groups')
+    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
+    const response = await $fetch('/api/variations/groups', { params })
     variationGroups.value = response.groups || []
   } catch (error) {
     console.error('Erreur lors du chargement des variations:', error)

@@ -30,6 +30,7 @@ export const createClientSchema = z.object({
   notes: z.string().optional().nullable(),
   alerts: z.string().optional().nullable(),
   metadata: z.record(z.string(), z.any()).optional(),
+  establishmentId: z.coerce.number().optional(),
 })
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>

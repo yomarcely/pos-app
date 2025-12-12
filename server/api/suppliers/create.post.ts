@@ -7,6 +7,8 @@ import { createSupplierSchema, type CreateSupplierInput } from '~/server/validat
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     const body = await validateBody<CreateSupplierInput>(event, createSupplierSchema)
 
@@ -14,6 +16,7 @@ export default defineEventHandler(async (event) => {
       .insert(suppliers)
       .values({
         tenantId,
+        createdByEstablishmentId: establishmentId,
         name: body.name.trim(),
         contact: body.contact?.trim() || null,
         email: body.email?.trim() || null,
@@ -21,6 +24,8 @@ export default defineEventHandler(async (event) => {
         address: body.address?.trim() || null,
       })
       .returning()
+
+    console.log(`✅ Fournisseur créé: ${newSupplier.name} (ID: ${newSupplier.id}) par établissement ${establishmentId}`)
 
     return newSupplier
   }

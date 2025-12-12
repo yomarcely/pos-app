@@ -318,6 +318,34 @@
         </DialogHeader>
 
         <div class="space-y-6 py-4">
+          <!-- Gestion des établissements -->
+          <div class="space-y-4">
+            <h3 class="font-semibold flex items-center gap-2">
+              <Building2 class="w-4 h-4" />
+              Établissements du groupe
+            </h3>
+            <div class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+              <label
+                v-for="estab in availableEstablishments"
+                :key="estab.id"
+                class="flex items-center space-x-2 cursor-pointer"
+              >
+                <Checkbox
+                  :model-value="editGroup.establishmentIds.includes(estab.id)"
+                  @update:model-value="(checked) => toggleEditEstablishmentSelection(estab.id, checked)"
+                />
+                <span class="text-sm text-gray-900">
+                  {{ estab.name }}
+                  <span v-if="estab.city" class="text-gray-500">• {{ estab.city }}</span>
+                </span>
+              </label>
+            </div>
+            <p class="text-xs text-gray-500">
+              ℹ️ Les nouveaux établissements hériteront des données du premier établissement du groupe.
+              Les établissements retirés garderont leurs données mais ne seront plus synchronisés.
+            </p>
+          </div>
+
           <!-- Règles produits -->
           <div class="space-y-4">
             <h3 class="font-semibold flex items-center gap-2">
@@ -619,6 +647,7 @@ const newGroup = reactive({
 const editGroup = reactive({
   id: 0,
   name: '',
+  establishmentIds: [] as number[],
   productRules: {
     syncName: true,
     syncDescription: true,
@@ -734,6 +763,21 @@ function toggleEstablishmentSelection(id: number, checked: boolean | 'indetermin
   console.log('Établissements sélectionnés:', newGroup.establishmentIds)
 }
 
+// Toggle selection établissement pour l'édition
+function toggleEditEstablishmentSelection(id: number, checked: boolean | 'indeterminate') {
+  if (checked === 'indeterminate') {
+    return
+  }
+
+  const index = editGroup.establishmentIds.indexOf(id)
+
+  if (checked && index === -1) {
+    editGroup.establishmentIds.push(id)
+  } else if (!checked && index > -1) {
+    editGroup.establishmentIds.splice(index, 1)
+  }
+}
+
 // Créer un groupe
 function openCreateGroupDialog() {
   // Réinitialiser le formulaire
@@ -795,6 +839,7 @@ function openEditGroupDialog(group: SyncGroup) {
   selectedGroup.value = group
   editGroup.id = group.id
   editGroup.name = group.name
+  editGroup.establishmentIds = group.establishments.map(e => e.id)
   Object.assign(
     editGroup.productRules,
     {
@@ -829,6 +874,12 @@ function openEditGroupDialog(group: SyncGroup) {
 
 async function updateGroupRules() {
   if (!selectedGroup.value) return
+
+  // Vérifier qu'il y a au moins 2 établissements
+  if (editGroup.establishmentIds.length < 2) {
+    toast.error('Le groupe doit contenir au moins 2 établissements')
+    return
+  }
 
   // Détecter les options qui viennent d'être réactivées (false -> true)
   const originalProductRules: Partial<ProductRules> = selectedGroup.value.productRules || {}
@@ -878,6 +929,18 @@ async function updateGroupRules() {
   }
 
   try {
+    // Mettre à jour les établissements du groupe
+    const originalEstablishmentIds = selectedGroup.value.establishments.map(e => e.id)
+    if (JSON.stringify(originalEstablishmentIds.sort()) !== JSON.stringify(editGroup.establishmentIds.sort())) {
+      await $fetch(`/api/sync-groups/${selectedGroup.value.id}/establishments`, {
+        method: 'PATCH',
+        body: {
+          establishmentIds: editGroup.establishmentIds,
+        },
+      })
+      toast.success('Établissements du groupe mis à jour')
+    }
+
     // Mettre à jour les règles produits
     await $fetch(`/api/sync-groups/${selectedGroup.value.id}/rules`, {
       method: 'PATCH',
@@ -896,7 +959,7 @@ async function updateGroupRules() {
       },
     })
 
-    toast.success('Règles de synchronisation mises à jour')
+    toast.success('Configuration mise à jour avec succès')
     editGroupDialogOpen.value = false
 
     // Si des options ont été réactivées, proposer la resynchronisation
@@ -909,7 +972,7 @@ async function updateGroupRules() {
     }
   } catch (error: any) {
     console.error('Erreur lors de la mise à jour:', error)
-    toast.error(error.data?.message || 'Impossible de mettre à jour les règles')
+    toast.error(error.data?.message || 'Impossible de mettre à jour la configuration')
   }
 }
 

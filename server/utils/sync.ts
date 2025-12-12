@@ -7,6 +7,7 @@ import {
   customers,
   syncLogs,
   productStocks,
+  customerEstablishments,
 } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import type { SyncResult } from '~/types/sync'
@@ -629,6 +630,38 @@ export async function syncCustomerToGroup(
         errors,
         timestamp: new Date(),
       })
+    }
+
+    // S'assurer que customer_establishments existe pour toutes les cibles (et la source)
+    const establishIds = new Set<number>([sourceEstablishmentId])
+    groups.forEach(g => g.targetEstablishments.forEach(id => establishIds.add(id)))
+    for (const estId of establishIds) {
+      const existing = await db
+        .select({ id: customerEstablishments.id })
+        .from(customerEstablishments)
+        .where(
+          and(
+            eq(customerEstablishments.tenantId, tenantId),
+            eq(customerEstablishments.customerId, customerId),
+            eq(customerEstablishments.establishmentId, estId)
+          )
+        )
+        .limit(1)
+
+      if (existing.length === 0) {
+        await db.insert(customerEstablishments).values({
+          tenantId,
+          customerId,
+          establishmentId: estId,
+          localDiscount: null,
+          localNotes: null,
+          localLoyaltyPoints: 0,
+          firstPurchaseDate: null,
+          lastPurchaseDate: null,
+          totalPurchases: '0',
+          purchaseCount: 0,
+        })
+      }
     }
 
     return results
