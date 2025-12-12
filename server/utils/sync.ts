@@ -291,6 +291,7 @@ export async function getGlobalCustomerFields(
 
 /**
  * Récupère les groupes de synchronisation auxquels appartient un établissement
+ * Optimisé avec JOINs pour éviter les N+1 queries
  */
 export async function getSyncGroupsForEstablishment(
   tenantId: string,
@@ -302,64 +303,125 @@ export async function getSyncGroupsForEstablishment(
   customerRules: any
   targetEstablishments: number[]
 }>> {
-  // Trouver les groupes de sync de cet établissement
-  const groupIds = await db
-    .select({ syncGroupId: syncGroupEstablishments.syncGroupId })
+  // Récupérer tous les groupes avec leurs règles et établissements en une seule requête
+  const groupsData = await db
+    .select({
+      groupId: syncGroups.id,
+      groupName: syncGroups.name,
+      ruleId: syncRules.id,
+      ruleEntityType: syncRules.entityType,
+      // Champs pour les produits
+      syncName: syncRules.syncName,
+      syncDescription: syncRules.syncDescription,
+      syncBarcode: syncRules.syncBarcode,
+      syncCategory: syncRules.syncCategory,
+      syncSupplier: syncRules.syncSupplier,
+      syncBrand: syncRules.syncBrand,
+      syncPriceHt: syncRules.syncPriceHt,
+      syncPriceTtc: syncRules.syncPriceTtc,
+      syncTva: syncRules.syncTva,
+      syncImage: syncRules.syncImage,
+      syncVariations: syncRules.syncVariations,
+      // Champs pour les clients
+      syncCustomerInfo: syncRules.syncCustomerInfo,
+      syncCustomerContact: syncRules.syncCustomerContact,
+      syncCustomerAddress: syncRules.syncCustomerAddress,
+      syncCustomerGdpr: syncRules.syncCustomerGdpr,
+      syncLoyaltyProgram: syncRules.syncLoyaltyProgram,
+      syncDiscount: syncRules.syncDiscount,
+      estabId: syncGroupEstablishments.establishmentId,
+    })
     .from(syncGroupEstablishments)
+    .innerJoin(syncGroups, eq(syncGroupEstablishments.syncGroupId, syncGroups.id))
+    .leftJoin(syncRules, eq(syncRules.syncGroupId, syncGroups.id))
     .where(
       and(
         eq(syncGroupEstablishments.tenantId, tenantId),
-        eq(syncGroupEstablishments.establishmentId, establishmentId)
+        eq(syncGroups.tenantId, tenantId)
       )
     )
 
-  if (groupIds.length === 0) {
+  if (groupsData.length === 0) {
     return []
   }
 
-  // Récupérer les détails de chaque groupe
-  const groups = await Promise.all(
-    groupIds.map(async ({ syncGroupId }) => {
-      const [group] = await db
-        .select()
-        .from(syncGroups)
-        .where(eq(syncGroups.id, syncGroupId))
-
-      // Récupérer les règles
-      const rules = await db
-        .select()
-        .from(syncRules)
-        .where(eq(syncRules.syncGroupId, syncGroupId))
-
-      const productRules = rules.find(r => r.entityType === 'product')
-      const customerRules = rules.find(r => r.entityType === 'customer')
-
-      // Récupérer les autres établissements du groupe (sauf celui d'origine)
-      const targetEstabs = await db
-        .select({ establishmentId: syncGroupEstablishments.establishmentId })
-        .from(syncGroupEstablishments)
-        .where(
-          and(
-            eq(syncGroupEstablishments.syncGroupId, syncGroupId),
-            eq(syncGroupEstablishments.tenantId, tenantId)
-          )
-        )
-
-      const targetEstablishments = targetEstabs
-        .map(e => e.establishmentId)
-        .filter(id => id !== establishmentId)
-
-      return {
-        id: group.id,
-        name: group.name,
-        productRules,
-        customerRules,
-        targetEstablishments,
-      }
-    })
+  // Filtrer pour garder seulement les groupes où l'établissement est membre
+  const relevantGroupIds = new Set(
+    groupsData
+      .filter(row => row.estabId === establishmentId)
+      .map(row => row.groupId)
   )
 
-  return groups
+  if (relevantGroupIds.size === 0) {
+    return []
+  }
+
+  // Organiser les données par groupe
+  const groupsMap = new Map<number, {
+    id: number
+    name: string
+    productRules: any
+    customerRules: any
+    targetEstablishments: Set<number>
+  }>()
+
+  for (const row of groupsData) {
+    // Ne traiter que les groupes pertinents
+    if (!relevantGroupIds.has(row.groupId)) continue
+
+    if (!groupsMap.has(row.groupId)) {
+      groupsMap.set(row.groupId, {
+        id: row.groupId,
+        name: row.groupName,
+        productRules: undefined,
+        customerRules: undefined,
+        targetEstablishments: new Set(),
+      })
+    }
+
+    const group = groupsMap.get(row.groupId)!
+
+    // Ajouter les règles
+    if (row.ruleId && row.ruleEntityType === 'product') {
+      group.productRules = {
+        id: row.ruleId,
+        entityType: row.ruleEntityType,
+        syncName: row.syncName,
+        syncDescription: row.syncDescription,
+        syncBarcode: row.syncBarcode,
+        syncCategory: row.syncCategory,
+        syncSupplier: row.syncSupplier,
+        syncBrand: row.syncBrand,
+        syncPriceHt: row.syncPriceHt,
+        syncPriceTtc: row.syncPriceTtc,
+        syncTva: row.syncTva,
+        syncImage: row.syncImage,
+        syncVariations: row.syncVariations,
+      }
+    } else if (row.ruleId && row.ruleEntityType === 'customer') {
+      group.customerRules = {
+        id: row.ruleId,
+        entityType: row.ruleEntityType,
+        syncCustomerInfo: row.syncCustomerInfo,
+        syncCustomerContact: row.syncCustomerContact,
+        syncCustomerAddress: row.syncCustomerAddress,
+        syncCustomerGdpr: row.syncCustomerGdpr,
+        syncLoyaltyProgram: row.syncLoyaltyProgram,
+        syncDiscount: row.syncDiscount,
+      }
+    }
+
+    // Ajouter les établissements (sauf celui d'origine)
+    if (row.estabId && row.estabId !== establishmentId) {
+      group.targetEstablishments.add(row.estabId)
+    }
+  }
+
+  // Convertir en array et transformer les Sets en arrays
+  return Array.from(groupsMap.values()).map(group => ({
+    ...group,
+    targetEstablishments: Array.from(group.targetEstablishments),
+  }))
 }
 
 /**
