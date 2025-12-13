@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
@@ -13,11 +13,15 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+
 const isPendingDialogOpen = ref(false)
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
 const sellersStore = useSellersStore()
+const { selectedEstablishmentId } = useEstablishmentRegister()
+
 const Clients = computed(() => customerStore.clients)
 const selectedClient = computed({
   get: () => customerStore.client,
@@ -25,6 +29,11 @@ const selectedClient = computed({
     if (val) customerStore.selectClient(val)
     else customerStore.clearClient()
   }
+})
+
+// Réinitialiser le vendeur sélectionné quand l'établissement change
+watch(selectedEstablishmentId, () => {
+  sellersStore.selectedSeller = null
 })
 
 function deselectClient() {

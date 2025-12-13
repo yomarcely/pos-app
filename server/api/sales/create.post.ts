@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, like, sql } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -392,15 +392,21 @@ export default defineEventHandler(async (event) => {
       const stockUpdateLogs: string[] = []
 
       for (const item of body.items) {
-        // Récupérer le produit pour obtenir le stock actuel
-        const [product] = await tx
+        // Récupérer le stock de l'établissement pour ce produit
+        const [productStock] = await tx
           .select()
-          .from(products)
-          .where(eq(products.id, item.productId))
+          .from(productStocks)
+          .where(
+            and(
+              eq(productStocks.productId, item.productId),
+              eq(productStocks.establishmentId, establishment.id),
+              eq(productStocks.tenantId, tenantId)
+            )
+          )
           .limit(1)
 
-        if (!product) {
-          console.warn(`Produit ${item.productId} non trouvé, stock non mis à jour`)
+        if (!productStock) {
+          console.warn(`Stock établissement non trouvé pour produit ${item.productId} dans l'établissement ${establishment.id}, stock non mis à jour`)
           continue
         }
 
@@ -408,7 +414,7 @@ export default defineEventHandler(async (event) => {
         let newStock = 0
 
         // Mise à jour du stock selon le type (avec ou sans variation)
-        const stockByVar = product.stockByVariation as Record<string, number> | null
+        const stockByVar = productStock.stockByVariation as Record<string, number> | null
         let variationKey: string | null = item.variation || null
 
         // Normaliser la clé de variation : préférer l'ID si on part d'un nom
@@ -438,28 +444,41 @@ export default defineEventHandler(async (event) => {
           newStock = oldStock - item.quantity
           stockByVar[variationKey] = newStock
 
+          // Mettre à jour le stock par variation de l'établissement
           await tx
-            .update(products)
+            .update(productStocks)
             .set({
               stockByVariation: stockByVar,
               updatedAt: new Date(),
             })
-            .where(eq(products.id, item.productId))
+            .where(
+              and(
+                eq(productStocks.productId, item.productId),
+                eq(productStocks.establishmentId, establishment.id),
+                eq(productStocks.tenantId, tenantId)
+              )
+            )
         } else {
-          oldStock = product.stock || 0
+          oldStock = productStock.stock || 0
           newStock = oldStock - item.quantity
 
-          // Mettre à jour le stock principal
+          // Mettre à jour le stock principal de l'établissement
           await tx
-            .update(products)
+            .update(productStocks)
             .set({
               stock: newStock,
               updatedAt: new Date(),
             })
-            .where(eq(products.id, item.productId))
+            .where(
+              and(
+                eq(productStocks.productId, item.productId),
+                eq(productStocks.establishmentId, establishment.id),
+                eq(productStocks.tenantId, tenantId)
+              )
+            )
         }
 
-        // Enregistrer le mouvement de stock
+        // Enregistrer le mouvement de stock avec l'établissement
         stockMovementsData.push({
           tenantId,
           productId: item.productId,
@@ -470,9 +489,10 @@ export default defineEventHandler(async (event) => {
           reason: 'sale' as const,
           saleId: createdSale.id,
           userId: body.seller.id,
+          establishmentId: establishment.id, // Ajout de l'établissement
         })
 
-        stockUpdateLogs.push(`✅ Stock mis à jour pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''}: ${oldStock} → ${newStock}`)
+        stockUpdateLogs.push(`✅ Stock mis à jour pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''} - Établissement ${establishment.name}: ${oldStock} → ${newStock}`)
       }
 
       if (stockMovementsData.length > 0) {

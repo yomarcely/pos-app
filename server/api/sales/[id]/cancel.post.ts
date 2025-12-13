@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products, variations } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, products, variations, productStocks } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -70,6 +70,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Vérifier que la vente a un établissement
+    if (!sale.establishmentId) {
+      throw createError({
+        statusCode: 400,
+        message: 'Cette vente n\'a pas d\'établissement associé',
+      })
+    }
+
     // ==========================================
     // 2. RÉCUPÉRER LES ITEMS DE LA VENTE
     // ==========================================
@@ -89,22 +97,28 @@ export default defineEventHandler(async (event) => {
     const stockMovementsData = []
 
     for (const item of items) {
-      // Récupérer le produit
-      const [product] = await db
+      // Récupérer le stock de l'établissement pour ce produit
+      const [productStock] = await db
         .select()
-        .from(products)
-        .where(eq(products.id, item.productId))
+        .from(productStocks)
+        .where(
+          and(
+            eq(productStocks.productId, item.productId),
+            eq(productStocks.establishmentId, sale.establishmentId),
+            eq(productStocks.tenantId, tenantId)
+          )
+        )
         .limit(1)
 
-      if (!product) {
-        console.warn(`Produit ${item.productId} non trouvé, stock non restauré`)
+      if (!productStock) {
+        console.warn(`Stock établissement non trouvé pour produit ${item.productId} dans l'établissement ${sale.establishmentId}, stock non restauré`)
         continue
       }
 
       let oldStock = 0
       let newStock = 0
 
-      const stockByVar = product.stockByVariation as Record<string, number> | null
+      const stockByVar = productStock.stockByVariation as Record<string, number> | null
       let variationKey: string | null = item.variation || null
 
       if (variationKey && stockByVar) {
@@ -136,26 +150,38 @@ export default defineEventHandler(async (event) => {
         stockByVar[variationKey] = newStock
 
         await db
-          .update(products)
+          .update(productStocks)
           .set({
             stockByVariation: stockByVar,
             updatedAt: new Date(),
           })
-          .where(eq(products.id, item.productId))
+          .where(
+            and(
+              eq(productStocks.productId, item.productId),
+              eq(productStocks.establishmentId, sale.establishmentId),
+              eq(productStocks.tenantId, tenantId)
+            )
+          )
       } else {
-        oldStock = product.stock || 0
+        oldStock = productStock.stock || 0
         newStock = oldStock + item.quantity
 
         await db
-          .update(products)
+          .update(productStocks)
           .set({
             stock: newStock,
             updatedAt: new Date(),
           })
-          .where(eq(products.id, item.productId))
+          .where(
+            and(
+              eq(productStocks.productId, item.productId),
+              eq(productStocks.establishmentId, sale.establishmentId),
+              eq(productStocks.tenantId, tenantId)
+            )
+          )
       }
 
-      // Enregistrer le mouvement de stock d'annulation
+      // Enregistrer le mouvement de stock d'annulation avec l'établissement
       stockMovementsData.push({
         tenantId,
         productId: item.productId,
@@ -166,9 +192,10 @@ export default defineEventHandler(async (event) => {
         reason: 'sale_cancellation' as const,
         saleId: id,
         userId: body.userId || null,
+        establishmentId: sale.establishmentId, // Ajout de l'établissement
       })
 
-      console.log(`✅ Stock restauré pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''}: ${oldStock} → ${newStock}`)
+      console.log(`✅ Stock restauré pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''} - Établissement ${sale.establishmentId}: ${oldStock} → ${newStock}`)
     }
 
     if (stockMovementsData.length > 0) {

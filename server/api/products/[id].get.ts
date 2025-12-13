@@ -61,6 +61,11 @@ export default defineEventHandler(async (event) => {
         imageOverride: productEstablishments.imageOverride,
         variationGroupIdsOverride: productEstablishments.variationGroupIdsOverride,
         establishmentId: productEstablishments.establishmentId,
+        // Stock de l'établissement (si disponible)
+        establishmentStock: productStocks.stock,
+        establishmentStockByVariation: productStocks.stockByVariation,
+        establishmentMinStock: productStocks.minStock,
+        establishmentMinStockByVariation: productStocks.minStockByVariation,
       })
       .from(products)
       .leftJoin(
@@ -76,19 +81,16 @@ export default defineEventHandler(async (event) => {
             eq(productEstablishments.tenantId, tenantId)
           )
       )
-
-    // Si un établissement est spécifié, vérifier qu'il a un stock pour ce produit
-    // Cela garantit qu'un nouvel établissement ne voit que ses propres produits
-    if (establishmentId) {
-      queryBuilder = queryBuilder.innerJoin(
+      .leftJoin(
         productStocks,
-        and(
-          eq(productStocks.productId, products.id),
-          eq(productStocks.establishmentId, establishmentId),
-          eq(productStocks.tenantId, tenantId)
-        )
+        establishmentId
+          ? and(
+            eq(productStocks.productId, products.id),
+            eq(productStocks.establishmentId, establishmentId),
+            eq(productStocks.tenantId, tenantId)
+          )
+          : undefined
       )
-    }
 
     const [product] = await queryBuilder
       .where(
@@ -136,10 +138,19 @@ export default defineEventHandler(async (event) => {
         effectivePurchasePrice: product.purchasePriceOverride
           ? parseFloat(product.purchasePriceOverride)
           : product.purchasePrice ? parseFloat(product.purchasePrice) : null,
-        stock: product.stock || 0,
-        minStock: product.minStock || 5,
-        stockByVariation: product.stockByVariation as Record<string, number> | undefined,
-        minStockByVariation: product.minStockByVariation as Record<string, number> | undefined,
+        // Retourner le stock de l'établissement si disponible, sinon le stock global
+        stock: establishmentId && (product as any).establishmentStock !== undefined
+          ? (product as any).establishmentStock
+          : product.stock || 0,
+        minStock: establishmentId && (product as any).establishmentMinStock !== undefined
+          ? (product as any).establishmentMinStock
+          : product.minStock || 5,
+        stockByVariation: establishmentId && (product as any).establishmentStockByVariation !== undefined
+          ? (product as any).establishmentStockByVariation as Record<string, number> | undefined
+          : product.stockByVariation as Record<string, number> | undefined,
+        minStockByVariation: establishmentId && (product as any).establishmentMinStockByVariation !== undefined
+          ? (product as any).establishmentMinStockByVariation as Record<string, number> | undefined
+          : product.minStockByVariation as Record<string, number> | undefined,
       },
     }
   } catch (error: any) {
