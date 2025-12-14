@@ -227,7 +227,7 @@ const data = {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child>
-            <a href="/dashboard">
+            <NuxtLink to="/dashboard">
               <div
                 class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <Command class="size-4" />
@@ -236,7 +236,7 @@ const data = {
                 <span class="truncate font-semibold">Acme Inc</span>
                 <span class="truncate text-xs">Enterprise</span>
               </div>
-            </a>
+            </NuxtLink>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

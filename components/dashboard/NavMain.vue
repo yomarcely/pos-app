@@ -61,10 +61,10 @@ const openStates = ref<Record<string, boolean>>(
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <SidebarMenuButton v-else as-child :tooltip="item.title">
-            <a :href="item.url">
+            <NuxtLink :to="item.url">
               <component :is="item.icon" />
               <span>{{ item.title }}</span>
-            </a>
+            </NuxtLink>
           </SidebarMenuButton>
           <CollapsibleContent v-if="item.items?.length">
             <SidebarMenuSub>
@@ -77,9 +77,9 @@ const openStates = ref<Record<string, boolean>>(
                   <span>{{ subItem.title }}</span>
                 </SidebarMenuSubButton>
                 <SidebarMenuSubButton v-else as-child>
-                  <a :href="subItem.url">
+                  <NuxtLink :to="subItem.url">
                     <span>{{ subItem.title }}</span>
-                  </a>
+                  </NuxtLink>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             </SidebarMenuSub>

@@ -69,7 +69,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/composables/useToast'
 import PageHeader from '@/components/common/PageHeader.vue'
 import MovementTypeSelector from '@/components/mouvements/MovementTypeSelector.vue'
-import ProductSearchWithSuggestions from '@/components/mouvements/ProductSearchWithSuggestions.vue'
+import ProductSearchWithSuggestions from '@/components/shared/ProductSearchWithSuggestions.vue'
 import ProductCatalogDialog from '@/components/mouvements/ProductCatalogDialog.vue'
 import SelectedProductsTable from '@/components/mouvements/SelectedProductsTable.vue'
 import type {

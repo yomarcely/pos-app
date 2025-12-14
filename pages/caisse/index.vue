@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, ref, provide } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
 import { useSellersStore } from '@/stores/sellers'
@@ -12,25 +12,42 @@ const customerStore = useCustomerStore()
 const variationStore = useVariationGroupsStore()
 const { selectedEstablishmentId } = useEstablishmentRegister()
 
-// Charger les vendeurs en fonction de l'établissement sélectionné
-async function loadSellersForEstablishment() {
-  if (selectedEstablishmentId.value) {
-    await sellersStore.loadSellers(selectedEstablishmentId.value)
-  } else {
-    await sellersStore.loadSellers()
-  }
-}
+// État pour savoir si des paiements sont en cours
+const hasPayments = ref(false)
+provide('hasPayments', hasPayments)
+
+const sellerInitialized = ref(false)
 
 onMounted(() => {
   productsStore.loadProducts()
   customerStore.loadCustomers()
-  loadSellersForEstablishment()
   variationStore.loadGroups()
+  sellersStore.initialize(selectedEstablishmentId.value ?? undefined).then(() => {
+    sellerInitialized.value = true
+  })
 })
 
-// Recharger les vendeurs quand l'établissement change
-watch(selectedEstablishmentId, () => {
-  loadSellersForEstablishment()
+// Recharger/réinitialiser les vendeurs quand l'établissement change
+watch(selectedEstablishmentId, async (newId, oldId) => {
+  if (!sellerInitialized.value) return
+
+  await sellersStore.loadSellers(newId ?? undefined)
+
+  // Si l'établissement change réellement, on remet à zéro
+  if (oldId && newId !== oldId) {
+    sellersStore.selectSellerById(null)
+    return
+  }
+
+  // Si l'établissement reste le même (ex: restauration au reload), ne pas reset,
+  // mais on vérifie que le vendeur existe toujours
+  const hasCurrentSeller = sellersStore.selectedSeller
+    ? sellersStore.sellers.some(s => s.id === Number(sellersStore.selectedSeller))
+    : false
+
+  if (!hasCurrentSeller) {
+    sellersStore.selectSellerById(null)
+  }
 })
 </script>
 
@@ -50,7 +67,7 @@ watch(selectedEstablishmentId, () => {
       </main>
 
       <aside class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
-        <CaisseColRight />
+        <CaisseColRight @payments-changed="hasPayments = $event" />
       </aside>
     </div>
   </div>

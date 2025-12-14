@@ -25,7 +25,6 @@ import {
 import PageHeader from '@/components/common/PageHeader.vue'
 import DailySummaryStats from '@/components/synthese/DailySummaryStats.vue'
 import SaleTicketItem from '@/components/synthese/SaleTicketItem.vue'
-import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
 import RegisterSelect from '@/components/shared/RegisterSelect.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
@@ -206,9 +205,6 @@ const cancelledSales = computed(() => {
     >
       <template #actions>
         <div class="flex items-center gap-3 flex-wrap">
-          <!-- Sélection établissement -->
-          <EstablishmentSelect :show-tooltip="false" min-width="min-w-[200px]" />
-
           <!-- Sélection caisse -->
           <RegisterSelect :show-tooltip="false" />
 

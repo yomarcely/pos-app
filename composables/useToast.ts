@@ -1,41 +1,45 @@
-import type { ToastItem } from '@/components/ui/toast/Toaster.vue'
+import { toast as sonner } from 'vue-sonner'
 
-let toasterInstance: any = null
+type ToastKind = 'success' | 'error' | 'warning' | 'info' | 'default'
 
-export function setToasterInstance(instance: any) {
-  toasterInstance = instance
+interface ToastOptions {
+  title: string
+  description?: string
+  duration?: number
+  type?: ToastKind
 }
 
 export function useToast() {
-  const show = (toast: Omit<ToastItem, 'id'>) => {
-    if (!toasterInstance) {
-      console.warn('Toaster instance not found')
-      return
+  const show = ({ title, description, duration, type = 'default' }: ToastOptions) => {
+    const options = {
+      description,
+      duration,
     }
-    return toasterInstance.addToast(toast)
+
+    switch (type) {
+      case 'success':
+        return sonner.success(title, options)
+      case 'error':
+        return sonner.error(title, options)
+      case 'warning':
+        return sonner.warning(title, options)
+      case 'info':
+        return sonner.info(title, options)
+      default:
+        return sonner(title, options)
+    }
   }
 
-  const success = (title: string, description?: string) => {
-    return show({ type: 'success', title, description })
-  }
-
-  const error = (title: string, description?: string) => {
-    return show({ type: 'error', title, description })
-  }
-
-  const warning = (title: string, description?: string) => {
-    return show({ type: 'warning', title, description })
-  }
-
-  const info = (title: string, description?: string) => {
-    return show({ type: 'info', title, description })
-  }
+  const success = (title: string, description?: string) => show({ type: 'success', title, description })
+  const error = (title: string, description?: string) => show({ type: 'error', title, description })
+  const warning = (title: string, description?: string) => show({ type: 'warning', title, description })
+  const info = (title: string, description?: string) => show({ type: 'info', title, description })
 
   return {
     show,
     success,
     error,
     warning,
-    info
+    info,
   }
 }

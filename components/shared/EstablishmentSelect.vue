@@ -99,5 +99,11 @@ const minWidthClass = props.minWidth || 'min-w-[180px]'
         </SelectGroup>
       </SelectContent>
     </Select>
+
+    <template #placeholder>
+      <div :class="`px-3 py-2 text-sm text-muted-foreground border rounded-md bg-transparent ${minWidthClass}`">
+        Sélection établissement
+      </div>
+    </template>
   </client-only>
 </template>

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard, Printer, Lock } from 'lucide-vue-next'
+import Spinner from '@/components/ui/spinner/Spinner.vue'
 import { useCartStore } from '@/stores/cart'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
@@ -28,6 +29,19 @@ const registers = ref<any[]>([])
 const currentRegister = ref<any>(null)
 
 const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
+
+// Émettre un événement quand le statut des paiements change
+const emit = defineEmits<{
+  (e: 'payments-changed', hasPayments: boolean): void
+}>()
+
+// Watcher pour détecter les changements de paiements
+watch(
+  () => payments.value.length,
+  (newLength) => {
+    emit('payments-changed', newLength > 0)
+  }
+)
 
 // Fonction pour vérifier la clôture
 async function checkClosure() {
@@ -67,7 +81,12 @@ const totalPaid = computed(() =>
 const balance = computed(() => totalTTC.value - totalPaid.value)
 
 function addPayment(mode: string) {
+  // Ne pas permettre d'ajouter un paiement si le mode existe déjà
   if (payments.value.find((p) => p.mode === mode)) return
+
+  // Ne pas permettre d'ajouter un paiement si tout est déjà payé
+  if (balance.value <= 0) return
+
   const newAmount = balance.value > 0 ? balance.value : 0
   payments.value.push({ mode, amount: parseFloat(newAmount.toFixed(2)) })
 }
@@ -111,45 +130,57 @@ async function refreshSelectionsFromStorage() {
   }
 }
 
+const isSubmitting = ref(false)
+
 async function validerVente() {
+  if (isSubmitting.value) return
+  isSubmitting.value = true
+
   // Toujours utiliser la sélection la plus récente
   await refreshSelectionsFromStorage()
 
   // 0. Vérifier que la journée n'est pas clôturée
   if (isDayClosed.value) {
     toast.error('⚠️ La journée est clôturée. Impossible d\'enregistrer une vente.')
+    isSubmitting.value = false
     return
   }
 
   // 1. Vérifications de base
   if (cartStore.items.length === 0) {
     toast.error('Le panier est vide')
+    isSubmitting.value = false
     return
   }
 
   if (!payments.value.length) {
     toast.error('Aucun mode de paiement sélectionné')
+    isSubmitting.value = false
     return
   }
 
   if (balance.value > 0) {
     toast.error(`Il reste ${balance.value.toFixed(2)} € à payer`)
+    isSubmitting.value = false
     return
   }
 
   // 2. Vérifier qu'un vendeur est sélectionné
   if (!sellersStore.selectedSeller) {
     toast.warning('Veuillez sélectionner un vendeur')
+    isSubmitting.value = false
     return
   }
 
   if (!currentEstablishment.value || !currentEstablishment.value.id) {
     toast.error('Veuillez sélectionner un établissement')
+    isSubmitting.value = false
     return
   }
 
   if (!currentRegister.value || !currentRegister.value.id) {
     toast.error('Veuillez sélectionner une caisse')
+    isSubmitting.value = false
     return
   }
 
@@ -179,6 +210,7 @@ async function validerVente() {
           productId: item.id,
           productName: item.name,
           quantity: item.quantity,
+          restockOnReturn: item.restockOnReturn ?? false,
           unitPrice: finalPrice, // Prix après remise
           originalPrice: item.price, // Prix d'origine
           variation: variationKey,
@@ -296,6 +328,8 @@ Merci de votre visite !
   } catch (error) {
     console.error('Erreur lors de la validation:', error)
     toast.error('Une erreur est survenue lors de la validation de la vente')
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -345,16 +379,16 @@ function printReceipt() {
     </div>
 
     <!-- 💳 Boutons de paiement -->
-    <div class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isDayClosed }">
+    <div class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isDayClosed || cartStore.items.length === 0 || balance <= 0 }">
       <label class="text-sm font-semibold">Mode de paiement</label>
       <div class="grid grid-cols-2 gap-2">
-        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed">
+        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
           <Banknote class="w-4 h-4 mr-2" /> Espèces
         </Button>
-        <Button variant="outline" @click="addPayment('Carte')" :disabled="isDayClosed">
+        <Button variant="outline" @click="addPayment('Carte')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
           <CreditCard class="w-4 h-4 mr-2" /> Carte
         </Button>
-        <Button variant="outline" @click="addPayment('Autre')" :disabled="isDayClosed">
+        <Button variant="outline" @click="addPayment('Autre')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
           Autre
         </Button>
       </div>
@@ -376,12 +410,38 @@ function printReceipt() {
     </div>
 
     <!-- ✅ Bouton de validation -->
-    <div class="mt-auto pt-4 flex flex-col gap-2 flex-shrink-0">
+    <div class="mt-auto pt-4 flex flex-col gap-4 flex-shrink-0">
+      <!-- Remise globale (placée juste au-dessus du bouton de validation) -->
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-semibold">Remise globale</label>
+        <div class="flex gap-2">
+          <Input type="number" min="0" placeholder="0" class="w-full" v-model.number="cartStore.globalDiscount" />
+          <Select v-model="cartStore.globalDiscountType">
+            <SelectTrigger class="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="%">%</SelectItem>
+              <SelectItem value="€">€</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          variant="secondary"
+          class="w-full"
+          @click="cartStore.applyGlobalDiscountToItems()"
+          :disabled="cartStore.items.length === 0 || cartStore.globalDiscount === 0"
+        >
+          Appliquer la remise
+        </Button>
+      </div>
+
       <Button
-        class="w-full text-lg font-semibold"
+        class="w-full text-lg font-semibold h-12"
         @click="validerVente"
-        :disabled="totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
+        :disabled="isSubmitting || totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
       >
+        <Spinner class="size-4 mr-2" v-if="isSubmitting" />
         <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
         {{ isDayClosed ? 'Journée clôturée' : 'Valider la vente' }}
       </Button>

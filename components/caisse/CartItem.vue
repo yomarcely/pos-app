@@ -18,6 +18,7 @@ const variationGroups = variationStore.groups
 
 const props = defineProps<{
     product: ProductInCart;
+    isLocked?: boolean;
 }>()
 
 const emit = defineEmits<{
@@ -153,7 +154,7 @@ function getVariationIdByName(variationName: string): string | number | null {
 </script>
 
 <template>
-    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border">
+    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border" :class="{ 'opacity-50 pointer-events-none select-none': isLocked }">
         <!-- ❌ Supprimer -->
         <button @click="emit('remove', product.id, product.variation)"
             class="absolute top-2 right-2 text-gray-400 hover:text-red-500">

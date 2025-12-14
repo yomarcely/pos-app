@@ -69,6 +69,7 @@ export function useEstablishmentRegister() {
 
   // Sauvegarder les sélections dans localStorage
   function saveSelections() {
+    if (!process.client) return
     if (selectedEstablishmentId.value) {
       localStorage.setItem('pos_selected_establishment', String(selectedEstablishmentId.value))
     }
@@ -77,38 +78,32 @@ export function useEstablishmentRegister() {
     }
   }
 
-  // Restaurer les sélections depuis localStorage
-  function restoreSelections() {
+  // Hydrate rapidement depuis le storage (avant le fetch) pour afficher l'info dès le chargement
+  function hydrateSelectionsFromStorage() {
+    if (!process.client) return
     const savedEstablishmentId = localStorage.getItem('pos_selected_establishment')
     const savedRegisterId = localStorage.getItem('pos_selected_register')
 
     if (savedEstablishmentId) {
-      const id = Number(savedEstablishmentId)
-      if (establishments.value.find(e => e.id === id)) {
-        selectedEstablishmentId.value = id
-      }
+      selectedEstablishmentId.value = Number(savedEstablishmentId)
     }
-
     if (savedRegisterId) {
-      const id = Number(savedRegisterId)
-      if (allRegisters.value.find(r => r.id === id)) {
-        selectedRegisterId.value = id
-      }
+      selectedRegisterId.value = Number(savedRegisterId)
     }
+  }
 
-    // Si rien n'est sélectionné, sélectionner le premier disponible
-    if (!selectedEstablishmentId.value && establishments.value.length > 0) {
+  // Valide/ajuste les sélections après chargement des données
+  function ensureValidSelections() {
+    // Établissement
+    if (!selectedEstablishmentId.value || !establishments.value.some(e => e.id === selectedEstablishmentId.value)) {
       const firstEstablishment = establishments.value[0]
-      if (firstEstablishment) {
-        selectedEstablishmentId.value = firstEstablishment.id
-      }
+      selectedEstablishmentId.value = firstEstablishment ? firstEstablishment.id : null
     }
 
-    if (!selectedRegisterId.value && availableRegisters.value.length > 0) {
+    // Caisse
+    if (!selectedRegisterId.value || !allRegisters.value.some(r => r.id === selectedRegisterId.value)) {
       const firstRegister = availableRegisters.value[0]
-      if (firstRegister) {
-        selectedRegisterId.value = firstRegister.id
-      }
+      selectedRegisterId.value = firstRegister ? firstRegister.id : null
     }
   }
 
@@ -117,11 +112,13 @@ export function useEstablishmentRegister() {
     if (initialized.value) return
 
     loading.value = true
+    // Pré-hydrate depuis le storage pour un affichage instantané
+    hydrateSelectionsFromStorage()
     await Promise.all([
       loadEstablishments(),
       loadRegisters(),
     ])
-    restoreSelections()
+    ensureValidSelections()
     loading.value = false
     initialized.value = true
   }

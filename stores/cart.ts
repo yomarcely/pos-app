@@ -29,6 +29,7 @@ export const useCartStore = defineStore('cart', () => {
   }[]>([])
 
   let nextPendingId = 1
+  const zeroGlobal = { value: 0, type: '%' as '%' }
 
   function addPendingCart(clientId: number | null = null) {
     if (!items.value.length) return
@@ -73,20 +74,10 @@ export const useCartStore = defineStore('cart', () => {
     pendingCart.value.splice(index, 1)
   }
 
-  const totalTtcComputed = computed(() => totalTTC(items.value, {
-    value: globalDiscount.value,
-    type: globalDiscountType.value
-  }))
-
-  const totalHtComputed = computed(() => totalHT(items.value, {
-    value: globalDiscount.value,
-    type: globalDiscountType.value
-  }))
-
-  const totalTvaComputed = computed(() => totalTVA(items.value, {
-    value: globalDiscount.value,
-    type: globalDiscountType.value
-  }))
+  // Totaux ne prennent pas la remise globale tant qu'elle n'est pas appliquée
+  const totalTtcComputed = computed(() => totalTTC(items.value, zeroGlobal))
+  const totalHtComputed = computed(() => totalHT(items.value, zeroGlobal))
+  const totalTvaComputed = computed(() => totalTVA(items.value, zeroGlobal))
 
   const itemCount = computed(() =>
     items.value.reduce((sum, item) => sum + item.quantity, 0)
@@ -123,7 +114,8 @@ export const useCartStore = defineStore('cart', () => {
         quantity: 1,
         discount: 0,
         discountType: '%',
-        variation
+        variation,
+        restockOnReturn: false,
       })
     }
 
@@ -287,10 +279,7 @@ export const useCartStore = defineStore('cart', () => {
 
     // getters
     getFinalPrice: (product: ProductInCart) =>
-      getFinalPrice(product, items.value, {
-        value: globalDiscount.value,
-        type: globalDiscountType.value
-      }),
+      getFinalPrice(product, items.value, zeroGlobal),
     totalTTC: totalTtcComputed,
     totalHT: totalHtComputed,
     totalTVA: totalTvaComputed,

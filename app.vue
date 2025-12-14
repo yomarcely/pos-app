@@ -1,20 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import Toaster from '@/components/ui/toast/Toaster.vue'
-import { setToasterInstance } from '@/composables/useToast'
-
-const toaster = ref()
-
-onMounted(() => {
-  if (toaster.value) {
-    setToasterInstance(toaster.value)
-  }
-})
+import Toaster from '@/components/ui/sonner/Sonner.vue'
+import 'vue-sonner/style.css'
 </script>
 
 <template>
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
-  <Toaster ref="toaster" />
+  <ClientOnly>
+    <Toaster position="top-center" rich-colors close-button />
+  </ClientOnly>
 </template>

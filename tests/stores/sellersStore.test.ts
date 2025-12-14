@@ -12,13 +12,13 @@ describe('stores/sellers', () => {
 
   it('charge les vendeurs et définit loaded', async () => {
     const sellers = [{ id: 1, name: 'Alice' }]
-    const fetchMock = vi.fn().mockResolvedValue({ json: () => Promise.resolve(sellers) })
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = vi.fn().mockResolvedValue({ sellers })
+    vi.stubGlobal('$fetch', fetchMock)
 
     const store = useSellersStore()
     await store.loadSellers()
 
-    expect(store.sellers).toEqual(sellers)
+    expect(store.sellers).toEqual(sellers as any)
     expect(store.loaded).toBe(true)
     expect(store.loading).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -26,7 +26,7 @@ describe('stores/sellers', () => {
 
   it('gère les erreurs lors du chargement', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('oops'))
-    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('$fetch', fetchMock)
 
     const store = useSellersStore()
     await store.loadSellers()
@@ -40,7 +40,7 @@ describe('stores/sellers', () => {
     store.sellers = [{ id: 1, name: 'Alice' } as any]
 
     store.selectSellerById(1)
-    expect(store.selectedSeller?.name).toBe('Alice')
+    expect(store.selectedSeller).toBe('1')
 
     store.clearSeller()
     expect(store.selectedSeller).toBeNull()

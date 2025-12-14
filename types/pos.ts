@@ -5,6 +5,7 @@ export interface ProductInCart extends BaseProduct {
   discount: number
   discountType: '%' | '€'
   variation: string
+  restockOnReturn?: boolean
 }
 
 export interface Ticket {

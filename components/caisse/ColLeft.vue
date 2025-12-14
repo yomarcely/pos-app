@@ -31,11 +31,6 @@ const selectedClient = computed({
   }
 })
 
-// Réinitialiser le vendeur sélectionné quand l'établissement change
-watch(selectedEstablishmentId, () => {
-  sellersStore.selectedSeller = null
-})
-
 function deselectClient() {
   customerStore.clearClient()
 }
@@ -49,21 +44,6 @@ function openClientHistory() {
 
 <template>
   <div class="h-full flex flex-col gap-4 overflow-auto">
-    <!-- Sélecteur vendeur -->
-    <div class="flex-shrink-0">
-      <label class="text-sm font-semibold">Vendeur</label>
-      <Select v-model="sellersStore.selectedSeller">
-        <SelectTrigger>
-          <SelectValue placeholder="Sélectionner un vendeur" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="seller in sellersStore.sellers" :key="seller.id" :value="String(seller.id)">
-            {{ seller.name }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
     <!-- Client -->
     <div class="flex-shrink-0">
       <label class="text-sm font-semibold">Client</label>
@@ -89,6 +69,11 @@ function openClientHistory() {
               </ComboboxGroup>
             </ComboboxList>
           </Combobox>
+          <template #fallback>
+            <div class="relative w-full flex items-center rounded-md border px-3 py-2 text-sm text-muted-foreground bg-transparent">
+              Recherche client
+            </div>
+          </template>
         </client-only>
 
         <client-only>
@@ -137,31 +122,6 @@ function openClientHistory() {
           </div>
         </template>
       </div>
-    </div>
-
-    <!-- Remise globale -->
-    <div class="flex-shrink-0">
-      <label class="text-sm font-semibold">Remise globale</label>
-      <div class="flex gap-2 mt-2">
-        <Input type="number" min="0" placeholder="0" class="w-full" v-model.number="cartStore.globalDiscount" />
-        <Select v-model="cartStore.globalDiscountType">
-          <SelectTrigger class="w-20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="%">%</SelectItem>
-            <SelectItem value="€">€</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Button
-        variant="secondary"
-        class="w-full mt-2"
-        @click="cartStore.applyGlobalDiscountToItems()"
-        :disabled="cartStore.items.length === 0 || cartStore.globalDiscount === 0"
-      >
-        Appliquer la remise
-      </Button>
     </div>
 
     <!-- Mise en attente / Reprise -->

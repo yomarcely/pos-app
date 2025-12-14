@@ -20,6 +20,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
+import SellerSelect from '@/components/shared/SellerSelect.vue'
 
 const route = useRoute()
 
@@ -80,9 +81,9 @@ const breadcrumbs = computed(() => {
             <BreadcrumbList>
               <template v-for="(item, index) in breadcrumbs" :key="item.path">
                 <BreadcrumbItem v-if="index < breadcrumbs.length - 1">
-                  <BreadcrumbLink :href="item.path">
+                  <NuxtLink :to="item.path" class="hover:underline">
                     {{ item.label }}
-                  </BreadcrumbLink>
+                  </NuxtLink>
                 </BreadcrumbItem>
                 <BreadcrumbItem v-else>
                   <BreadcrumbPage>
@@ -95,6 +96,7 @@ const breadcrumbs = computed(() => {
           </Breadcrumb>
         </div>
         <div class="flex items-center gap-2">
+          <SellerSelect :show-tooltip="true" />
           <EstablishmentSelect :show-tooltip="true" min-width="min-w-[210px]" />
         </div>
       </header>
