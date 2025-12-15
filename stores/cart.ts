@@ -100,9 +100,9 @@ export const useCartStore = defineStore('cart', () => {
    * @returns true si l'ajout a réussi
    */
   function addToCart(product: Product, variation = ''): boolean {
-    // Vérifier si le produit existe déjà dans le panier
+    // Vérifier si le produit existe déjà dans le panier avec une quantité positive
     const existing = items.value.find(
-      item => item.id === product.id && item.variation === variation
+      item => item.id === product.id && item.variation === variation && item.quantity > 0
     )
 
     // Ajouter ou incrémenter (sans vérification de stock)
@@ -116,7 +116,8 @@ export const useCartStore = defineStore('cart', () => {
         discountType: '%',
         variation,
         restockOnReturn: false,
-      })
+        _uniqueId: Date.now() + Math.random(), // ID unique pour différencier les lignes
+      } as any)
     }
 
     return true

@@ -154,7 +154,16 @@ function getVariationIdByName(variationName: string): string | number | null {
 </script>
 
 <template>
-    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border" :class="{ 'opacity-50 pointer-events-none select-none': isLocked }">
+    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border" :class="{
+        'opacity-50 pointer-events-none select-none': isLocked,
+        'border-2 border-orange-400 bg-orange-400/5': product.quantity < 0
+    }">
+        <!-- Badge retour -->
+        <div v-if="product.quantity < 0" class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-md">
+            <span>RETOUR</span>
+            <span class="text-[9px] opacity-90">{{ product.restockOnReturn ? '↻ Restock' : '✕ Sans restock' }}</span>
+        </div>
+
         <!-- ❌ Supprimer -->
         <button @click="emit('remove', product.id, product.variation)"
             class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
@@ -163,8 +172,11 @@ function getVariationIdByName(variationName: string): string | number | null {
 
         <!-- 📦 Quantité + image -->
         <div class="flex flex-col items-center gap-2 w-25">
-            <NumberField :model-value="product.quantity" :min="1"
-                @update:model-value="val => cartStore.updateQuantity(product.id, product.variation, Number(val))">
+            <NumberField
+                :model-value="product.quantity"
+                :min="product.quantity < 0 ? undefined : 1"
+                @update:model-value="val => cartStore.updateQuantity(product.id, product.variation, Number(val))"
+            >
                 <NumberFieldContent>
                     <NumberFieldDecrement />
                     <NumberFieldInput inputmode="numeric" />

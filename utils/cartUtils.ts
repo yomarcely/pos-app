@@ -101,10 +101,10 @@ export function getFinalPrice(
   const allocation = globalDiscountAllocationCents(items, global)
   const key = lineKey(it)
   const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-  const netLineCents = Math.max(0, lineCents - (allocation[key] ?? 0))
+  const netLineCents = lineCents - (allocation[key] ?? 0)
 
   const unit = fromCents(netLineCents) / it.quantity
-  return Math.max(0, round2(unit))
+  return round2(unit)
 }
 
 // TTC/HT/TVA calculés par ligne (centimes), TVA = TTC - HT
@@ -114,7 +114,7 @@ export function totalTTC(items: ProductInCart[], global: GlobalDiscount): number
   const sumLines = items.reduce((s, it) => {
     const key = lineKey(it)
     const lineCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    const netLineCents = Math.max(0, lineCents - (allocation[key] ?? 0))
+    const netLineCents = lineCents - (allocation[key] ?? 0)
     return s + netLineCents
   }, 0)
 
@@ -127,7 +127,7 @@ export function totalHT(items: ProductInCart[], global: GlobalDiscount): number 
   const sumHtCents = items.reduce((s, it) => {
     const key = lineKey(it)
     const lineTtcCents = toCents(unitTtcAfterLineDiscount(it) * it.quantity)
-    const netLineCents = Math.max(0, lineTtcCents - (allocation[key] ?? 0))
+    const netLineCents = lineTtcCents - (allocation[key] ?? 0)
 
     const tvaRate = it.tva ?? 20
     const lineHt = fromCents(netLineCents) / (1 + tvaRate / 100)

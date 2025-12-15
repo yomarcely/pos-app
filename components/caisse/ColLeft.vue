@@ -5,9 +5,10 @@ import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UserRoundPlus, X, User, List } from 'lucide-vue-next'
+import { UserRoundPlus, X, User, List, ShoppingBag } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useCartStore } from '@/stores/cart'
@@ -16,6 +17,10 @@ import { useSellersStore } from '@/stores/sellers'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const isPendingDialogOpen = ref(false)
+const isAddClientDialogOpen = ref(false)
+const isHistoryDrawerOpen = ref(false)
+const loadingPurchases = ref(false)
+const purchases = ref<any[]>([])
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
@@ -34,11 +39,81 @@ const selectedClient = computed({
 function deselectClient() {
   customerStore.clearClient()
 }
+
 function openClientCard() {
-  console.log('Fiche client')
+  if (selectedClient.value?.id) {
+    navigateTo(`/clients/${selectedClient.value.id}/edit`)
+  }
 }
+
 function openClientHistory() {
-  console.log('Historique client')
+  isHistoryDrawerOpen.value = true
+  if (purchases.value.length === 0 && selectedClient.value?.id) {
+    loadPurchaseHistory()
+  }
+}
+
+async function loadPurchaseHistory() {
+  if (!selectedClient.value?.id) return
+
+  try {
+    loadingPurchases.value = true
+    const response = await $fetch(`/api/clients/${selectedClient.value.id}/purchases`)
+    purchases.value = response.purchases || []
+  } catch (error) {
+    console.error('Erreur lors du chargement de l\'historique:', error)
+  } finally {
+    loadingPurchases.value = false
+  }
+}
+
+function formatPrice(price: number) {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(price)
+}
+
+function formatDateTime(date: string) {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date(date))
+}
+
+async function handleClientCreated(response: any) {
+  // Extraire le client de la réponse
+  const client = response.client || response
+
+  // Mapper les nouveaux champs vers l'ancien format Customer
+  const mappedClient = {
+    id: client.id,
+    name: client.firstName || null,
+    lastname: client.lastName || null,
+    address: client.address || undefined,
+    postalcode: client.metadata?.postalCode || undefined,
+    city: client.metadata?.city || undefined,
+    country: client.metadata?.country || undefined,
+    phonenumber: client.phone || undefined,
+    mail: client.email || undefined,
+    fidelity: client.loyaltyProgram || false,
+    authorizesms: client.metadata?.authorizeSms || false,
+    authorizemailing: client.marketingConsent || false,
+    discount: client.discount || 0,
+    alert: client.alerts || undefined,
+    information: client.notes || undefined,
+    points: 0,
+    createdAt: client.createdAt
+  }
+
+  // Ajouter le client à la liste des clients dans le store
+  customerStore.clients.push(mappedClient)
+
+  // Sélectionner le client créé
+  customerStore.selectClient(mappedClient)
+
+  // Fermer le dialog
+  isAddClientDialogOpen.value = false
 }
 </script>
 
@@ -78,13 +153,13 @@ function openClientHistory() {
 
         <client-only>
           <!-- ➕ Bouton ajout client -->
-          <Dialog>
+          <Dialog v-model:open="isAddClientDialogOpen">
             <DialogTrigger class="flex items-center">
               <Button variant="outline">
                 <UserRoundPlus class="w-5 h-5" />
               </Button>
             </DialogTrigger>
-            <CaisseAddClientForm />
+            <CaisseAddClientForm @success="handleClientCreated" />
           </Dialog>
         </client-only>
       </div>
@@ -168,5 +243,98 @@ function openClientHistory() {
         </ContextMenu>
       </div>
     </div>
+
+    <!-- Drawer historique client -->
+    <Drawer v-model:open="isHistoryDrawerOpen">
+      <DrawerContent class="h-[50vh] flex flex-col">
+        <DrawerHeader class="flex-shrink-0">
+          <DrawerTitle>Historique d'achats</DrawerTitle>
+          <DrawerDescription v-if="selectedClient">
+            {{ selectedClient.name }} {{ selectedClient.lastname }}
+          </DrawerDescription>
+        </DrawerHeader>
+
+        <div class="px-4 pb-4 overflow-y-auto" style="max-height: calc(50vh - 140px);">
+          <!-- Loading -->
+          <div v-if="loadingPurchases" class="flex items-center justify-center py-8">
+            <div class="text-sm text-muted-foreground">Chargement de l'historique...</div>
+          </div>
+
+          <!-- Liste des achats -->
+          <div v-else-if="purchases.length > 0" class="space-y-4">
+            <div
+              v-for="purchase in purchases"
+              :key="purchase.id"
+              class="border rounded-lg overflow-hidden"
+            >
+              <!-- En-tête du ticket -->
+              <div class="bg-muted/50 p-4 border-b">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <ShoppingBag class="h-4 w-4 text-muted-foreground" />
+                    <span class="font-medium">{{ purchase.ticketNumber }}</span>
+                    <Badge :variant="purchase.status === 'completed' ? 'default' : 'secondary'">
+                      {{ purchase.status === 'completed' ? 'Complété' : purchase.status }}
+                    </Badge>
+                  </div>
+                  <span class="text-sm text-muted-foreground">
+                    {{ formatDateTime(purchase.saleDate) }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Liste des produits -->
+              <div class="p-4">
+                <div v-if="purchase.items && purchase.items.length > 0" class="space-y-2">
+                  <div
+                    v-for="item in purchase.items"
+                    :key="item.id"
+                    class="flex items-center justify-between py-2 border-b last:border-b-0"
+                  >
+                    <div class="flex-1">
+                      <div class="font-medium">{{ item.productName }}</div>
+                      <div v-if="item.variation" class="text-xs text-muted-foreground">
+                        {{ item.variation }}
+                      </div>
+                      <div class="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>Qté: {{ item.quantity }} × {{ formatPrice(parseFloat(item.unitPrice)) }}</span>
+                        <Badge v-if="item.discount && parseFloat(item.discount) > 0" variant="outline" class="text-xs">
+                          Remise {{ item.discountType === '%' ? `${item.discount}%` : `${formatPrice(parseFloat(item.discount))}` }}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div class="text-right font-medium">
+                      {{ formatPrice(parseFloat(item.totalTTC)) }}
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-muted-foreground text-center py-2">
+                  Chargement des produits...
+                </div>
+
+                <!-- Total -->
+                <div class="flex items-center justify-between pt-3 mt-3 border-t font-bold">
+                  <span>Total</span>
+                  <span class="text-lg">{{ formatPrice(parseFloat(purchase.totalTTC)) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- État vide -->
+          <div v-else class="flex flex-col items-center justify-center py-8 text-center">
+            <ShoppingBag class="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 class="font-semibold text-lg mb-2">Aucun achat</h3>
+            <p class="text-sm text-muted-foreground">Ce client n'a pas encore effectué d'achat</p>
+          </div>
+        </div>
+
+        <DrawerFooter class="flex-shrink-0">
+          <DrawerClose as-child>
+            <Button variant="outline">Fermer</Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>

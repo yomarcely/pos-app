@@ -13,7 +13,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import Toggle from '@/components/ui/toggle/Toggle.vue'
 import { RefreshCcw, Trash2 } from 'lucide-vue-next'
 import type { Product } from '@/types'
 import { storeToRefs } from 'pinia'
@@ -92,21 +91,24 @@ function handleProductAdd(product: Product) {
 
   // Mode retour : quantité négative et flag restock
   if (returnMode.value) {
+    // Chercher une ligne existante avec quantité négative
     const existing = cart.value.find(
-      (item) => item.id === product.id && item.variation === variationName
+      (item) => item.id === product.id && item.variation === variationName && item.quantity < 0
     )
     if (existing) {
       existing.quantity -= 1
       existing.restockOnReturn = pendingRestock.value
     } else {
-      cartStore.addToCart(product, variationName)
-      const added = cart.value.find(
-        (item) => item.id === product.id && item.variation === variationName
-      )
-      if (added) {
-        added.quantity = -1
-        added.restockOnReturn = pendingRestock.value
-      }
+      // Ajouter manuellement dans le panier avec quantité -1
+      cart.value.push({
+        ...product,
+        quantity: -1,
+        discount: 0,
+        discountType: '%',
+        variation: variationName,
+        restockOnReturn: pendingRestock.value,
+        _uniqueId: Date.now() + Math.random(), // ID unique pour différencier les lignes
+      } as any)
     }
   } else {
     cartStore.addToCart(product, variationName)
@@ -114,8 +116,8 @@ function handleProductAdd(product: Product) {
   scrollToBottom()
 }
 
-function removeFromCart(id: number, variation: string) {
-  cartStore.removeFromCart(id, variation)
+function removeFromCartByIndex(index: number) {
+  cart.value.splice(index, 1)
 }
 
 function updateSuggestions() {
@@ -201,11 +203,14 @@ function confirmRestockChoice(restock: boolean) {
   if (pendingProduct.value) {
     handleProductAdd(pendingProduct.value)
   }
+  // Réinitialiser après l'ajout
   pendingProduct.value = null
   pendingVariation.value = ''
+  pendingRestock.value = false
   searchQuery.value = ''
   searchSuggestions.value = []
   restockDialogOpen.value = false
+  returnMode.value = false // Désactiver le mode retour
 }
 
 function cancelRestockDialog() {
@@ -272,14 +277,18 @@ function clearCartAndSearch() {
         />
       </div>
 
-      <Toggle
+      <Button
         variant="outline"
-        class="h-9 w-9"
-        :pressed="returnMode"
-        @update:pressed="(v: boolean) => returnMode = v"
+        size="icon"
+        :class="[
+          'h-9 w-9 transition-colors',
+          returnMode ? 'bg-orange-100 border-orange-500 text-orange-700 hover:bg-orange-200' : ''
+        ]"
+        @click="() => returnMode = !returnMode"
+        :aria-label="returnMode ? 'Mode retour activé' : 'Mode retour désactivé'"
       >
         <RefreshCcw class="w-4 h-4" />
-      </Toggle>
+      </Button>
     </div>
 
   <!-- Liste des produits du panier -->
@@ -287,8 +296,8 @@ function clearCartAndSearch() {
   <ScrollArea class="h-full w-full rounded-md p-4">
     <div class="flex flex-col gap-2">
       <TransitionGroup tag="div" name="fade-slide" class="flex flex-col gap-2">
-        <CaisseCartItem v-for="product in cart" :key="product.id + '-' + product.variation" :product="product"
-          @remove="removeFromCart" :is-locked="isCartLocked" />
+        <CaisseCartItem v-for="(product, index) in cart" :key="(product as any)._uniqueId || (product.id + '-' + product.variation + '-' + index)" :product="product"
+          @remove="() => removeFromCartByIndex(index)" :is-locked="isCartLocked" />
       </TransitionGroup>
       <!-- 🔻 Élément invisible pour scroll auto -->
       <div ref="bottomRef" />
@@ -302,12 +311,24 @@ function clearCartAndSearch() {
       <AlertDialogHeader>
         <AlertDialogTitle>Retour produit</AlertDialogTitle>
       </AlertDialogHeader>
-      <p class="text-sm text-muted-foreground">
-        Souhaitez-vous remettre ce produit en stock ?
-      </p>
+      <div class="space-y-2">
+        <p class="text-sm text-muted-foreground">
+          Produit : <span class="font-semibold">{{ pendingProduct?.name }}</span>
+        </p>
+        <p v-if="pendingVariation" class="text-sm text-muted-foreground">
+          Variation : <span class="font-semibold">{{ pendingVariation }}</span>
+        </p>
+        <p class="text-sm font-medium mt-4">
+          Souhaitez-vous remettre ce produit en stock ?
+        </p>
+      </div>
       <AlertDialogFooter class="mt-4">
-        <AlertDialogCancel @click="confirmRestockChoice(false)">Non</AlertDialogCancel>
-        <AlertDialogAction @click="confirmRestockChoice(true)">Oui, remettre en stock</AlertDialogAction>
+        <AlertDialogCancel @click="confirmRestockChoice(false)">
+          Non, ne pas remettre en stock
+        </AlertDialogCancel>
+        <AlertDialogAction @click="confirmRestockChoice(true)">
+          Oui, remettre en stock
+        </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
