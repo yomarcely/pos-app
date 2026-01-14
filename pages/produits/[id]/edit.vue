@@ -408,6 +408,20 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import type { Product as BaseProduct } from '@/types'
+
+type ProductApi = Omit<BaseProduct, 'purchasePrice'> & {
+  purchasePrice: number | null
+  supplierCode?: string | null
+  effectivePrice?: number
+  effectivePurchasePrice?: number | null
+  tvaId?: number | null
+}
+
+type ProductApiResponse = {
+  success: boolean
+  product: ProductApi
+}
 
 const toast = useToast()
 const route = useRoute()
@@ -706,7 +720,7 @@ async function saveNewBrand() {
 async function loadProduct() {
   try {
     loadingProduct.value = true
-    const response = await $fetch(`/api/products/${productId.value}`, {
+    const response = await $fetch<ProductApiResponse>(`/api/products/${productId.value}`, {
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
     })
 
@@ -728,7 +742,7 @@ async function loadProduct() {
       form.value.tvaId = product.tvaId || null
       form.value.categoryId = product.categoryId ? product.categoryId.toString() : null
       form.value.hasVariations = !!product.variationGroupIds && product.variationGroupIds.length > 0
-      form.value.variationGroupIds = product.variationGroupIds || []
+      form.value.variationGroupIds = (product.variationGroupIds || []).map((id) => Number(id))
       form.value.minStock = product.minStock || 0
       form.value.minStockByVariation = product.minStockByVariation || {}
       form.value.supplierCode = product.supplierCode || ''

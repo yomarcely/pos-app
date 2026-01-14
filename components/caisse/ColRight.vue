@@ -84,10 +84,16 @@ function addPayment(mode: string) {
   // Ne pas permettre d'ajouter un paiement si le mode existe déjà
   if (payments.value.find((p) => p.mode === mode)) return
 
-  // Ne pas permettre d'ajouter un paiement si tout est déjà payé
-  if (balance.value <= 0) return
+  // Pour les ventes normales : ne pas permettre d'ajouter un paiement si tout est déjà payé
+  // Pour les remboursements (totalTTC < 0) : ne pas permettre d'ajouter si tout est déjà remboursé
+  if (totalTTC.value > 0 && balance.value <= 0) return
+  if (totalTTC.value < 0 && balance.value >= 0) return
 
-  const newAmount = balance.value > 0 ? balance.value : 0
+  // Si le total est à 0 (échange), ne pas permettre d'ajouter de paiement car aucun paiement n'est nécessaire
+  if (totalTTC.value === 0) return
+
+  // Pour un remboursement, le montant est négatif
+  const newAmount = balance.value
   payments.value.push({ mode, amount: parseFloat(newAmount.toFixed(2)) })
 }
 
@@ -153,14 +159,24 @@ async function validerVente() {
     return
   }
 
-  if (!payments.value.length) {
+  // Pour les échanges (total = 0), on n'a pas besoin de mode de paiement
+  if (totalTTC.value !== 0 && !payments.value.length) {
     toast.error('Aucun mode de paiement sélectionné')
     isSubmitting.value = false
     return
   }
 
-  if (balance.value > 0) {
+  // Vérifier que le paiement est correct selon le type de transaction
+  if (totalTTC.value > 0 && balance.value > 0) {
+    // Vente normale : il reste de l'argent à payer
     toast.error(`Il reste ${balance.value.toFixed(2)} € à payer`)
+    isSubmitting.value = false
+    return
+  }
+
+  if (totalTTC.value < 0 && balance.value < 0) {
+    // Remboursement : il reste de l'argent à rembourser
+    toast.error(`Il reste ${Math.abs(balance.value).toFixed(2)} € à rembourser`)
     isSubmitting.value = false
     return
   }
@@ -369,29 +385,41 @@ function printReceipt() {
         HT : {{ totalHT.toFixed(2) }} €
       </div>
       <div class="absolute bottom-2 left-4 text-sm font-semibold">
-        <span v-if="balance < 0" class="text-red-500">
+        <span v-if="totalTTC >= 0 && balance < 0" class="text-red-500">
           Rendu : {{ Math.abs(balance).toFixed(2) }} €
         </span>
-        <span v-else-if="balance > 0" class="text-orange-500">
+        <span v-else-if="totalTTC >= 0 && balance > 0" class="text-orange-500">
           Solde : {{ balance.toFixed(2) }} €
+        </span>
+        <span v-else-if="totalTTC < 0 && balance < 0" class="text-orange-500">
+          Reste à rembourser : {{ Math.abs(balance).toFixed(2) }} €
+        </span>
+        <span v-else-if="totalTTC < 0 && balance > 0" class="text-red-500">
+          Trop remboursé : {{ balance.toFixed(2) }} €
         </span>
       </div>
     </div>
 
     <!-- 💳 Boutons de paiement -->
-    <div class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isDayClosed || cartStore.items.length === 0 || balance <= 0 }">
-      <label class="text-sm font-semibold">Mode de paiement</label>
+    <div v-if="totalTTC !== 0" class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0) }">
+      <label class="text-sm font-semibold">Mode de {{ totalTTC < 0 ? 'remboursement' : 'paiement' }}</label>
       <div class="grid grid-cols-2 gap-2">
-        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
+        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           <Banknote class="w-4 h-4 mr-2" /> Espèces
         </Button>
-        <Button variant="outline" @click="addPayment('Carte')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
+        <Button variant="outline" @click="addPayment('Carte')" :disabled="isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           <CreditCard class="w-4 h-4 mr-2" /> Carte
         </Button>
-        <Button variant="outline" @click="addPayment('Autre')" :disabled="isDayClosed || cartStore.items.length === 0 || balance <= 0">
+        <Button variant="outline" @click="addPayment('Autre')" :disabled="isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           Autre
         </Button>
       </div>
+    </div>
+
+    <!-- Message pour les échanges (total = 0) -->
+    <div v-else-if="totalTTC === 0 && cartStore.items.length > 0" class="p-3 border rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-sm flex-shrink-0">
+      <div class="font-semibold mb-1">Échange de produits</div>
+      <div class="text-xs">Aucun paiement requis - Validation pour mouvements de stock uniquement</div>
     </div>
 
     <!-- 📦 Paiements sélectionnés -->
@@ -439,11 +467,11 @@ function printReceipt() {
       <Button
         class="w-full text-lg font-semibold h-12"
         @click="validerVente"
-        :disabled="isSubmitting || totalPaid < totalTTC || cartStore.items.length === 0 || isDayClosed"
+        :disabled="isSubmitting || (totalTTC > 0 && balance > 0) || (totalTTC < 0 && balance < 0) || cartStore.items.length === 0 || isDayClosed"
       >
         <Spinner class="size-4 mr-2" v-if="isSubmitting" />
         <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
-        {{ isDayClosed ? 'Journée clôturée' : 'Valider la vente' }}
+        {{ isDayClosed ? 'Journée clôturée' : (totalTTC === 0 ? 'Valider l\'échange' : (totalTTC < 0 ? 'Valider le remboursement' : 'Valider la vente')) }}
       </Button>
 
       <!-- <Button

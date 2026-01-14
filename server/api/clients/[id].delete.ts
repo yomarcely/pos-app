@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { customers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -57,7 +58,7 @@ export default defineEventHandler(async (event) => {
       message: 'Client supprimé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression du client:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression du client')
 
     if (error instanceof Error && 'statusCode' in error) {
       throw error

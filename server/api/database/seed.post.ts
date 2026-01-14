@@ -1,5 +1,6 @@
 // server/api/database/seed.post.ts
 import { seedDatabase } from '~/server/database/seed'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -11,12 +12,12 @@ import { seedDatabase } from '~/server/database/seed'
  * Peuple la base de données avec les données de vendeurs et produits
  */
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async () => {
   try {
-    console.log('🌱 Démarrage du seed de la base de données (API)...')
+    logger.info('Démarrage du seed de la base de données (API)')
     const result = await seedDatabase({ reset: false })
 
-    console.log('✨ Seed terminé avec succès!')
+    logger.info('Seed terminé avec succès')
 
     return {
       success: true,
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
       result,
     }
   } catch (error: any) {
-    console.error('❌ Erreur lors du seed:', error)
+    logger.error({ err: error }, 'Erreur lors du seed')
 
     throw createError({
       statusCode: 500,

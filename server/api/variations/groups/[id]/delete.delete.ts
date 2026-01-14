@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { variationGroups, variations } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -69,14 +70,14 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    console.log(`✅ Groupe de variation archivé: ${existing.name}`)
+    logger.info(`Groupe de variation archivé: ${existing.name}`)
 
     return {
       success: true,
       message: 'Groupe de variation supprimé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression du groupe de variation:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression du groupe de variation')
 
     throw createError({
       statusCode: 500,

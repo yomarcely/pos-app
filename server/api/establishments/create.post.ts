@@ -3,6 +3,7 @@ import { establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createEstablishmentSchema, type CreateEstablishmentInput } from '~/server/validators/establishment.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -35,7 +36,11 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
-    console.log(`✅ Établissement créé: ${newEstablishment.name}`)
+    logger.info({
+      establishmentId: newEstablishment.id,
+      establishmentName: newEstablishment.name,
+      tenantId
+    }, 'Establishment created')
 
     return {
       success: true,
@@ -43,7 +48,7 @@ export default defineEventHandler(async (event) => {
       establishment: newEstablishment,
     }
   } catch (error) {
-    console.error('Erreur lors de la création de l\'établissement:', error)
+    logger.error({ err: error }, 'Failed to create establishment')
 
     throw createError({
       statusCode: 500,

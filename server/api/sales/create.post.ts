@@ -11,6 +11,7 @@ import { logSaleCreation } from '~/server/utils/audit'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -41,6 +42,7 @@ interface CreateSaleRequest {
     discount: number
     discountType: '%' | '€'
     tva: number
+    restockOnReturn?: boolean // Pour les retours : indique si on doit remettre en stock
   }>
   seller: {
     id: number
@@ -88,7 +90,8 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    if (!body.payments || body.payments.length === 0) {
+    // Pour les échanges (total = 0), on n'exige pas de mode de paiement
+    if (Number(body.totals.totalTTC) !== 0 && (!body.payments || body.payments.length === 0)) {
       throw createError({
         statusCode: 400,
         message: 'Mode de paiement manquant',
@@ -406,7 +409,7 @@ export default defineEventHandler(async (event) => {
           .limit(1)
 
         if (!productStock) {
-          console.warn(`Stock établissement non trouvé pour produit ${item.productId} dans l'établissement ${establishment.id}, stock non mis à jour`)
+          logger.warn({ productId: item.productId, establishmentId: establishment.id }, 'Stock établissement non trouvé, stock non mis à jour')
           continue
         }
 
@@ -432,7 +435,7 @@ export default defineEventHandler(async (event) => {
               if (foundVar && String(foundVar.id) in stockByVar) {
                 variationKey = String(foundVar.id)
               } else {
-                console.warn(`Variation "${variationKey}" inconnue pour produit ${item.productId}, stock non mis à jour pour cette ligne`)
+                logger.warn({ variation: variationKey, productId: item.productId }, 'Variation inconnue, stock non mis à jour pour cette ligne')
                 variationKey = null
               }
             }
@@ -518,7 +521,10 @@ export default defineEventHandler(async (event) => {
       return { newSale: createdSale, saleItemsData, stockUpdateLogs }
     })
 
-    stockUpdateLogs.forEach(log => console.log(log))
+    if (stockUpdateLogs.length > 0) {
+      logger.info({ updates: stockUpdateLogs.length, establishmentId: establishment.id }, 'Stocks mis à jour pour la vente')
+      stockUpdateLogs.forEach(log => logger.debug(log))
+    }
 
     // ==========================================
     // 10. RETOURNER LA RÉPONSE
@@ -538,7 +544,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la création de la vente:', error)
+    logger.error({ err: error }, 'Erreur lors de la création de la vente')
 
     throw createError({
       statusCode: 500,

@@ -3,6 +3,7 @@ import { categories } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { createCategorySchema, type CreateCategoryInput } from '~/server/validators/category.schema'
 import { validateBody } from '~/server/utils/validation'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -28,7 +29,12 @@ export default defineEventHandler(async (event) => {
       ...(validatedData as any),
     }).returning()
 
-    console.log(`✅ Catégorie créée: ${newCategory.name} (ID: ${newCategory.id}) par établissement ${establishmentId}`)
+    logger.info({
+      categoryId: newCategory.id,
+      categoryName: newCategory.name,
+      establishmentId,
+      tenantId
+    }, 'Category created')
 
     return {
       success: true,
@@ -36,7 +42,7 @@ export default defineEventHandler(async (event) => {
       category: newCategory,
     }
   } catch (error) {
-    console.error('Erreur lors de la création de la catégorie:', error)
+    logger.error({ err: error }, 'Failed to create category')
 
     if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error

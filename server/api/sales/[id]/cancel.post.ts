@@ -5,6 +5,7 @@ import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { cancelSaleSchema, type CancelSaleInput } from '~/server/validators/sale.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -18,12 +19,14 @@ import { cancelSaleSchema, type CancelSaleInput } from '~/server/validators/sale
 
 interface CancelSaleRequest {
   reason: string
-  userId?: number
 }
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const auth = event.context.auth
+    const userId = auth?.user?.id || null
+    const userName = auth?.user?.email || auth?.user?.user_metadata?.name || 'Utilisateur'
     const id = Number(getRouterParam(event, 'id'))
     const body = await validateBody<CancelSaleInput>(event, cancelSaleSchema)
 
@@ -111,7 +114,7 @@ export default defineEventHandler(async (event) => {
         .limit(1)
 
       if (!productStock) {
-        console.warn(`Stock établissement non trouvé pour produit ${item.productId} dans l'établissement ${sale.establishmentId}, stock non restauré`)
+        logger.warn({ productId: item.productId, establishmentId: sale.establishmentId }, 'Stock établissement non trouvé, stock non restauré')
         continue
       }
 
@@ -135,7 +138,7 @@ export default defineEventHandler(async (event) => {
             if (foundVar && String(foundVar.id) in stockByVar) {
               variationKey = String(foundVar.id)
             } else {
-              console.warn(`Variation "${variationKey}" inconnue pour produit ${item.productId}, stock non restauré pour cette ligne`)
+              logger.warn({ variation: variationKey, productId: item.productId }, 'Variation inconnue, stock non restauré pour cette ligne')
               variationKey = null
             }
           }
@@ -191,11 +194,17 @@ export default defineEventHandler(async (event) => {
         newStock,
         reason: 'sale_cancellation' as const,
         saleId: id,
-        userId: body.userId || null,
+        userId,
         establishmentId: sale.establishmentId, // Ajout de l'établissement
       })
 
-      console.log(`✅ Stock restauré pour produit ${item.productId}${item.variation ? ` (${item.variation})` : ''} - Établissement ${sale.establishmentId}: ${oldStock} → ${newStock}`)
+      logger.debug({
+        productId: item.productId,
+        variation: item.variation,
+        establishmentId: sale.establishmentId,
+        oldStock,
+        newStock
+      }, 'Stock restauré pour annulation de vente')
     }
 
     if (stockMovementsData.length > 0) {
@@ -225,8 +234,8 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     await db.insert(auditLogs).values({
       tenantId,
-      userId: body.userId || null,
-      userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
+      userId,
+      userName,
       entityType: 'sale',
       entityId: id,
       action: 'delete',
@@ -245,7 +254,7 @@ export default defineEventHandler(async (event) => {
       ipAddress: getRequestIP(event) || null,
     })
 
-    console.log(`📝 Annulation de vente enregistrée dans l'audit log (vente ${id})`)
+    logger.info({ saleId: id, ticketNumber: sale.ticketNumber }, 'Vente annulée et enregistrée dans l\'audit log')
 
     return {
       success: true,
@@ -258,7 +267,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de l\'annulation de la vente:', error)
+    logger.error({ err: error }, 'Erreur lors de l\'annulation de la vente')
 
     throw createError({
       statusCode: 500,

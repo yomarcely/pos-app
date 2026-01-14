@@ -80,3 +80,65 @@ pnpm test
 
 ## 🔗 Conformité et architecture backend
 Le document [`BACKEND_README.md`](./BACKEND_README.md) détaille les exigences NF525, RGPD et l'architecture hybride (local + cloud). Vous y trouverez la modélisation complète (ventes, lignes, clients, stocks, audit, synchronisation) et les recommandations de déploiement PostgreSQL.
+
+---
+
+## 📋 Plan d'Amélioration & Roadmap
+
+### ⚠️ État Actuel
+Une analyse complète de l'application a identifié plusieurs axes d'amélioration avant la mise en production. Consultez les documents suivants pour le détail :
+
+- **[PLAN_AMELIORATION.md](./PLAN_AMELIORATION.md)** - Plan détaillé des modifications (3 phases)
+- **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Guide pas à pas pour implémenter les changements
+- **[PROGRESS_TRACKER.md](./PROGRESS_TRACKER.md)** - Suivi de progression en temps réel
+
+### 🔴 Priorités Critiques (Avant Production)
+
+1. **Signature INFOCERT** - Actuellement temporaire, non conforme NF525
+   - Obtenir certificat auprès d'un prestataire agréé (LNE, SGS, Bureau Veritas)
+   - Implémenter signature RSA réelle
+   - Délai estimé: 2-3 semaines
+
+2. **Sécurité Authentification** - Bypass en mode dev à sécuriser
+   - Rendre le bypass explicite avec variable d'environnement
+   - Extraire user ID du JWT (supprimer hardcoding)
+   - Sécuriser récupération tenant ID
+
+3. **Qualité Code** - 93 console.log et 252+ types `any` à corriger
+   - Implémenter logger structuré (pino)
+   - Activer TypeScript strict
+   - Augmenter couverture tests (objectif: 70%)
+
+### 🚀 Quick Start - Améliorations
+
+```bash
+# 1. Vérifier l'état actuel du projet
+./scripts/migration-plan.sh check
+
+# 2. Exécuter la Phase 1 (Sécurité - URGENT)
+./scripts/migration-plan.sh phase1
+
+# 3. Suivre la progression
+# Éditer PROGRESS_TRACKER.md au fur et à mesure
+```
+
+### 📊 Scores Qualité
+
+| Catégorie | Actuel | Cible | Écart |
+|-----------|--------|-------|-------|
+| Architecture | 7/10 | 8/10 | +1 |
+| Qualité Code | 5/10 | 8/10 | +3 |
+| Sécurité | 6/10 | 9/10 | +3 |
+| Tests | 3/10 | 7/10 | +4 |
+| Conformité NF525 | 5/10 | 10/10 | +5 |
+| Performance | 6/10 | 8/10 | +2 |
+
+### 📅 Calendrier Prévisionnel
+
+- **Semaines 1-2** : Phase 1 - Sécurité & Conformité (URGENT)
+- **Semaine 3** : Phase 2 - Qualité Code & Tests
+- **Semaine 4** : Phase 2 - API & Documentation
+- **Semaine 5** : Phase 3 - Performance & Optimisations
+- **Semaine 6** : Finalisation & Tests de non-régression
+
+**Voir [PLAN_AMELIORATION.md](./PLAN_AMELIORATION.md) pour le détail complet.**

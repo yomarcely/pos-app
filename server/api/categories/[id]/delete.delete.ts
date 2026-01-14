@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { categories, products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -78,7 +79,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    console.log(`🗑️ Catégorie archivée: ${archived.name}`)
+    logger.info(`Catégorie archivée: ${archived.name}`)
 
     return {
       success: true,
@@ -86,7 +87,7 @@ export default defineEventHandler(async (event) => {
       category: archived,
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression de la catégorie:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression de la catégorie')
 
     throw createError({
       statusCode: 500,

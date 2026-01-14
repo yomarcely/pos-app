@@ -1,4 +1,5 @@
 import { assertAuth, getAccessTokenFromEvent, getTenantFromUser, supabaseServerClient } from '~/server/utils/supabase'
+import { logger } from '~/server/utils/logger'
 
 const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth', '/api/database/seed']
 
@@ -10,10 +11,13 @@ export default defineEventHandler(async (event) => {
   const isPublic = PUBLIC_ENDPOINTS.some(publicPath => path.startsWith(publicPath))
   if (isPublic) return
 
-  // En mode développement, on inject quand même le tenantId mais sans bloquer
+  // Auth bypass explicite (uniquement si ALLOW_AUTH_BYPASS=true est défini)
+  // ATTENTION: Ne JAMAIS activer en production !
+  const allowAuthBypass = process.env.ALLOW_AUTH_BYPASS === 'true'
   const config = useRuntimeConfig()
-  if (config.public.nodeEnv === 'development') {
-    console.log(`⚠️  [DEV MODE] Auth middleware for: ${path}`)
+
+  if (allowAuthBypass && config.public.nodeEnv === 'development') {
+    logger.warn({ path }, '⚠️  [DEV MODE - AUTH BYPASS] Auth middleware bypassed')
 
     // Essayer de récupérer le token et l'utilisateur
     const token = getAccessTokenFromEvent(event)
@@ -27,12 +31,13 @@ export default defineEventHandler(async (event) => {
           accessToken: token,
           tenantId,
         }
-        console.log(`✅ [DEV MODE] TenantId set to: ${tenantId}`)
+        logger.debug({ tenantId, userId: data.user.id }, '✅ [DEV MODE] Auth context set')
       }
     }
 
     return
   }
 
+  // En production ou si ALLOW_AUTH_BYPASS n'est pas activé, l'auth est obligatoire
   await assertAuth(event)
 })

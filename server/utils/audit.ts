@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
 import { auditLogs } from '~/server/database/schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -51,14 +52,15 @@ export enum AuditEventType {
  * Interface pour les métadonnées d'audit
  */
 export interface AuditMetadata {
-  [key: string]: any
   hash?: string
   signature?: string
   ticketNumber?: string
   registerId?: number
   establishmentId?: number
   errorMessage?: string
+  errorStack?: string
   integrityStatus?: 'valid' | 'invalid'
+  [key: string]: string | number | boolean | undefined
 }
 
 /**
@@ -73,7 +75,7 @@ export async function logAuditEvent(params: {
   entityType: string
   entityId: number | null
   action: string
-  changes?: Record<string, any>
+  changes?: Record<string, string | number | boolean | undefined>
   metadata?: AuditMetadata
   ipAddress?: string | null
 }) {
@@ -90,10 +92,14 @@ export async function logAuditEvent(params: {
       ipAddress: params.ipAddress || null,
     })
 
-    console.log(`📝 [AUDIT] ${params.action} - ${params.entityType}${params.entityId ? ` #${params.entityId}` : ''}`)
+    logger.info({
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId,
+    }, '[AUDIT] Événement enregistré')
   } catch (error) {
     // Ne pas bloquer l'opération principale en cas d'erreur d'audit
-    console.error('❌ Erreur lors de l\'enregistrement de l\'audit:', error)
+    logger.error({ err: error }, 'Erreur lors de l\'enregistrement de l\'audit')
   }
 }
 

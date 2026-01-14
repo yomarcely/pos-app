@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { registers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -54,14 +55,14 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    console.log(`✅ Caisse désactivée: ${existing.name}`)
+    logger.info(`Caisse désactivée: ${existing.name}`)
 
     return {
       success: true,
       message: 'Caisse désactivée avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la désactivation de la caisse:', error)
+    logger.error({ err: error }, 'Erreur lors de la désactivation de la caisse')
 
     throw createError({
       statusCode: 500,

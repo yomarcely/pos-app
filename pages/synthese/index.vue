@@ -120,7 +120,6 @@ async function cancelSale() {
       method: 'POST',
       body: {
         reason: cancellationReason.value,
-        userId: 1, // TODO: Récupérer l'utilisateur connecté
       },
     })
 
@@ -153,8 +152,6 @@ async function closeDay() {
       body: {
         date: selectedDate.value,
         registerId: selectedRegisterId.value,
-        userId: 1, // TODO: Récupérer l'utilisateur connecté
-        userName: 'Administrateur', // TODO: Récupérer le nom de l'utilisateur
       },
     })
 

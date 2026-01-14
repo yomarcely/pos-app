@@ -62,8 +62,14 @@ function normalizeVariationMap(
   return normalized
 }
 
-function buildBadRequest(errors: string[]) {
-  const error: any = new Error('Payload variations invalide')
+interface HttpError extends Error {
+  statusCode: number
+  statusMessage: string
+  data: { errors: string[] }
+}
+
+function buildBadRequest(errors: string[]): HttpError {
+  const error = new Error('Payload variations invalide') as HttpError
   error.statusCode = 400
   error.statusMessage = 'Payload variations invalide'
   error.data = { errors }

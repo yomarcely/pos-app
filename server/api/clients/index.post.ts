@@ -5,6 +5,7 @@ import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 import { syncCustomerToGroup } from '~/server/utils/sync'
 import { and, eq } from 'drizzle-orm'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -134,9 +135,18 @@ export default defineEventHandler(async (event) => {
     if (establishmentId) {
       try {
         await syncCustomerToGroup(tenantId, newClient.id, establishmentId)
-        console.log(`✅ Client ${newClient.id} synchronisé depuis l'établissement ${establishmentId}`)
+        logger.info({
+          customerId: newClient.id,
+          establishmentId,
+          tenantId
+        }, 'Customer synchronized to group')
       } catch (syncError) {
-        console.error('❌ Erreur lors de la synchronisation du client:', syncError)
+        logger.error({
+          err: syncError,
+          customerId: newClient.id,
+          establishmentId,
+          tenantId
+        }, 'Failed to sync customer to group')
         // On ne bloque pas la création, juste un warning
       }
     }
@@ -147,7 +157,7 @@ export default defineEventHandler(async (event) => {
       message: 'Client créé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la création du client:', error)
+    logger.error({ err: error }, 'Failed to create customer')
 
     if (error instanceof Error && 'statusCode' in error) {
       throw error

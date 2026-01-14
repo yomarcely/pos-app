@@ -3,6 +3,7 @@ import { variationGroups } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createVariationGroupSchema, type CreateVariationGroupInput } from '~/server/validators/variation.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -28,7 +29,12 @@ export default defineEventHandler(async (event) => {
       createdByEstablishmentId: establishmentId,
     }).returning()
 
-    console.log(`✅ Groupe de variation créé: ${newGroup.name} (ID: ${newGroup.id})`)
+    logger.info({
+      groupId: newGroup.id,
+      groupName: newGroup.name,
+      establishmentId,
+      tenantId
+    }, 'Variation group created')
 
     return {
       success: true,
@@ -36,7 +42,7 @@ export default defineEventHandler(async (event) => {
       group: newGroup,
     }
   } catch (error) {
-    console.error('Erreur lors de la création du groupe de variation:', error)
+    logger.error({ err: error }, 'Failed to create variation group')
 
     throw createError({
       statusCode: 500,

@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateRegisterSchema, type UpdateRegisterInput } from '~/server/validators/register.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -53,7 +54,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    console.log(`✅ Caisse mise à jour: ${updated.name}`)
+    logger.info(`Caisse mise à jour: ${updated.name}`)
 
     return {
       success: true,
@@ -61,7 +62,7 @@ export default defineEventHandler(async (event) => {
       register: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la caisse:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour de la caisse')
 
     throw createError({
       statusCode: 500,

@@ -11,6 +11,7 @@ import {
 } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import type { SyncResult } from '~/types/sync'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -20,6 +21,62 @@ import type { SyncResult } from '~/types/sync'
  * Fonctions pour synchroniser automatiquement les produits et clients
  * entre les établissements d'un même groupe de synchronisation
  */
+
+/**
+ * Interface pour les règles de synchronisation produit
+ */
+export interface ProductSyncRules {
+  id: number
+  entityType: string
+  syncName: boolean | null
+  syncDescription: boolean | null
+  syncBarcode: boolean | null
+  syncCategory: boolean | null
+  syncSupplier: boolean | null
+  syncBrand: boolean | null
+  syncPriceHt: boolean | null
+  syncPriceTtc: boolean | null
+  syncTva: boolean | null
+  syncImage: boolean | null
+  syncVariations: boolean | null
+}
+
+/**
+ * Interface pour les règles de synchronisation client
+ */
+export interface CustomerSyncRules {
+  id: number
+  entityType: string
+  syncCustomerInfo: boolean | null
+  syncCustomerContact: boolean | null
+  syncCustomerAddress: boolean | null
+  syncCustomerGdpr: boolean | null
+  syncLoyaltyProgram: boolean | null
+  syncDiscount: boolean | null
+}
+
+/**
+ * Interface pour un groupe de sync avec ses règles
+ */
+export interface SyncGroupWithRules {
+  id: number
+  name: string
+  productRules: ProductSyncRules | undefined
+  customerRules: CustomerSyncRules | undefined
+  targetEstablishments: number[]
+}
+
+/**
+ * Type pour les champs de produit pouvant être synchronisés
+ */
+type ProductFieldValue = string | number | boolean | null | undefined | Date | number[] | Record<string, unknown>
+type ProductFields = Record<string, ProductFieldValue>
+
+/**
+ * Type pour les champs de client pouvant être synchronisés
+ */
+type CustomerFieldValue = string | number | boolean | null | undefined | Date | Record<string, unknown>
+type CustomerFields = Record<string, CustomerFieldValue>
 
 /**
  * Filtre les champs d'un produit selon les règles de synchronisation
@@ -35,7 +92,7 @@ export async function getGlobalProductFields(
 
   if (groups.length === 0) {
     // Pas de groupe de sync, tous les champs sont globaux
-    console.log(`📋 Établissement ${establishmentId} : Pas de groupe de synchro, tous les champs autorisés`)
+    logger.info({ establishmentId }, 'Établissement : Pas de groupe de synchro, tous les champs autorisés')
     return fields
   }
 
@@ -47,19 +104,20 @@ export async function getGlobalProductFields(
 
   if (!rules) {
     // Pas de règles produit, tous les champs sont globaux
-    console.log(`📋 Établissement ${establishmentId} : Pas de règles produit, tous les champs autorisés`)
+    logger.info({ establishmentId }, 'Établissement : Pas de règles produit, tous les champs autorisés')
     return fields
   }
 
   // Logger les règles actives pour debug
-  console.log(`📋 Règles de synchro actives pour établissement ${establishmentId}:`, {
+  logger.info({
+    establishmentId,
     syncSupplier: rules.syncSupplier,
     syncCategory: rules.syncCategory,
     syncBrand: rules.syncBrand,
     syncName: rules.syncName,
     syncPriceTtc: rules.syncPriceTtc,
     syncPriceHt: rules.syncPriceHt,
-  })
+  }, 'Règles de synchro actives pour établissement')
 
   // Filtrer selon les règles
   if (rules.syncName && fields.name !== undefined) {
@@ -159,7 +217,7 @@ export async function getGlobalProductFields(
 
   // Logger les champs bloqués pour debug
   if (blockedFields.length > 0) {
-    console.log(`⚠️  Champs non synchronisés ignorés: ${blockedFields.join(', ')}`)
+    logger.warn({ blockedFields }, 'Champs non synchronisés ignorés')
   }
 
   return allowedFields
@@ -179,7 +237,7 @@ export async function getGlobalCustomerFields(
 
   if (groups.length === 0) {
     // Pas de groupe de sync, tous les champs sont globaux
-    console.log(`📋 Établissement ${establishmentId} : Pas de groupe de synchro, tous les champs autorisés`)
+    logger.info({ establishmentId }, 'Établissement : Pas de groupe de synchro, tous les champs autorisés')
     return fields
   }
 
@@ -191,19 +249,20 @@ export async function getGlobalCustomerFields(
 
   if (!rules) {
     // Pas de règles client, tous les champs sont globaux
-    console.log(`📋 Établissement ${establishmentId} : Pas de règles client, tous les champs autorisés`)
+    logger.info({ establishmentId }, 'Établissement : Pas de règles client, tous les champs autorisés')
     return fields
   }
 
   // Logger les règles actives pour debug
-  console.log(`📋 Règles de synchro actives pour établissement ${establishmentId}:`, {
+  logger.info({
+    establishmentId,
     syncCustomerInfo: rules.syncCustomerInfo,
     syncCustomerContact: rules.syncCustomerContact,
     syncCustomerAddress: rules.syncCustomerAddress,
     syncCustomerGdpr: rules.syncCustomerGdpr,
     syncLoyaltyProgram: rules.syncLoyaltyProgram,
     syncDiscount: rules.syncDiscount,
-  })
+  }, 'Règles de synchro actives pour établissement')
 
   // Filtrer selon les règles - Informations client
   if (rules.syncCustomerInfo && fields.firstName !== undefined) {
@@ -283,7 +342,7 @@ export async function getGlobalCustomerFields(
 
   // Logger les champs bloqués pour debug
   if (blockedFields.length > 0) {
-    console.log(`⚠️  Champs non synchronisés ignorés: ${blockedFields.join(', ')}`)
+    logger.warn({ blockedFields }, 'Champs non synchronisés ignorés')
   }
 
   return allowedFields
@@ -543,7 +602,7 @@ export async function syncProductToGroup(
               })
             }
           } catch (error) {
-            console.error(`Erreur lors de l'initialisation du stock pour l'établissement ${targetEstabId}:`, error)
+            logger.error({ err: error, targetEstabId }, 'Erreur lors de l\'initialisation du stock pour l\'établissement')
             errors.push({
               establishmentId: targetEstabId,
               error: error instanceof Error ? error.message : 'Erreur inconnue',
@@ -551,7 +610,7 @@ export async function syncProductToGroup(
           }
         }
       } catch (error) {
-        console.error('Erreur lors de la synchronisation du produit:', error)
+        logger.error({ err: error }, 'Erreur lors de la synchronisation du produit')
         errors.push({
           establishmentId: -1,
           error: error instanceof Error ? error.message : 'Erreur inconnue',
@@ -584,7 +643,7 @@ export async function syncProductToGroup(
 
     return results
   } catch (error) {
-    console.error('Erreur lors de la synchronisation:', error)
+    logger.error({ err: error }, 'Erreur lors de la synchronisation')
     throw error
   }
 }
@@ -663,7 +722,7 @@ export async function syncCustomerToGroup(
           .set(fieldsToSync)
           .where(eq(customers.id, customerId))
       } catch (error) {
-        console.error('Erreur lors de la synchronisation du client:', error)
+        logger.error({ err: error }, 'Erreur lors de la synchronisation du client')
         errors.push({
           establishmentId: -1,
           error: error instanceof Error ? error.message : 'Erreur inconnue',
@@ -728,7 +787,7 @@ export async function syncCustomerToGroup(
 
     return results
   } catch (error) {
-    console.error('Erreur lors de la synchronisation:', error)
+    logger.error({ err: error }, 'Erreur lors de la synchronisation')
     throw error
   }
 }

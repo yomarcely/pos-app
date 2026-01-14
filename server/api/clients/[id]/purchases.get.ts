@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { customers, sales, saleItems } from '~/server/database/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -126,7 +127,7 @@ export default defineEventHandler(async (event) => {
       count: purchasesWithItems.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des achats:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des achats')
 
     if (error instanceof Error && 'statusCode' in error) {
       throw error

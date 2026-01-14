@@ -3,6 +3,7 @@ import { syncRules, syncGroups } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { updateSyncRulesSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -64,7 +65,7 @@ export default defineEventHandler(async (event) => {
       message: 'Règles de synchronisation mises à jour avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour des règles:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour des règles')
 
     // Erreur de validation Zod
     if (error && typeof error === 'object' && 'issues' in error) {

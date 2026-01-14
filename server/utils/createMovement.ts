@@ -16,6 +16,9 @@ export async function createMovement(
   userId?: number,
   tenantId?: string
 ): Promise<{ id: number; movementNumber: string }> {
+  if (!tenantId) {
+    throw new Error('Tenant ID manquant pour la création du mouvement')
+  }
   // Générer le numéro de mouvement via la fonction SQL
   const result = await db.execute(sql`SELECT generate_movement_number(${type}::varchar) as movement_number`)
   const movementNumber = result[0]?.movement_number as string
@@ -28,7 +31,7 @@ export async function createMovement(
   const [movement] = await db
     .insert(movements)
     .values({
-      tenantId: tenantId || null,
+      tenantId,
       movementNumber,
       type,
       comment: comment || null,

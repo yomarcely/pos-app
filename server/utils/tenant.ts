@@ -1,3 +1,5 @@
+import type { H3Event } from 'h3'
+
 /**
  * Utilitaire pour récupérer le tenantId
  * Utilisé dans toutes les API pour assurer le multi-tenancy
@@ -22,13 +24,21 @@ export function getTenantId(): string {
 }
 
 /**
- * Récupère le tenant ID depuis l'événement (futur: depuis le token JWT)
- * Pour l'instant, utilise le tenant ID par défaut
+ * Récupère le tenant ID depuis l'événement (depuis le token JWT)
+ * Lève une erreur si le tenant n'est pas disponible pour garantir l'isolation
  * @param event - L'événement H3
  * @returns Le tenant ID
+ * @throws Error si le tenant n'est pas disponible dans le contexte
  */
-export function getTenantIdFromEvent(event?: any): string {
+export function getTenantIdFromEvent(event?: H3Event): string {
   const ctxTenant = event?.context?.auth?.tenantId
-  if (ctxTenant) return ctxTenant
-  return getTenantId()
+
+  if (!ctxTenant) {
+    throw createError({
+      statusCode: 401,
+      message: 'Tenant ID manquant dans le contexte d\'authentification',
+    })
+  }
+
+  return ctxTenant
 }

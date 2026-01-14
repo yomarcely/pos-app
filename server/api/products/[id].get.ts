@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { products, productEstablishments, productStocks } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -154,7 +155,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error: any) {
-    console.error('Erreur lors de la récupération du produit:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération du produit')
 
     if (error.statusCode) {
       throw error

@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { stockMovements, products, movements, sales } from '~/server/database/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -92,7 +93,10 @@ export default defineEventHandler(async (event) => {
       saleTicket: m.saleTicket || null,
     }))
 
-    console.log(`📊 ${stockMovs.length} mouvement(s) de stock récupéré(s) pour le produit #${productId}`)
+    logger.info({
+      productId,
+      movementsCount: stockMovs.length,
+    }, 'Mouvements de stock récupérés pour le produit')
 
     return {
       success: true,
@@ -100,7 +104,7 @@ export default defineEventHandler(async (event) => {
       count: formattedMovements.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'historique:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération de l\'historique')
 
     throw createError({
       statusCode: 500,

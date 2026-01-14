@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateVariationSchema, type UpdateVariationInput } from '~/server/validators/variation.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -59,7 +60,7 @@ export default defineEventHandler(async (event) => {
       )
       .returning()
 
-    console.log(`✅ Variation mise à jour: ${updated.name}`)
+    logger.info(`Variation mise à jour: ${updated.name}`)
 
     return {
       success: true,
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
       variation: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la variation:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour de la variation')
 
     throw createError({
       statusCode: 500,

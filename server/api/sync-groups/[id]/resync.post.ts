@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, products, productEstablishments, customers, customerEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -97,7 +98,7 @@ export default defineEventHandler(async (event) => {
       fields,
     }
   } catch (error) {
-    console.error('Erreur lors de la resynchronisation:', error)
+    logger.error({ err: error }, 'Erreur lors de la resynchronisation')
 
     if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error
@@ -272,10 +273,10 @@ async function resyncProducts(
     })
 
     offset += pageSize
-    console.log(`📦 Resync batch: ${syncedCount} produits traités...`)
+    logger.info({ syncedCount, pageSize }, 'Resync batch de produits traités')
   }
 
-  console.log(`✅ ${syncedCount} produits resynchronisés depuis établissement ${sourceEstablishmentId}`)
+  logger.info({ syncedCount, sourceEstablishmentId }, 'Produits resynchronisés depuis établissement')
   return syncedCount
 }
 
@@ -439,9 +440,9 @@ async function resyncCustomers(
     })
 
     offset += pageSize
-    console.log(`📦 Resync batch: ${syncedCount} clients traités...`)
+    logger.info({ syncedCount, pageSize }, 'Resync batch de clients traités')
   }
 
-  console.log(`✅ ${syncedCount} clients resynchronisés depuis établissement ${sourceEstablishmentId}`)
+  logger.info({ syncedCount, sourceEstablishmentId }, 'Clients resynchronisés depuis établissement')
   return syncedCount
 }

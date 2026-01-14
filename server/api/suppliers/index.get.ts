@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { suppliers, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -70,7 +71,7 @@ export default defineEventHandler(async (event) => {
     return allSuppliers
   }
   catch (error: any) {
-    console.error('Erreur lors de la récupération des fournisseurs:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des fournisseurs')
     throw createError({
       statusCode: 500,
       statusMessage: 'Erreur lors de la récupération des fournisseurs',

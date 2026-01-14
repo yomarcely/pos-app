@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { productStocks, products, establishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -90,7 +91,7 @@ export default defineEventHandler(async (event) => {
       outOfStockCount: stocks.filter(s => s.stock === 0).length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des stocks:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des stocks')
 
     throw createError({
       statusCode: 500,

@@ -1,11 +1,18 @@
 import { type H3Event } from 'h3'
-import { type ZodSchema, ZodError } from 'zod'
+import type { ZodType } from 'zod'
+import { ZodError } from 'zod'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
  * Utilitaires de validation avec Zod
  * ==========================================
  */
+
+interface ValidationError {
+  field: string
+  message: string
+}
 
 /**
  * Valide le body d'une requête avec un schéma Zod
@@ -14,21 +21,20 @@ import { type ZodSchema, ZodError } from 'zod'
  * @returns Les données validées
  * @throws Une erreur 400 si la validation échoue
  */
-export async function validateBody<T>(event: H3Event, schema: ZodSchema<T>): Promise<T> {
+export async function validateBody<T>(event: H3Event, schema: ZodType<T>): Promise<T> {
   try {
     const body = await readBody(event)
     return schema.parse(body)
   }
   catch (error) {
     if (error instanceof ZodError) {
-      const issues = (error.issues || (error as any).errors || []) as any[]
-      const errors = issues.map(err => ({
-        field: err.path.join('.'),
-        message: err.message,
+      const errors: ValidationError[] = error.issues.map(issue => ({
+        field: issue.path.join('.'),
+        message: issue.message,
       }))
       const firstMessage = errors[0]?.message || 'Erreur de validation'
 
-      console.error('[Validation] Erreurs:', errors)
+      logger.error({ errors }, 'Erreurs de validation du body')
 
       throw createError({
         statusCode: 400,
@@ -48,20 +54,19 @@ export async function validateBody<T>(event: H3Event, schema: ZodSchema<T>): Pro
  * @returns Les données validées
  * @throws Une erreur 400 si la validation échoue
  */
-export function validateQuery<T>(event: H3Event, schema: ZodSchema<T>): T {
+export function validateQuery<T>(event: H3Event, schema: ZodType<T>): T {
   try {
     const query = getQuery(event)
     return schema.parse(query)
   }
   catch (error) {
     if (error instanceof ZodError) {
-      const issues = (error.issues || (error as any).errors || []) as any[]
-      const errors = issues.map(err => ({
-        field: err.path.join('.'),
-        message: err.message,
+      const errors: ValidationError[] = error.issues.map(issue => ({
+        field: issue.path.join('.'),
+        message: issue.message,
       }))
 
-      console.error('[Validation] Erreurs query:', errors)
+      logger.error({ errors }, 'Erreurs de validation des query params')
 
       throw createError({
         statusCode: 400,

@@ -3,6 +3,7 @@ import { productStocks, stockMovements, movements, products } from '~/server/dat
 import { eq, and } from 'drizzle-orm'
 import { updateProductStockSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 type VariationStock = { variationId: string; stock: number }
 
@@ -152,7 +153,7 @@ export default defineEventHandler(async (event) => {
       message: 'Stock mis à jour avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du stock:', error)
+    logger.error({ err: error }, 'Failed to update product stock')
 
     // Erreur de validation Zod
     if (error && typeof error === 'object' && 'issues' in error) {

@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { variationGroups, variations, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -122,7 +123,7 @@ export default defineEventHandler(async (event) => {
       groups: result,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des variations:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des variations')
 
     throw createError({
       statusCode: 500,

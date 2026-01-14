@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sellers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -54,14 +55,14 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    console.log(`✅ Vendeur désactivé: ${existing.name}`)
+    logger.info(`Vendeur désactivé: ${existing.name}`)
 
     return {
       success: true,
       message: 'Vendeur désactivé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la désactivation du vendeur:', error)
+    logger.error({ err: error }, 'Erreur lors de la désactivation du vendeur')
 
     throw createError({
       statusCode: 500,

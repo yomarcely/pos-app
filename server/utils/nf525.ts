@@ -236,8 +236,8 @@ export function verifyTicketChain(
     registerNumber: number
     globalDiscount?: number
     globalDiscountType?: '%' | '€'
-    items: any[]
-    payments: any[]
+    items: TicketData['items']
+    payments: TicketData['payments']
     currentHash: string
     previousHash: string | null
   }>

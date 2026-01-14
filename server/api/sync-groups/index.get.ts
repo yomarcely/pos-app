@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, establishments, syncRules } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -65,7 +66,7 @@ export default defineEventHandler(async (event) => {
       syncGroups: groupsWithDetails,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des groupes de synchronisation:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des groupes de synchronisation')
 
     throw createError({
       statusCode: 500,

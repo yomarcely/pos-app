@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateEstablishmentSchema, type UpdateEstablishmentInput } from '~/server/validators/establishment.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -61,7 +62,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    console.log(`✅ Établissement mis à jour: ${updated.name}`)
+    logger.info(`Établissement mis à jour: ${updated.name}`)
 
     return {
       success: true,
@@ -69,7 +70,7 @@ export default defineEventHandler(async (event) => {
       establishment: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de l\'établissement:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour de l\'établissement')
 
     throw createError({
       statusCode: 500,

@@ -6,6 +6,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
 import { logClosure } from '~/server/utils/audit'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -24,14 +25,15 @@ import { logClosure } from '~/server/utils/audit'
 
 interface CloseDayRequest {
   date: string // Format YYYY-MM-DD
-  userId?: number
-  userName?: string
   registerId?: number
 }
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const auth = event.context.auth
+    const userId = auth?.user?.id || null
+    const userName = auth?.user?.email || auth?.user?.user_metadata?.name || 'Utilisateur'
     const body = await validateBody<CloseDayInput>(event, closeDaySchema)
 
     const targetDate = new Date(body.date)
@@ -171,19 +173,24 @@ export default defineEventHandler(async (event) => {
       firstTicketNumber,
       lastTicketNumber,
       lastTicketHash,
-      closedBy: body.userName || 'System',
-      closedById: body.userId || null,
+      closedBy: userName,
+      closedById: userId,
     }).returning()
 
-    console.log(`🔒 Clôture créée - ID: ${newClosure.id}, Hash: ${closureHash.substring(0, 16)}...`)
+    logger.info({
+      closureId: newClosure.id,
+      closureHash: closureHash.substring(0, 16),
+      registerId: body.registerId,
+      date: body.date
+    }, 'Clôture créée')
 
     // ==========================================
     // 6. ENREGISTRER LA CLÔTURE DANS L'AUDIT LOG (NF525)
     // ==========================================
     await logClosure({
       tenantId,
-      userId: body.userId || null,
-      userName: body.userName || 'System',
+      userId,
+      userName,
       closureId: newClosure.id,
       closureDate: body.date,
       registerId: body.registerId,
@@ -194,7 +201,7 @@ export default defineEventHandler(async (event) => {
       ipAddress: getRequestIP(event) || null,
     })
 
-    console.log(`📝 Clôture enregistrée dans l'audit log`)
+    logger.debug({ closureId: newClosure.id }, 'Clôture enregistrée dans l\'audit log')
 
     // ==========================================
     // 7. METTRE À JOUR TOUTES LES VENTES DU JOUR
@@ -216,10 +223,14 @@ export default defineEventHandler(async (event) => {
           )
         )
 
-      console.log(`📝 ${dailySales.length} vente(s) marquée(s) comme clôturées`)
+      logger.debug({ salesCount: dailySales.length, closureId: newClosure.id }, 'Ventes marquées comme clôturées')
     }
 
-    console.log(`📊 ${ticketCount} ticket(s), Total: ${totalTTC.toFixed(2)} €`)
+    logger.info({
+      ticketCount,
+      totalTTC: totalTTC.toFixed(2),
+      registerId: body.registerId
+    }, 'Journée clôturée avec succès')
 
     // ==========================================
     // 8. RETOURNER LA SYNTHÈSE DE CLÔTURE
@@ -242,7 +253,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la clôture de journée:', error)
+    logger.error({ err: error }, 'Erreur lors de la clôture de journée')
 
     throw createError({
       statusCode: 500,

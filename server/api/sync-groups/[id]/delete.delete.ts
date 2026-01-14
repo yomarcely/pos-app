@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -49,7 +50,7 @@ export default defineEventHandler(async (event) => {
       message: 'Groupe de synchronisation supprimé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression du groupe:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression du groupe')
 
     if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error

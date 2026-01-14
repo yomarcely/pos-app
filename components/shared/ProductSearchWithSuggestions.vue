@@ -49,7 +49,10 @@ function handleInput(value: string | number) {
 
 function getTotalStock(product: Suggestion): number {
   if (product.stockByVariation && Object.keys(product.stockByVariation).length > 0) {
-    return Object.values(product.stockByVariation).reduce((sum, qty) => sum + Number(qty || 0), 0)
+    return Object.values(product.stockByVariation).reduce<number>(
+      (sum, qty) => sum + Number(qty || 0),
+      0,
+    )
   }
   return product.stock || 0
 }

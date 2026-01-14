@@ -514,7 +514,6 @@ async function validateMovement() {
       body: {
         type,
         comment: comment.value || undefined,
-        userId: 1,
         items,
       },
     }) as any

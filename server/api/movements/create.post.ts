@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
+import { logger } from '~/server/utils/logger'
 import { z } from 'zod'
 
 const movementItemSchema = z.object({
@@ -16,7 +17,6 @@ const movementItemSchema = z.object({
 const createMovementSchema = z.object({
   type: z.enum(['reception', 'adjustment', 'loss', 'transfer']),
   comment: z.string().max(1000).optional(),
-  userId: z.number().int().positive().optional(),
   items: z.array(movementItemSchema).min(1, 'Aucun article dans le mouvement'),
 })
 
@@ -51,13 +51,14 @@ interface MovementItem {
 interface CreateMovementRequest {
   type: 'reception' | 'adjustment' | 'loss' | 'transfer'
   comment?: string
-  userId?: number
   items: MovementItem[]
 }
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const auth = event.context.auth
+    const userId = auth?.user?.id || null
     const body = await validateBody<CreateMovementRequest>(event, createMovementSchema)
 
     // Validation
@@ -87,7 +88,7 @@ export default defineEventHandler(async (event) => {
 
     const result = await db.transaction(async (tx) => {
       // 1. Créer le mouvement principal
-      const movement = await createMovement(body.type, body.comment, body.userId, tenantId)
+      const movement = await createMovement(body.type, body.comment, userId, tenantId)
 
       // 2. Créer les lignes de stock_movements
       const stockMovementsData = []
@@ -164,7 +165,7 @@ export default defineEventHandler(async (event) => {
           oldStock,
           newStock,
           reason,
-          userId: body.userId || null,
+          userId,
         })
 
         stockMovementsData.push({
@@ -182,7 +183,11 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-    console.log(`📦 Mouvement ${result.movement.movementNumber} créé avec ${body.items.length} article(s)`)
+    logger.info({
+      movementNumber: result.movement.movementNumber,
+      itemsCount: body.items.length,
+      type: body.type
+    }, 'Mouvement de stock créé')
 
     return {
       success: true,
@@ -190,7 +195,7 @@ export default defineEventHandler(async (event) => {
       details: result.stockMovements,
     }
   } catch (error: any) {
-    console.error('Erreur lors de la création du mouvement:', error)
+    logger.error({ err: error }, 'Erreur lors de la création du mouvement')
 
     throw createError({
       statusCode: error.statusCode || 500,

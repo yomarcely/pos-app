@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, saleItems } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, sql, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -269,7 +270,7 @@ export default defineEventHandler(async (event) => {
       sales: formattedSales,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération de la synthèse:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération de la synthèse')
 
     throw createError({
       statusCode: 500,

@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { closures, registers, establishments } from '~/server/database/schema'
 import { desc, gte, lte, and, eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -68,7 +69,7 @@ export default defineEventHandler(async (event) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(closures.closureDate))
 
-    console.log(`📊 ${closuresList.length} clôture(s) récupérée(s)`)
+    logger.info({ count: closuresList.length }, 'Clôtures récupérées')
 
     return {
       success: true,
@@ -76,7 +77,7 @@ export default defineEventHandler(async (event) => {
       count: closuresList.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des clôtures:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des clôtures')
 
     throw createError({
       statusCode: 500,

@@ -3,6 +3,7 @@ import { registers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createRegisterSchema, type CreateRegisterInput } from '~/server/validators/register.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -27,7 +28,12 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
-    console.log(`✅ Caisse créée: ${newRegister.name}`)
+    logger.info({
+      registerId: newRegister.id,
+      registerName: newRegister.name,
+      establishmentId: body.establishmentId,
+      tenantId
+    }, 'Register created')
 
     return {
       success: true,
@@ -35,7 +41,7 @@ export default defineEventHandler(async (event) => {
       register: newRegister,
     }
   } catch (error) {
-    console.error('Erreur lors de la création de la caisse:', error)
+    logger.error({ err: error }, 'Failed to create register')
 
     throw createError({
       statusCode: 500,

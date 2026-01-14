@@ -5,6 +5,7 @@ import { updateProductSchema } from '~/server/validators/product.schema'
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { syncProductToGroup, getGlobalProductFields } from '~/server/utils/sync'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -84,7 +85,10 @@ export default defineEventHandler(async (event) => {
         localOverrides.variationGroupIdsOverride = data.variationGroupIds
       }
 
-      console.log(`📋 Champs bloqués stockés localement pour établissement ${establishmentId}:`, blockedFields)
+      logger.info({
+        establishmentId,
+        blockedFields,
+      }, 'Champs bloqués stockés localement pour établissement')
     }
 
     // Si le tenant a un groupe avec syncPriceTtc = false, empêcher la mise à jour globale sans établissement
@@ -175,7 +179,7 @@ export default defineEventHandler(async (event) => {
       product: updatedProduct,
     }
   } catch (error: any) {
-    console.error('Erreur lors de la modification du produit:', error)
+    logger.error({ err: error }, 'Erreur lors de la modification du produit')
 
     if (error.statusCode) {
       throw error

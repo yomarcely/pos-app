@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateSellerSchema, type UpdateSellerInput } from '~/server/validators/seller.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -77,7 +78,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    console.log(`✅ Vendeur mis à jour: ${updated.name} (${body.establishmentIds?.length || '?'} établissement(s))`)
+    logger.info(`Vendeur mis à jour: ${updated.name} (${body.establishmentIds?.length || '?'} établissement(s))`)
 
     return {
       success: true,
@@ -85,7 +86,7 @@ export default defineEventHandler(async (event) => {
       seller: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du vendeur:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour du vendeur')
 
     throw createError({
       statusCode: 500,

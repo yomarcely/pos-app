@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createVariationSchema, type CreateVariationInput } from '~/server/validators/variation.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -38,7 +39,13 @@ export default defineEventHandler(async (event) => {
       sortOrder: body.sortOrder || 0,
     }).returning()
 
-    console.log(`✅ Variation créée: ${newVariation.name} dans le groupe ${group.name} (ID: ${newVariation.id})`)
+    logger.info({
+      variationId: newVariation.id,
+      variationName: newVariation.name,
+      groupId: body.groupId,
+      groupName: group.name,
+      tenantId
+    }, 'Variation created')
 
     return {
       success: true,
@@ -46,7 +53,7 @@ export default defineEventHandler(async (event) => {
       variation: newVariation,
     }
   } catch (error) {
-    console.error('Erreur lors de la création de la variation:', error)
+    logger.error({ err: error }, 'Failed to create variation')
 
     throw createError({
       statusCode: 500,

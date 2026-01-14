@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { closures } from '~/server/database/schema'
 import { desc, eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -52,7 +53,7 @@ export default defineEventHandler(async (event) => {
       count: formattedClosures.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des clôtures:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des clôtures')
 
     throw createError({
       statusCode: 500,

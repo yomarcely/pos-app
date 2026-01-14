@@ -3,7 +3,6 @@ import { getHeader, parseCookies, createError, H3Event } from 'h3'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const defaultTenantId = process.env.DEFAULT_TENANT_ID
 
 export const supabaseServerClient = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, {
@@ -25,23 +24,27 @@ export const getAccessTokenFromEvent = (event: H3Event) => {
 }
 
 export const getTenantFromUser = (user: User | null, event: H3Event) => {
+  // Priorité 1: Header explicite x-tenant-id
   const headerTenant = getHeader(event, 'x-tenant-id')
   if (headerTenant) return String(headerTenant)
 
+  // Priorité 2: Métadonnées utilisateur (tenant_id ou tenantId)
   const meta = (user?.app_metadata || user?.user_metadata || {}) as Record<string, any>
   const tenant = meta.tenant_id || meta.tenantId
   if (tenant) return String(tenant)
 
+  // Priorité 3: Premier tenant dans la liste des tenants
   if (Array.isArray(meta.tenants) && meta.tenants.length > 0) {
     return String(meta.tenants[0].id || meta.tenants[0].tenant_id || meta.tenants[0].slug)
   }
 
-  // Fallback 1 user = 1 tenant
+  // Priorité 4: Fallback 1 user = 1 tenant (convention pour utilisateurs sans organisation)
   if (user?.id) {
     return String(user.id)
   }
 
-  return defaultTenantId || null
+  // Aucun tenant trouvé - retourner null pour que assertAuth lève une erreur
+  return null
 }
 
 export const assertAuth = async (event: H3Event) => {

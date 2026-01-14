@@ -3,6 +3,7 @@ import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSellerSchema, type CreateSellerInput } from '~/server/validators/seller.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -38,7 +39,12 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    console.log(`✅ Vendeur créé: ${newSeller.name} (${body.establishmentIds?.length || 0} établissement(s))`)
+    logger.info({
+      sellerId: newSeller.id,
+      sellerName: newSeller.name,
+      establishmentCount: body.establishmentIds?.length || 0,
+      tenantId
+    }, 'Seller created')
 
     return {
       success: true,
@@ -46,7 +52,7 @@ export default defineEventHandler(async (event) => {
       seller: newSeller,
     }
   } catch (error) {
-    console.error('Erreur lors de la création du vendeur:', error)
+    logger.error({ err: error }, 'Failed to create seller')
 
     throw createError({
       statusCode: 500,

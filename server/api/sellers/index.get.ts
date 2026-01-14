@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -72,7 +73,7 @@ export default defineEventHandler(async (event) => {
       sellers: allSellers,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des vendeurs:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des vendeurs')
 
     throw createError({
       statusCode: 500,

@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { establishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -49,7 +50,7 @@ export default defineEventHandler(async (event) => {
       establishment,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'établissement:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération de l\'établissement')
 
     throw createError({
       statusCode: 500,

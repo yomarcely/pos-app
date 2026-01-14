@@ -133,7 +133,7 @@ export const useProductsStore = defineStore('products', () => {
       product.stock = newStock
     }
 
-    // Enregistrer le mouvement dans l'historique
+    // Enregistrer le mouvement dans l'historique local (non persisté)
     stockHistory.value.push({
       id: Date.now(),
       productId,
@@ -145,7 +145,7 @@ export const useProductsStore = defineStore('products', () => {
       reason,
       saleId,
       date: new Date(),
-      userId: 1 // TODO: Récupérer l'utilisateur connecté
+      userId: 0 // Historique local uniquement, non persisté en base
     })
 
     console.log(`✅ Stock mis à jour pour ${product.name}: ${oldStock} → ${newStock}`)
@@ -184,7 +184,7 @@ export const useProductsStore = defineStore('products', () => {
       product.stock = newStock
     }
 
-    // Enregistrer le mouvement
+    // Enregistrer le mouvement dans l'historique local (non persisté)
     stockHistory.value.push({
       id: Date.now(),
       productId,
@@ -195,7 +195,7 @@ export const useProductsStore = defineStore('products', () => {
       newStock,
       reason,
       date: new Date(),
-      userId: 1
+      userId: 0 // Historique local uniquement, non persisté en base
     })
 
     console.log(`✅ Stock ajouté pour ${product.name}: ${oldStock} → ${newStock}`)
@@ -276,7 +276,7 @@ export const useProductsStore = defineStore('products', () => {
       newStock,
       reason: 'inventory_adjustment',
       date: new Date(),
-      userId: 1
+      userId: 0 // Historique local uniquement, non persisté en base
     })
 
     return true

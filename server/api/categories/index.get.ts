@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { categories, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and, inArray, or, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -145,7 +146,7 @@ export default defineEventHandler(async (event) => {
       totalCount: allCategories.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des catégories:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des catégories')
 
     throw createError({
       statusCode: 500,

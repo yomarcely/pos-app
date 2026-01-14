@@ -3,6 +3,7 @@ import { stockMovements, products, auditLogs } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { getRequestIP } from 'h3'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -93,7 +94,12 @@ export default defineEventHandler(async (event) => {
         })
         .where(eq(products.id, movement.productId))
 
-      console.log(`✅ Stock restauré pour ${product.name} (${movement.variation}): ${currentStockBeforeDeletion} → ${stockAfterDeletion}`)
+      logger.info({
+        productName: product.name,
+        variation: movement.variation,
+        currentStockBeforeDeletion,
+        stockAfterDeletion,
+      }, 'Stock restauré pour produit avec variation')
     } else {
       currentStockBeforeDeletion = product.stock || 0
 
@@ -108,7 +114,11 @@ export default defineEventHandler(async (event) => {
         })
         .where(eq(products.id, movement.productId))
 
-      console.log(`✅ Stock restauré pour ${product.name}: ${currentStockBeforeDeletion} → ${stockAfterDeletion}`)
+      logger.info({
+        productName: product.name,
+        currentStockBeforeDeletion,
+        stockAfterDeletion,
+      }, 'Stock restauré pour produit')
     }
 
     // Supprimer le mouvement de stock
@@ -146,7 +156,7 @@ export default defineEventHandler(async (event) => {
       ipAddress: getRequestIP(event) || null,
     })
 
-    console.log(`📝 Suppression enregistrée dans l'audit log pour le mouvement ${id}`)
+    logger.info({ movementId: id }, 'Suppression enregistrée dans l\'audit log pour le mouvement')
 
     return {
       success: true,
@@ -158,7 +168,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression du mouvement:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression du mouvement')
 
     throw createError({
       statusCode: 500,

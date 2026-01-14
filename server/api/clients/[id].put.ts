@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -80,7 +81,7 @@ export default defineEventHandler(async (event) => {
       message: 'Client mis à jour avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du client:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour du client')
 
     if (error instanceof Error && 'statusCode' in error) {
       throw error

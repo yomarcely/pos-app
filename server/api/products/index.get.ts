@@ -8,6 +8,7 @@ import {
   productEstablishments,
 } from '~/server/database/schema'
 import { sql, eq, and } from 'drizzle-orm'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -234,7 +235,7 @@ export default defineEventHandler(async (event) => {
       count: formattedProducts.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des produits:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des produits')
 
     throw createError({
       statusCode: 500,

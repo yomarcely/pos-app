@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { variations } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -54,14 +55,14 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    console.log(`✅ Variation archivée: ${existing.name}`)
+    logger.info(`Variation archivée: ${existing.name}`)
 
     return {
       success: true,
       message: 'Variation supprimée avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la suppression de la variation:', error)
+    logger.error({ err: error }, 'Erreur lors de la suppression de la variation')
 
     throw createError({
       statusCode: 500,

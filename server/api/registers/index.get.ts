@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { registers, establishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -55,7 +56,7 @@ export default defineEventHandler(async (event) => {
       registers: allRegisters,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des caisses:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des caisses')
 
     throw createError({
       statusCode: 500,

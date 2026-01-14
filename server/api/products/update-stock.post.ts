@@ -5,6 +5,7 @@ import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateStockSchema, type UpdateStockInput } from '~/server/validators/product.schema'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -162,10 +163,13 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-    console.log(`✅ Stock mis à jour pour produit ${body.productId}${body.variation ? ` (${body.variation})` : ''}: ${transactionResult.oldStock} → ${transactionResult.newStock}`)
-
-    // Enregistrer la création de l'ajustement dans l'audit log (NF525)
-    console.log(`📝 Ajustement enregistré dans l'audit log (mouvement ${transactionResult.movementId})`)
+    logger.info({
+      productId: body.productId,
+      variation: body.variation,
+      oldStock: transactionResult.oldStock,
+      newStock: transactionResult.newStock,
+      movementId: transactionResult.movementId,
+    }, 'Stock mis à jour pour produit')
 
     return {
       success: true,
@@ -178,7 +182,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour du stock:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour du stock')
 
     throw createError({
       statusCode: 500,

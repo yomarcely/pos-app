@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { updateCategorySchema } from '~/server/validators/category.schema'
 import { validateBody } from '~/server/utils/validation'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -55,7 +56,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    console.log(`✅ Catégorie mise à jour: ${updated.name}`)
+    logger.info(`Catégorie mise à jour: ${updated.name}`)
 
     return {
       success: true,
@@ -63,7 +64,7 @@ export default defineEventHandler(async (event) => {
       category: updated,
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la catégorie:', error)
+    logger.error({ err: error }, 'Erreur lors de la mise à jour de la catégorie')
 
     throw createError({
       statusCode: 500,

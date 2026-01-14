@@ -3,6 +3,7 @@ import { suppliers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSupplierSchema, type CreateSupplierInput } from '~/server/validators/supplier.schema'
+import { logger } from '~/server/utils/logger'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -25,12 +26,17 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
-    console.log(`✅ Fournisseur créé: ${newSupplier.name} (ID: ${newSupplier.id}) par établissement ${establishmentId}`)
+    logger.info({
+      supplierId: newSupplier.id,
+      supplierName: newSupplier.name,
+      establishmentId,
+      tenantId
+    }, 'Supplier created')
 
     return newSupplier
   }
   catch (error: any) {
-    console.error('Erreur lors de la création du fournisseur:', error)
+    logger.error({ err: error }, 'Failed to create supplier')
     throw createError({
       statusCode: error.statusCode || 500,
       statusMessage: error.statusMessage || 'Erreur lors de la création du fournisseur',

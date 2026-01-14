@@ -4,6 +4,7 @@ import { createProductSchema, type CreateProductInput } from '~/server/validator
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { syncProductToGroup } from '~/server/utils/sync'
+import { logger } from '~/server/utils/logger'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -36,16 +37,16 @@ export default defineEventHandler(async (event) => {
         stockByVariation: validatedData.stockByVariation || [],
         minStock: validatedData.minStock || 0,
       })
-      console.log(`✅ Stock créé pour le produit ${newProduct.id} dans l'établissement ${establishmentId}`)
+      logger.info({ productId: newProduct.id, establishmentId }, 'Stock créé pour le produit')
     }
 
     // Synchroniser le produit vers les autres établissements du groupe si un establishmentId est fourni
     if (establishmentId) {
       try {
         await syncProductToGroup(tenantId, newProduct.id, establishmentId)
-        console.log(`✅ Produit ${newProduct.id} synchronisé depuis l'établissement ${establishmentId}`)
+        logger.info({ productId: newProduct.id, establishmentId }, 'Produit synchronisé vers les autres établissements')
       } catch (syncError) {
-        console.error('❌ Erreur lors de la synchronisation du produit:', syncError)
+        logger.warn({ err: syncError, productId: newProduct.id }, 'Erreur lors de la synchronisation du produit')
         // On ne bloque pas la création, juste un warning
       }
     }
@@ -56,7 +57,7 @@ export default defineEventHandler(async (event) => {
     }
   }
   catch (error: any) {
-    console.error('Erreur lors de la création du produit:', error)
+    logger.error({ err: error }, 'Erreur lors de la création du produit')
 
     // Gérer les erreurs spécifiques
     if (error.statusCode) {

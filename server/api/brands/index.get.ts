@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { brands, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -70,7 +71,7 @@ export default defineEventHandler(async (event) => {
     return allBrands
   }
   catch (error: any) {
-    console.error('Erreur lors de la récupération des marques:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération des marques')
     throw createError({
       statusCode: 500,
       statusMessage: 'Erreur lors de la récupération des marques',

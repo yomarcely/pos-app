@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { createCustomerSchema, type CreateCustomerInput } from '~/server/validators/customer.schema'
 import { validateBody } from '~/server/utils/validation'
 import { syncCustomerToGroup } from '~/server/utils/sync'
+import { logger } from '~/server/utils/logger'
 import { eq, and } from 'drizzle-orm'
 
 /**
@@ -17,6 +18,16 @@ import { eq, and } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const auth = event.context.auth
+    const userId = auth?.user?.id
+
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        message: 'Utilisateur non authentifié',
+      })
+    }
+
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
@@ -66,8 +77,8 @@ export default defineEventHandler(async (event) => {
 
     await db.insert(auditLogs).values({
       tenantId,
-      userId: 1, // TODO: Récupérer l'ID du vendeur connecté
-      userName: 'System',
+      userId,
+      userName: auth.user?.email || auth.user?.user_metadata?.name || 'Utilisateur',
       entityType: 'customer',
       entityId: newCustomer.id,
       action: 'create',
@@ -123,9 +134,9 @@ export default defineEventHandler(async (event) => {
     if (establishmentId) {
       try {
         await syncCustomerToGroup(tenantId, newCustomer.id, establishmentId)
-        console.log(`✅ Client ${newCustomer.id} synchronisé depuis l'établissement ${establishmentId}`)
+        logger.info({ customerId: newCustomer.id, establishmentId }, 'Client synchronisé vers les autres établissements')
       } catch (syncError) {
-        console.error('❌ Erreur lors de la synchronisation du client:', syncError)
+        logger.warn({ err: syncError, customerId: newCustomer.id }, 'Erreur lors de la synchronisation du client')
         // On ne bloque pas la création, juste un warning
       }
     }
@@ -147,7 +158,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la création du client:', error)
+    logger.error({ err: error }, 'Erreur lors de la création du client')
 
     throw createError({
       statusCode: 500,

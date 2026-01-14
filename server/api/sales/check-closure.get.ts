@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { closures } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -47,7 +48,7 @@ export default defineEventHandler(async (event) => {
       closure: closure || null,
     }
   } catch (error) {
-    console.error('Erreur lors de la vérification de clôture:', error)
+    logger.error({ err: error }, 'Erreur lors de la vérification de clôture')
 
     throw createError({
       statusCode: 500,

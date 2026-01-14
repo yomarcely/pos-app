@@ -4,6 +4,7 @@ import { and, eq, asc, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { verifyTicketChain } from '~/server/utils/nf525'
 import { logChainVerification } from '~/server/utils/audit'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
     const registerId = registerIdParam ? Number(registerIdParam) : null
     const limit = limitParam ? Number(limitParam) : 1000
 
-    console.log(`🔍 Vérification de chaîne pour tenant ${tenantId}${registerId ? ` caisse ${registerId}` : ''}`)
+    logger.info({ tenantId, registerId }, 'Vérification de chaîne')
 
     // ==========================================
     // 1. RÉCUPÉRER LES TICKETS AVEC LEURS ITEMS
@@ -139,8 +140,10 @@ export default defineEventHandler(async (event) => {
     // 4. RETOURNER LE RÉSULTAT
     // ==========================================
 
-    const statusEmoji = verificationResult.isValid ? '✅' : '❌'
-    console.log(`${statusEmoji} Vérification terminée: ${verificationResult.isValid ? 'CHAÎNE INTACTE' : `${verificationResult.brokenLinks.length} PROBLÈMES DÉTECTÉS`}`)
+    logger.info(
+      { isValid: verificationResult.isValid, brokenLinks: verificationResult.brokenLinks.length },
+      `Vérification terminée: ${verificationResult.isValid ? 'CHAÎNE INTACTE' : `${verificationResult.brokenLinks.length} PROBLÈMES DÉTECTÉS`}`
+    )
 
     return {
       success: true,
@@ -158,7 +161,7 @@ export default defineEventHandler(async (event) => {
       },
     }
   } catch (error) {
-    console.error('Erreur lors de la vérification de chaîne:', error)
+    logger.error({ err: error }, 'Erreur lors de la vérification de chaîne')
 
     throw createError({
       statusCode: 500,

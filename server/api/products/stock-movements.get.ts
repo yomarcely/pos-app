@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { stockMovements, products } from '~/server/database/schema'
 import { desc, eq, ne, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -75,7 +76,7 @@ export default defineEventHandler(async (event) => {
       count: formattedMovements.length,
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'historique:', error)
+    logger.error({ err: error }, 'Erreur lors de la récupération de l\'historique')
 
     throw createError({
       statusCode: 500,

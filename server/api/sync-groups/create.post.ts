@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, syncRules } from '~/server/database/schema'
 import { createSyncGroupSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logger } from '~/server/utils/logger'
 
 /**
  * ==========================================
@@ -66,7 +67,7 @@ export default defineEventHandler(async (event) => {
       message: 'Groupe de synchronisation créé avec succès',
     }
   } catch (error) {
-    console.error('Erreur lors de la création du groupe de synchronisation:', error)
+    logger.error({ err: error }, 'Erreur lors de la création du groupe de synchronisation')
 
     // Erreur de validation Zod
     if (error && typeof error === 'object' && 'issues' in error) {

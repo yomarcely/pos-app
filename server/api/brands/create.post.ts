@@ -3,6 +3,7 @@ import { brands } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createBrandSchema, type CreateBrandInput } from '~/server/validators/brand.schema'
+import { logger } from '~/server/utils/logger'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -21,12 +22,17 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
-    console.log(`✅ Marque créée: ${newBrand.name} (ID: ${newBrand.id}) par établissement ${establishmentId}`)
+    logger.info({
+      brandId: newBrand.id,
+      brandName: newBrand.name,
+      establishmentId,
+      tenantId
+    }, 'Brand created')
 
     return newBrand
   }
   catch (error: any) {
-    console.error('Erreur lors de la création de la marque:', error)
+    logger.error({ err: error }, 'Failed to create brand')
     throw createError({
       statusCode: error.statusCode || 500,
       statusMessage: error.statusMessage || 'Erreur lors de la création de la marque',
