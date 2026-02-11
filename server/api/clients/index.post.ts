@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { customers, customerEstablishments, establishments } from '~/server/database/schema'
+import { customers, customerEstablishments, establishments, auditLogs } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
@@ -130,6 +130,30 @@ export default defineEventHandler(async (event) => {
           purchaseCount: 0,
         })
       }
+    }
+
+    // Log d'audit RGPD
+    const auth = event.context.auth
+    const userId = auth?.user?.id
+    if (userId) {
+      await db.insert(auditLogs).values({
+        tenantId,
+        userId,
+        userName: auth.user?.email || auth.user?.user_metadata?.name || 'Utilisateur',
+        entityType: 'customer',
+        entityId: newClient.id,
+        action: 'create',
+        changes: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          gdprConsent: body.gdprConsent,
+        },
+        metadata: {
+          consentDate: new Date().toISOString(),
+          marketingConsent: body.marketingConsent || false,
+        },
+        ipAddress: getRequestIP(event) || null,
+      })
     }
 
     // Synchroniser le client vers les autres établissements du groupe si un establishmentId est fourni

@@ -13,7 +13,7 @@ describe('stores/customer', () => {
   it('charge les clients et marque loaded', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       success: true,
-      customers: [{ id: 1, name: 'John', lastname: 'Doe' }]
+      clients: [{ id: 1, firstName: 'John', lastName: 'Doe' }]
     })
     vi.stubGlobal('$fetch', mockFetch)
 
@@ -27,7 +27,7 @@ describe('stores/customer', () => {
   })
 
   it('évite les appels multiples quand déjà chargé', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ success: true, customers: [] })
+    const mockFetch = vi.fn().mockResolvedValue({ success: true, clients: [] })
     vi.stubGlobal('$fetch', mockFetch)
 
     const store = useCustomerStore()
@@ -50,7 +50,7 @@ describe('stores/customer', () => {
 
   it('sélectionne et réinitialise un client', () => {
     const store = useCustomerStore()
-    const client = { id: 1, name: 'Jane', lastname: 'Doe' }
+    const client = { id: 1, firstName: 'Jane', lastName: 'Doe' }
 
     store.selectClient(client as any)
     expect(store.client).toEqual(client)

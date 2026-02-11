@@ -82,35 +82,13 @@ function formatDateTime(date: string) {
 }
 
 async function handleClientCreated(response: any) {
-  // Extraire le client de la réponse
   const client = response.client || response
 
-  // Mapper les nouveaux champs vers l'ancien format Customer
-  const mappedClient = {
-    id: client.id,
-    name: client.firstName || null,
-    lastname: client.lastName || null,
-    address: client.address || undefined,
-    postalcode: client.metadata?.postalCode || undefined,
-    city: client.metadata?.city || undefined,
-    country: client.metadata?.country || undefined,
-    phonenumber: client.phone || undefined,
-    mail: client.email || undefined,
-    fidelity: client.loyaltyProgram || false,
-    authorizesms: client.metadata?.authorizeSms || false,
-    authorizemailing: client.marketingConsent || false,
-    discount: client.discount || 0,
-    alert: client.alerts || undefined,
-    information: client.notes || undefined,
-    points: 0,
-    createdAt: client.createdAt
-  }
-
   // Ajouter le client à la liste des clients dans le store
-  customerStore.clients.push(mappedClient)
+  customerStore.clients.push(client)
 
   // Sélectionner le client créé
-  customerStore.selectClient(mappedClient)
+  customerStore.selectClient(client)
 
   // Fermer le dialog
   isAddClientDialogOpen.value = false
@@ -125,8 +103,8 @@ async function handleClientCreated(response: any) {
       <div class="flex items-center gap-2 mt-2">
         <!-- 🔍 Recherche -->
         <client-only>
-          <Combobox v-model="selectedClient" :options="Clients" option-value="id" option-label="name"
-            get-option-value="id" get-option-label="name">
+          <Combobox v-model="selectedClient" :options="Clients" option-value="id" option-label="firstName"
+            get-option-value="id" get-option-label="firstName">
             <ComboboxAnchor>
               <div class="relative w-full flex items-center rounded-md border">
                 <ComboboxInput placeholder="Recherche client" class="w-full h-full px-3 text-sm" />
@@ -137,7 +115,7 @@ async function handleClientCreated(response: any) {
               <ComboboxGroup>
                 <ComboboxItem v-for="item in Clients" :key="item.id" :value="item">
                   <div class="flex flex-col leading-tight">
-                    <div class="font-semibold text-sm">{{ item.name }} {{ item.lastname }}</div>
+                    <div class="font-semibold text-sm">{{ item.firstName }} {{ item.lastName }}</div>
                     <div class="text-xs text-gray-500">{{ item.city }}</div>
                   </div>
                 </ComboboxItem>
@@ -178,7 +156,7 @@ async function handleClientCreated(response: any) {
           <div class="flex items-center justify-between">
             <div>
               <div class="font-semibold text-base">
-                {{ selectedClient.name }} {{ selectedClient.lastname }}
+                {{ selectedClient.firstName }} {{ selectedClient.lastName }}
               </div>
               <div class="text-xs text-gray-500">
                 {{ selectedClient.city }}
@@ -250,7 +228,7 @@ async function handleClientCreated(response: any) {
         <DrawerHeader class="flex-shrink-0">
           <DrawerTitle>Historique d'achats</DrawerTitle>
           <DrawerDescription v-if="selectedClient">
-            {{ selectedClient.name }} {{ selectedClient.lastname }}
+            {{ selectedClient.firstName }} {{ selectedClient.lastName }}
           </DrawerDescription>
         </DrawerHeader>
 

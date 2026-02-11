@@ -21,12 +21,12 @@ export const useCustomerStore = defineStore('customer', () => {
     try {
       await initializeEstablishments()
 
-      const response = await $fetch('/api/customers', {
+      const response = await $fetch('/api/clients', {
         params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       })
 
       if (response.success) {
-        clients.value = response.customers
+        clients.value = response.clients
         loaded.value = true
       } else {
         throw new Error('Erreur lors de la récupération des clients')
@@ -49,10 +49,16 @@ export const useCustomerStore = defineStore('customer', () => {
 
   // Getters
   const clientName = computed(() =>
-    client.value ? `${client.value.name} ${client.value.lastname}` : 'Aucun client'
+    client.value ? `${client.value.firstName} ${client.value.lastName}` : 'Aucun client'
   )
 
   const isSelected = computed(() => !!client.value)
+
+  // Recharger quand l'établissement change
+  watch(selectedEstablishmentId, () => {
+    loaded.value = false
+    loadCustomers()
+  })
 
   return {
     client,
@@ -66,10 +72,4 @@ export const useCustomerStore = defineStore('customer', () => {
     selectClient,
     clearClient
   }
-
-  // Recharger quand l'établissement change
-  watch(selectedEstablishmentId, () => {
-    loaded.value = false
-    loadCustomers()
-  })
 })

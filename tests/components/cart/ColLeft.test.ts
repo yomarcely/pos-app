@@ -31,7 +31,7 @@ const cartStoreMock = {
 }
 
 const customerStoreMock = {
-  clients: [{ id: 1, name: 'Client', lastname: 'Test', city: 'Paris' }],
+  clients: [{ id: 1, firstName: 'Client', lastName: 'Test', city: 'Paris' }],
   client: null as any,
   selectClient: vi.fn(),
   clearClient: vi.fn()

@@ -56,7 +56,7 @@ function handleRecover() {
               <TableCell>
                 {{
                   cart.clientId
-                    ? customerStore.clients.find(c => c.id === cart.clientId)?.name ?? 'Client inconnu'
+                    ? customerStore.clients.find(c => c.id === cart.clientId)?.firstName ?? 'Client inconnu'
                     : 'Aucun'
                 }}
               </TableCell>

@@ -14,7 +14,7 @@ const cartStoreMock = {
   recoverPendingCart: vi.fn()
 }
 const customerStoreMock = {
-  clients: [{ id: 1, name: 'Client' }]
+  clients: [{ id: 1, firstName: 'Client' }]
 }
 
 vi.mock('@/stores/cart', () => ({

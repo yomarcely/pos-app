@@ -241,8 +241,8 @@ async function validerVente() {
       },
       customer: customerStore.client ? {
         id: customerStore.client.id,
-        firstName: customerStore.client.name,
-        lastName: customerStore.client.lastname,
+        firstName: customerStore.client.firstName,
+        lastName: customerStore.client.lastName,
       } : null,
       payments: payments.value,
       totals: {
