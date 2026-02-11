@@ -194,12 +194,15 @@ export default defineEventHandler(async (event) => {
       movement: result.movement,
       details: result.stockMovements,
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la création du mouvement')
 
+    const statusCode = error instanceof Error && 'statusCode' in error ? (error as { statusCode: number }).statusCode : 500
+    const message = error instanceof Error ? error.message : 'Erreur lors de la création du mouvement'
+
     throw createError({
-      statusCode: error.statusCode || 500,
-      message: error.message || 'Erreur lors de la création du mouvement',
+      statusCode,
+      message,
     })
   }
 })

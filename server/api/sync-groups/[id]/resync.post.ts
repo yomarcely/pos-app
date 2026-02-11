@@ -4,6 +4,95 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
+// Types pour les valeurs de resync produits
+interface ProductSourceValues {
+  price: string | null
+  purchasePrice: string | null
+  name: string | null
+  description: string | null
+  barcode: string | null
+  supplierId: number | null
+  categoryId: number | null
+  brandId: number | null
+  tva: number | null
+  tvaId: number | null
+  image: string | null
+  variationGroupIds: number[] | null
+}
+
+interface ProductGlobalUpdate {
+  price?: string | null
+  purchasePrice?: string | null
+  name?: string | null
+  description?: string | null
+  barcode?: string | null
+  supplierId?: number | null
+  categoryId?: number | null
+  brandId?: number | null
+  tva?: number | null
+  tvaId?: number | null
+  image?: string | null
+  variationGroupIds?: number[] | null
+}
+
+interface ProductOverrideReset {
+  priceOverride?: null
+  purchasePriceOverride?: null
+  nameOverride?: null
+  descriptionOverride?: null
+  barcodeOverride?: null
+  supplierIdOverride?: null
+  categoryIdOverride?: null
+  brandIdOverride?: null
+  tvaOverride?: null
+  tvaIdOverride?: null
+  imageOverride?: null
+  variationGroupIdsOverride?: null
+}
+
+// Types pour les valeurs de resync clients
+interface CustomerSourceValues {
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  metadata: Record<string, unknown> | null
+  gdprConsent: boolean | null
+  gdprConsentDate: Date | null
+  marketingConsent: boolean | null
+  loyaltyProgram: string | null
+  discount: string | null
+}
+
+interface CustomerGlobalUpdate {
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  metadata?: Record<string, unknown> | null
+  gdprConsent?: boolean | null
+  gdprConsentDate?: Date | null
+  marketingConsent?: boolean | null
+  loyaltyProgram?: string | null
+  discount?: string | null
+}
+
+interface CustomerOverrideReset {
+  firstNameOverride?: null
+  lastNameOverride?: null
+  emailOverride?: null
+  phoneOverride?: null
+  addressOverride?: null
+  metadataOverride?: null
+  gdprConsentOverride?: null
+  gdprConsentDateOverride?: null
+  marketingConsentOverride?: null
+  loyaltyProgramOverride?: null
+  discountOverride?: null
+}
+
 /**
  * ==========================================
  * API: Resynchroniser les données d'un groupe
@@ -189,7 +278,7 @@ async function resyncProducts(
         const sourceOverride = overrideMap.get(product.id)
 
         // Déterminer la valeur source (override s'il existe, sinon globale)
-        const sourceValues: any = {
+        const sourceValues: ProductSourceValues = {
           price: sourceOverride?.priceOverride ?? product.price,
           purchasePrice: sourceOverride?.purchasePriceOverride ?? product.purchasePrice,
           name: sourceOverride?.nameOverride ?? product.name,
@@ -205,7 +294,7 @@ async function resyncProducts(
         }
 
         // Mettre à jour le produit global si nécessaire
-        const globalUpdate: any = {}
+        const globalUpdate: ProductGlobalUpdate = {}
         if (fields.includes('price')) globalUpdate.price = sourceValues.price
         if (fields.includes('purchasePrice')) globalUpdate.purchasePrice = sourceValues.purchasePrice
         if (fields.includes('name')) globalUpdate.name = sourceValues.name
@@ -227,7 +316,7 @@ async function resyncProducts(
         }
 
         // Supprimer les overrides pour les champs resynchronisés
-        const overrideReset: any = {}
+        const overrideReset: ProductOverrideReset = {}
         if (fields.includes('price')) overrideReset.priceOverride = null
         if (fields.includes('purchasePrice')) overrideReset.purchasePriceOverride = null
         if (fields.includes('name')) overrideReset.nameOverride = null
@@ -354,13 +443,13 @@ async function resyncCustomers(
       for (const customer of globalCustomers) {
         const sourceOverride = overrideMap.get(customer.id)
 
-        const sourceValues: any = {
+        const sourceValues: CustomerSourceValues = {
           firstName: sourceOverride?.firstNameOverride ?? customer.firstName,
           lastName: sourceOverride?.lastNameOverride ?? customer.lastName,
           email: sourceOverride?.emailOverride ?? customer.email,
           phone: sourceOverride?.phoneOverride ?? customer.phone,
           address: sourceOverride?.addressOverride ?? customer.address,
-          metadata: sourceOverride?.metadataOverride ?? customer.metadata,
+          metadata: (sourceOverride?.metadataOverride ?? customer.metadata) as Record<string, unknown> | null,
           gdprConsent: sourceOverride?.gdprConsentOverride ?? customer.gdprConsent,
           gdprConsentDate: sourceOverride?.gdprConsentDateOverride ?? customer.gdprConsentDate,
           marketingConsent: sourceOverride?.marketingConsentOverride ?? customer.marketingConsent,
@@ -369,7 +458,7 @@ async function resyncCustomers(
         }
 
         // Mettre à jour le client global
-        const globalUpdate: any = {}
+        const globalUpdate: CustomerGlobalUpdate = {}
         if (fields.includes('firstName')) globalUpdate.firstName = sourceValues.firstName
         if (fields.includes('lastName')) globalUpdate.lastName = sourceValues.lastName
         if (fields.includes('email')) globalUpdate.email = sourceValues.email
@@ -390,7 +479,7 @@ async function resyncCustomers(
         }
 
         // Remettre les overrides à null pour les champs resynchronisés
-        const overrideReset: any = {}
+        const overrideReset: CustomerOverrideReset = {}
         if (fields.includes('firstName')) overrideReset.firstNameOverride = null
         if (fields.includes('lastName')) overrideReset.lastNameOverride = null
         if (fields.includes('email')) overrideReset.emailOverride = null

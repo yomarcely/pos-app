@@ -31,11 +31,16 @@ export default defineEventHandler(async (event) => {
 
     return newBrand
   }
-  catch (error: any) {
+  catch (error) {
     logger.error({ err: error }, 'Failed to create brand')
+
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
-      statusCode: error.statusCode || 500,
-      statusMessage: error.statusMessage || 'Erreur lors de la création de la marque',
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la création de la marque',
     })
   }
 })

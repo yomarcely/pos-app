@@ -27,7 +27,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const updateData: any = {
+    interface SellerUpdateData {
+      updatedAt: Date
+      name?: string
+      code?: string | null
+      isActive?: boolean
+    }
+
+    const updateData: SellerUpdateData = {
       updatedAt: new Date(),
     }
 

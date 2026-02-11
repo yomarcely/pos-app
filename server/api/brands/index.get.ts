@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
 
     return allBrands
   }
-  catch (error: any) {
+  catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des marques')
     throw createError({
       statusCode: 500,

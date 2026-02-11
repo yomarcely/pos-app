@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     const [newCategory] = await db.insert(categories).values({
       tenantId,
       createdByEstablishmentId: establishmentId,
-      ...(validatedData as any),
+      ...validatedData,
     }).returning()
 
     logger.info({

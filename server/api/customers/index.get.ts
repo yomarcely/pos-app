@@ -60,8 +60,14 @@ export default defineEventHandler(async (event) => {
           .orderBy(desc(customers.createdAt))
 
     // Transformer les données pour correspondre au format attendu par le frontend
+    type CustomerMetadata = {
+      postalcode?: string
+      city?: string
+      country?: string
+      authorizesms?: boolean
+    }
     const formattedCustomers = allCustomers.map(customer => {
-      const metadata = customer.metadata as any || {}
+      const metadata = (customer.metadata || {}) as CustomerMetadata
 
       return {
         id: customer.id,

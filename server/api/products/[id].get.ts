@@ -140,30 +140,30 @@ export default defineEventHandler(async (event) => {
           ? parseFloat(product.purchasePriceOverride)
           : product.purchasePrice ? parseFloat(product.purchasePrice) : null,
         // Retourner le stock de l'établissement si disponible, sinon le stock global
-        stock: establishmentId && (product as any).establishmentStock !== undefined
-          ? (product as any).establishmentStock
+        stock: establishmentId && product.establishmentStock !== undefined
+          ? product.establishmentStock
           : product.stock || 0,
-        minStock: establishmentId && (product as any).establishmentMinStock !== undefined
-          ? (product as any).establishmentMinStock
+        minStock: establishmentId && product.establishmentMinStock !== undefined
+          ? product.establishmentMinStock
           : product.minStock || 5,
-        stockByVariation: establishmentId && (product as any).establishmentStockByVariation !== undefined
-          ? (product as any).establishmentStockByVariation as Record<string, number> | undefined
+        stockByVariation: establishmentId && product.establishmentStockByVariation !== undefined
+          ? product.establishmentStockByVariation as Record<string, number> | undefined
           : product.stockByVariation as Record<string, number> | undefined,
-        minStockByVariation: establishmentId && (product as any).establishmentMinStockByVariation !== undefined
-          ? (product as any).establishmentMinStockByVariation as Record<string, number> | undefined
+        minStockByVariation: establishmentId && product.establishmentMinStockByVariation !== undefined
+          ? product.establishmentMinStockByVariation as Record<string, number> | undefined
           : product.minStockByVariation as Record<string, number> | undefined,
       },
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération du produit')
 
-    if (error.statusCode) {
+    if (error instanceof Error && 'statusCode' in error) {
       throw error
     }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Erreur lors de la récupération du produit',
+      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la récupération du produit',
     })
   }
 })

@@ -116,10 +116,15 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 3. CALCULER PAIEMENTS (JSONB - en mémoire)
     // ==========================================
+    interface PaymentEntry {
+      mode: string
+      amount: number
+    }
+
     const paymentMethods: Record<string, { amount: number; count: number }> = {}
 
     activeSales.forEach(sale => {
-      const payments = sale.payments as any[]
+      const payments = sale.payments as PaymentEntry[]
       payments.forEach(payment => {
         if (!paymentMethods[payment.mode]) {
           paymentMethods[payment.mode] = { amount: 0, count: 0 }
@@ -195,7 +200,8 @@ export default defineEventHandler(async (event) => {
     // 6. RÉCUPÉRER ITEMS POUR DÉTAILS (si nécessaire)
     // ==========================================
     const saleIdsAll = dailySales.map(s => s.id)
-    let allItems: any[] = []
+    type SaleItemRow = typeof saleItems.$inferSelect
+    let allItems: SaleItemRow[] = []
 
     if (saleIdsAll.length > 0) {
       allItems = await db

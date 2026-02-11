@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const updateData: any = {
+    const updateData: { updatedAt: Date; name?: string; sortOrder?: number } = {
       updatedAt: new Date(),
     }
 

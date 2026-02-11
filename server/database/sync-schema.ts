@@ -41,8 +41,8 @@ async function syncSchema() {
         ADD CONSTRAINT products_category_id_categories_id_fk
         FOREIGN KEY (category_id) REFERENCES categories(id)
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     try {
@@ -51,8 +51,8 @@ async function syncSchema() {
         ADD CONSTRAINT products_supplier_id_suppliers_id_fk
         FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     try {
@@ -61,8 +61,8 @@ async function syncSchema() {
         ADD CONSTRAINT products_brand_id_brands_id_fk
         FOREIGN KEY (brand_id) REFERENCES brands(id)
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     try {
@@ -71,8 +71,8 @@ async function syncSchema() {
         ADD CONSTRAINT sales_closure_id_closures_id_fk
         FOREIGN KEY (closure_id) REFERENCES closures(id)
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     try {
@@ -81,8 +81,8 @@ async function syncSchema() {
         ADD CONSTRAINT stock_movements_movement_id_movements_id_fk
         FOREIGN KEY (movement_id) REFERENCES movements(id) ON DELETE CASCADE
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     try {
@@ -91,8 +91,8 @@ async function syncSchema() {
         ADD CONSTRAINT variations_group_id_variation_groups_id_fk
         FOREIGN KEY (group_id) REFERENCES variation_groups(id) ON DELETE CASCADE
       `
-    } catch (e: any) {
-      if (!e.message?.includes('already exists')) throw e
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message?.includes('already exists')) throw e
     }
 
     // Créer les index manquants

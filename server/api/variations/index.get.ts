@@ -15,16 +15,25 @@ import { logger } from '~/server/utils/logger'
  * Supporte le paramètre establishmentId pour filtrer par établissement
  */
 
-interface Variation {
+interface VariationItem {
+  id: number
+  name: string
+  sortOrder: number | null
+  groupId: number
+  tenantId: string
+  isArchived: boolean | null
+}
+
+interface VariationOutput {
   id: number
   name: string
   sortOrder: number | null
 }
 
-interface VariationGroup {
+interface VariationGroupOutput {
   id: number
   name: string
-  variations: Variation[]
+  variations: VariationOutput[]
 }
 
 export default defineEventHandler(async (event) => {
@@ -91,7 +100,7 @@ export default defineEventHandler(async (event) => {
 
     // Récupérer les variations des groupes (filtrées par les groupes obtenus)
     const groupIds = groups.map(g => g.id)
-    let allVariations: any[] = []
+    let allVariations: VariationItem[] = []
     if (groupIds.length > 0) {
       allVariations = await db
         .select()
@@ -105,13 +114,13 @@ export default defineEventHandler(async (event) => {
     }
 
     // Construire la structure avec les variations groupées
-    const result: VariationGroup[] = groups.map(group => ({
+    const result: VariationGroupOutput[] = groups.map(group => ({
       id: group.id,
       name: group.name,
       variations: allVariations
-        .filter((v: any) => v.groupId === group.id)
-        .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-        .map((v: any) => ({
+        .filter((v) => v.groupId === group.id)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map((v) => ({
           id: v.id,
           name: v.name,
           sortOrder: v.sortOrder,

@@ -1,11 +1,27 @@
 import { db } from '~/server/database/connection'
 import { products, productEstablishments, syncRules, syncGroups } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
-import { updateProductSchema } from '~/server/validators/product.schema'
+import { updateProductSchema, type UpdateProductInput } from '~/server/validators/product.schema'
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
-import { syncProductToGroup, getGlobalProductFields } from '~/server/utils/sync'
+import { getGlobalProductFields, type ProductFields } from '~/server/utils/sync'
 import { logger } from '~/server/utils/logger'
+
+/**
+ * Type pour les overrides locaux d'un établissement
+ */
+interface LocalOverrides {
+  nameOverride?: string
+  descriptionOverride?: string
+  barcodeOverride?: string
+  supplierIdOverride?: number
+  categoryIdOverride?: number
+  brandIdOverride?: number
+  tvaOverride?: number
+  tvaIdOverride?: number
+  imageOverride?: string
+  variationGroupIdsOverride?: number[]
+}
 
 /**
  * ==========================================
@@ -35,54 +51,53 @@ export default defineEventHandler(async (event) => {
     const validatedData = await validateBody(event, updateProductSchema)
 
     // Filtrer les champs autorisés selon les règles de synchronisation
-    let globalFields = validatedData as any
-    let localOverrides: any = {}
+    let globalFields: ProductFields = validatedData as ProductFields
+    const localOverrides: LocalOverrides = {}
     let priceOverride: string | null = null
     let purchasePriceOverride: string | null = null
 
     if (establishmentId) {
-      globalFields = await getGlobalProductFields(tenantId, establishmentId, validatedData as any)
+      globalFields = await getGlobalProductFields(tenantId, establishmentId, validatedData as ProductFields)
 
       // Identifier les champs bloqués (non synchronisés) qui doivent être stockés localement
-      const blockedFields = Object.keys(validatedData as any).filter(key => !(key in globalFields))
+      const blockedFields = Object.keys(validatedData).filter(key => !(key in globalFields))
 
       // Stocker TOUS les champs bloqués dans les overrides locaux
-      const data = validatedData as any
-      if (blockedFields.includes('price') && data.price !== undefined) {
-        priceOverride = String(data.price)
+      if (blockedFields.includes('price') && validatedData.price !== undefined) {
+        priceOverride = String(validatedData.price)
       }
-      if (blockedFields.includes('purchasePrice') && data.purchasePrice !== undefined) {
-        purchasePriceOverride = String(data.purchasePrice)
+      if (blockedFields.includes('purchasePrice') && validatedData.purchasePrice !== undefined) {
+        purchasePriceOverride = String(validatedData.purchasePrice)
       }
-      if (blockedFields.includes('name') && data.name !== undefined) {
-        localOverrides.nameOverride = data.name
+      if (blockedFields.includes('name') && validatedData.name !== undefined) {
+        localOverrides.nameOverride = validatedData.name
       }
-      if (blockedFields.includes('description') && data.description !== undefined) {
-        localOverrides.descriptionOverride = data.description
+      if (blockedFields.includes('description') && validatedData.description !== undefined) {
+        localOverrides.descriptionOverride = validatedData.description
       }
-      if (blockedFields.includes('barcode') && data.barcode !== undefined) {
-        localOverrides.barcodeOverride = data.barcode
+      if (blockedFields.includes('barcode') && validatedData.barcode !== undefined) {
+        localOverrides.barcodeOverride = validatedData.barcode
       }
-      if (blockedFields.includes('supplierId') && data.supplierId !== undefined) {
-        localOverrides.supplierIdOverride = data.supplierId
+      if (blockedFields.includes('supplierId') && validatedData.supplierId !== undefined) {
+        localOverrides.supplierIdOverride = validatedData.supplierId
       }
-      if (blockedFields.includes('categoryId') && data.categoryId !== undefined) {
-        localOverrides.categoryIdOverride = data.categoryId
+      if (blockedFields.includes('categoryId') && validatedData.categoryId !== undefined) {
+        localOverrides.categoryIdOverride = validatedData.categoryId
       }
-      if (blockedFields.includes('brandId') && data.brandId !== undefined) {
-        localOverrides.brandIdOverride = data.brandId
+      if (blockedFields.includes('brandId') && validatedData.brandId !== undefined) {
+        localOverrides.brandIdOverride = validatedData.brandId
       }
-      if (blockedFields.includes('tva') && data.tva !== undefined) {
-        localOverrides.tvaOverride = data.tva
+      if (blockedFields.includes('tva') && validatedData.tva !== undefined) {
+        localOverrides.tvaOverride = Number(validatedData.tva)
       }
-      if (blockedFields.includes('tvaId') && data.tvaId !== undefined) {
-        localOverrides.tvaIdOverride = data.tvaId
+      if (blockedFields.includes('tvaId') && validatedData.tvaId !== undefined) {
+        localOverrides.tvaIdOverride = validatedData.tvaId
       }
-      if (blockedFields.includes('image') && data.image !== undefined) {
-        localOverrides.imageOverride = data.image
+      if (blockedFields.includes('image') && validatedData.image !== undefined) {
+        localOverrides.imageOverride = validatedData.image
       }
-      if (blockedFields.includes('variationGroupIds') && data.variationGroupIds !== undefined) {
-        localOverrides.variationGroupIdsOverride = data.variationGroupIds
+      if (blockedFields.includes('variationGroupIds') && validatedData.variationGroupIds !== undefined) {
+        localOverrides.variationGroupIdsOverride = validatedData.variationGroupIds
       }
 
       logger.info({
@@ -92,8 +107,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Si le tenant a un groupe avec syncPriceTtc = false, empêcher la mise à jour globale sans établissement
-    const data = validatedData as any
-    if (!establishmentId && data.price !== undefined) {
+    if (!establishmentId && validatedData.price !== undefined) {
       const hasLocalPriceRules = await db
         .select({ id: syncRules.id })
         .from(syncRules)
@@ -139,7 +153,7 @@ export default defineEventHandler(async (event) => {
 
     // Mettre à jour les overrides locaux (prix + champs non synchronisés) si un établissement est ciblé
     if (establishmentId) {
-      const establishmentData: any = {
+      const establishmentData = {
         priceOverride,
         purchasePriceOverride,
         isAvailable: true,
@@ -178,16 +192,16 @@ export default defineEventHandler(async (event) => {
       success: true,
       product: updatedProduct,
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la modification du produit')
 
-    if (error.statusCode) {
+    if (error instanceof Error && 'statusCode' in error) {
       throw error
     }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Erreur lors de la modification du produit',
+      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la modification du produit',
     })
   }
 })

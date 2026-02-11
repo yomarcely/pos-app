@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     // Mettre à jour - SÉCURITÉ: filtre par tenantId ET id
     const [updated] = await db
       .update(categories)
-      .set({ ...validatedData as any, updatedAt: new Date() })
+      .set({ ...validatedData, updatedAt: new Date() })
       .where(
         and(
           eq(categories.id, id),

@@ -9,7 +9,7 @@ import {
   productStocks,
   customerEstablishments,
 } from '~/server/database/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import type { SyncResult } from '~/types/sync'
 import { logger } from '~/server/utils/logger'
 
@@ -69,13 +69,13 @@ export interface SyncGroupWithRules {
 /**
  * Type pour les champs de produit pouvant être synchronisés
  */
-type ProductFieldValue = string | number | boolean | null | undefined | Date | number[] | Record<string, unknown>
-type ProductFields = Record<string, ProductFieldValue>
+type ProductFieldValue = string | number | boolean | null | undefined | Date | number[] | Record<string, unknown> | unknown
+export type ProductFields = Record<string, ProductFieldValue>
 
 /**
  * Type pour les champs de client pouvant être synchronisés
  */
-type CustomerFieldValue = string | number | boolean | null | undefined | Date | Record<string, unknown>
+type CustomerFieldValue = string | number | boolean | null | undefined | Date | Record<string, unknown> | unknown
 type CustomerFields = Record<string, CustomerFieldValue>
 
 /**
@@ -85,8 +85,8 @@ type CustomerFields = Record<string, CustomerFieldValue>
 export async function getGlobalProductFields(
   tenantId: string,
   establishmentId: number,
-  fields: Record<string, any>
-): Promise<Record<string, any>> {
+  fields: ProductFields
+): Promise<ProductFields> {
   // Récupérer les règles de synchronisation
   const groups = await getSyncGroupsForEstablishment(tenantId, establishmentId)
 
@@ -96,7 +96,7 @@ export async function getGlobalProductFields(
     return fields
   }
 
-  const allowedFields: Record<string, any> = {}
+  const allowedFields: ProductFields = {}
   const blockedFields: string[] = []
 
   // Prendre les règles du premier groupe (on suppose qu'un établissement n'est que dans un seul groupe)
@@ -230,8 +230,8 @@ export async function getGlobalProductFields(
 export async function getGlobalCustomerFields(
   tenantId: string,
   establishmentId: number,
-  fields: Record<string, any>
-): Promise<Record<string, any>> {
+  fields: CustomerFields
+): Promise<CustomerFields> {
   // Récupérer les règles de synchronisation
   const groups = await getSyncGroupsForEstablishment(tenantId, establishmentId)
 
@@ -241,7 +241,7 @@ export async function getGlobalCustomerFields(
     return fields
   }
 
-  const allowedFields: Record<string, any> = {}
+  const allowedFields: CustomerFields = {}
   const blockedFields: string[] = []
 
   // Prendre les règles du premier groupe (on suppose qu'un établissement n'est que dans un seul groupe)
@@ -355,13 +355,7 @@ export async function getGlobalCustomerFields(
 export async function getSyncGroupsForEstablishment(
   tenantId: string,
   establishmentId: number
-): Promise<Array<{
-  id: number
-  name: string
-  productRules: any
-  customerRules: any
-  targetEstablishments: number[]
-}>> {
+): Promise<SyncGroupWithRules[]> {
   // Récupérer tous les groupes avec leurs règles et établissements en une seule requête
   const groupsData = await db
     .select({
@@ -419,8 +413,8 @@ export async function getSyncGroupsForEstablishment(
   const groupsMap = new Map<number, {
     id: number
     name: string
-    productRules: any
-    customerRules: any
+    productRules: ProductSyncRules | undefined
+    customerRules: CustomerSyncRules | undefined
     targetEstablishments: Set<number>
   }>()
 
@@ -514,7 +508,7 @@ export async function syncProductToGroup(
       const syncedFields: string[] = []
 
       // Construire l'objet des champs à synchroniser
-      const fieldsToSync: any = {}
+      const fieldsToSync: ProductFields = {}
 
       if (rules.syncName) {
         fieldsToSync.name = product.name
@@ -679,7 +673,7 @@ export async function syncCustomerToGroup(
       const syncedFields: string[] = []
 
       // Construire l'objet des champs à synchroniser
-      const fieldsToSync: any = {}
+      const fieldsToSync: CustomerFields = {}
 
       if (rules.syncCustomerInfo) {
         fieldsToSync.firstName = customer.firstName

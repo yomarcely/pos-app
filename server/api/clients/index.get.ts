@@ -111,15 +111,16 @@ export default defineEventHandler(async (event) => {
           like(customers.phone, searchPattern),
           sql`CONCAT(${customers.firstName}, ' ', ${customers.lastName}) ILIKE ${searchPattern}`
         )
-      ) as any
+      )
     }
 
     // Ordonner par date de création (plus récents en premier)
     const allClients = await finalQuery.orderBy(desc(customers.createdAt))
 
     // Transformer les résultats
+    type ClientMetadata = { city?: string }
     const clientsWithCA = allClients.map((client) => {
-      const metadata = client.metadata as any || {}
+      const metadata = (client.metadata || {}) as ClientMetadata
 
       return {
         id: client.id,

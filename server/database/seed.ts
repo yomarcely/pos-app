@@ -52,7 +52,7 @@ type SeedResult = {
 }
 
 type DbExecutor = {
-  execute: (query: any) => Promise<any>
+  execute: (query: ReturnType<typeof sql>) => Promise<unknown>
 }
 
 async function resetDatabase(executor: DbExecutor) {
@@ -289,7 +289,14 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         .returning({ id: customers.id })
 
       const productPayloads = tenant.products.map((product) => {
-        const p = product as Record<string, any>
+        type ProductSeed = typeof product & {
+          barcode?: string | null
+          purchasePrice?: number | string | null
+          stock?: number
+          stockByVariation?: Record<string, number> | null
+          variationIds?: number[] | null
+        }
+        const p = product as ProductSeed
         return {
           id: product.id,
           tenantId: tenant.id,
@@ -414,9 +421,14 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         return Math.max(0, floorValue)
       }
 
+      type ProductWithStock = (typeof tenant.products)[number] & {
+        stock?: number
+        stockByVariation?: Record<string, number>
+      }
+
       const stockValues = establishmentsWithData.flatMap((est, estIndex) =>
         insertedProducts.map(({ id }) => {
-          const original = productById.get(id) as any
+          const original = productById.get(id) as ProductWithStock | undefined
           const totalEstabs = establishmentsWithData.length || 1
           const baseStock = Number(original?.stock ?? 0)
           const weights = weightsFor(totalEstabs)

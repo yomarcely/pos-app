@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
 
     return allSuppliers
   }
-  catch (error: any) {
+  catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des fournisseurs')
     throw createError({
       statusCode: 500,

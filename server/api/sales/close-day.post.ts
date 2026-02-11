@@ -118,10 +118,15 @@ export default defineEventHandler(async (event) => {
     const cancelledCount = cancelledSales.length
 
     // Totaux par mode de paiement
+    interface PaymentEntry {
+      mode: string
+      amount: number
+    }
+
     const paymentMethods: Record<string, number> = {}
 
     activeSales.forEach(sale => {
-      const payments = sale.payments as any[]
+      const payments = sale.payments as PaymentEntry[]
       payments.forEach(payment => {
         if (!paymentMethods[payment.mode]) {
           paymentMethods[payment.mode] = 0

@@ -40,8 +40,8 @@ async function migrate() {
         ALTER TABLE archives
         RENAME COLUMN file_hash TO archive_hash;
       `)
-    } catch (error: any) {
-      if (!error?.message?.includes('column "file_hash" does not exist')) {
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message?.includes('column "file_hash" does not exist')) {
         throw error
       }
     }

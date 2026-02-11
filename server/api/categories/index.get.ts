@@ -25,7 +25,9 @@ interface Category {
   children?: Category[]
 }
 
-function buildTree(flatCategories: any[]): Category[] {
+type CategoryRow = typeof categories.$inferSelect
+
+function buildTree(flatCategories: CategoryRow[]): Category[] {
   const categoryMap = new Map<number, Category>()
   const roots: Category[] = []
 

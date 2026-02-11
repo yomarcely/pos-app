@@ -27,7 +27,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const updateData: any = {
+    interface RegisterUpdateData {
+      updatedAt: Date
+      establishmentId?: number
+      name?: string
+      isActive?: boolean
+    }
+
+    const updateData: RegisterUpdateData = {
       updatedAt: new Date(),
     }
 

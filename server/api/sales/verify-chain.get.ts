@@ -2,7 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, saleItems } from '~/server/database/schema'
 import { and, eq, asc, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
-import { verifyTicketChain } from '~/server/utils/nf525'
+import { verifyTicketChain, type TicketData } from '~/server/utils/nf525'
 import { logChainVerification } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
 
@@ -115,7 +115,7 @@ export default defineEventHandler(async (event) => {
       globalDiscount: Number(sale.globalDiscount || 0),
       globalDiscountType: (sale.globalDiscountType as '%' | '€') || '€',
       items: sale.items,
-      payments: (sale.payments as any) || [],
+      payments: (sale.payments as TicketData['payments']) || [],
       currentHash: sale.currentHash,
       previousHash: sale.previousHash,
     }))

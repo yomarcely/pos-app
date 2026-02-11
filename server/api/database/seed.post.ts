@@ -24,13 +24,13 @@ export default defineEventHandler(async () => {
       message: 'Base de données seedée avec succès',
       result,
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error({ err: error }, 'Erreur lors du seed')
 
     throw createError({
       statusCode: 500,
       statusMessage: 'Erreur lors du seed de la base de données',
-      message: error.message,
+      message: error instanceof Error ? error.message : 'Erreur inconnue',
     })
   }
 })

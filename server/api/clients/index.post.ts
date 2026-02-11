@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const query = getQuery(event)
-    const parseEstablishmentId = (value: any) => {
+    const parseEstablishmentId = (value: unknown): number | undefined => {
       if (Array.isArray(value)) return parseEstablishmentId(value[0])
       const num = Number(value)
       return Number.isFinite(num) ? num : undefined
@@ -46,8 +46,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await validateBody<CreateClientInput>(event, createClientSchema)
-    const establishmentIdFromBody = parseEstablishmentId((body as any).establishmentId)
-    const establishmentIdFromQuery = parseEstablishmentId((query as any).establishmentId)
+    type BodyWithEstablishment = CreateClientInput & { establishmentId?: unknown }
+    const establishmentIdFromBody = parseEstablishmentId((body as BodyWithEstablishment).establishmentId)
+    const establishmentIdFromQuery = parseEstablishmentId(query.establishmentId)
 
     const cookieCandidates = [
       getCookie(event, 'pos_selected_establishment'),

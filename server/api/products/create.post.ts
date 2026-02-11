@@ -56,17 +56,17 @@ export default defineEventHandler(async (event) => {
       product: newProduct,
     }
   }
-  catch (error: any) {
+  catch (error) {
     logger.error({ err: error }, 'Erreur lors de la création du produit')
 
     // Gérer les erreurs spécifiques
-    if (error.statusCode) {
+    if (error instanceof Error && 'statusCode' in error) {
       throw error
     }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Erreur lors de la création du produit',
+      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la création du produit',
     })
   }
 })
