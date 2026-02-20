@@ -98,24 +98,21 @@ export default defineEventHandler(async (event) => {
         customers.updatedAt
       )
 
-    let finalQuery = groupedQuery
-
     // Appliquer la recherche si présente
-    if (searchTerm && searchTerm.trim() !== '') {
-      const searchPattern = `%${searchTerm.trim()}%`
-      finalQuery = finalQuery.having(
+    const filteredQuery = (searchTerm && searchTerm.trim() !== '')
+      ? groupedQuery.having(
         or(
-          like(customers.firstName, searchPattern),
-          like(customers.lastName, searchPattern),
-          like(customers.email, searchPattern),
-          like(customers.phone, searchPattern),
-          sql`CONCAT(${customers.firstName}, ' ', ${customers.lastName}) ILIKE ${searchPattern}`
+          like(customers.firstName, `%${searchTerm.trim()}%`),
+          like(customers.lastName, `%${searchTerm.trim()}%`),
+          like(customers.email, `%${searchTerm.trim()}%`),
+          like(customers.phone, `%${searchTerm.trim()}%`),
+          sql`CONCAT(${customers.firstName}, ' ', ${customers.lastName}) ILIKE ${`%${searchTerm.trim()}%`}`
         )
       )
-    }
+      : groupedQuery
 
     // Ordonner par date de création (plus récents en premier)
-    const allClients = await finalQuery.orderBy(desc(customers.createdAt))
+    const allClients = await filteredQuery.orderBy(desc(customers.createdAt))
 
     // Transformer les résultats
     type ClientMetadata = { city?: string }

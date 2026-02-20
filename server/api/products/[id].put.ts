@@ -11,16 +11,16 @@ import { logger } from '~/server/utils/logger'
  * Type pour les overrides locaux d'un établissement
  */
 interface LocalOverrides {
-  nameOverride?: string
-  descriptionOverride?: string
-  barcodeOverride?: string
-  supplierIdOverride?: number
-  categoryIdOverride?: number
-  brandIdOverride?: number
-  tvaOverride?: number
-  tvaIdOverride?: number
-  imageOverride?: string
-  variationGroupIdsOverride?: number[]
+  nameOverride?: string | null
+  descriptionOverride?: string | null
+  barcodeOverride?: string | null
+  supplierIdOverride?: number | null
+  categoryIdOverride?: number | null
+  brandIdOverride?: number | null
+  tvaOverride?: string | null
+  tvaIdOverride?: number | null
+  imageOverride?: string | null
+  variationGroupIdsOverride?: number[] | null
 }
 
 /**
@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
         priceOverride = String(validatedData.price)
       }
       if (blockedFields.includes('purchasePrice') && validatedData.purchasePrice !== undefined) {
-        purchasePriceOverride = String(validatedData.purchasePrice)
+        purchasePriceOverride = validatedData.purchasePrice === null ? null : String(validatedData.purchasePrice)
       }
       if (blockedFields.includes('name') && validatedData.name !== undefined) {
         localOverrides.nameOverride = validatedData.name
@@ -88,7 +88,7 @@ export default defineEventHandler(async (event) => {
         localOverrides.brandIdOverride = validatedData.brandId
       }
       if (blockedFields.includes('tva') && validatedData.tva !== undefined) {
-        localOverrides.tvaOverride = Number(validatedData.tva)
+        localOverrides.tvaOverride = validatedData.tva === null ? null : String(validatedData.tva)
       }
       if (blockedFields.includes('tvaId') && validatedData.tvaId !== undefined) {
         localOverrides.tvaIdOverride = validatedData.tvaId

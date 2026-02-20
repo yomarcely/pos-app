@@ -123,7 +123,7 @@ export default defineEventHandler(async (event) => {
     // - Et aux établissements désynchro de garder leurs produits
 
     // Sélection de base
-    const selectFields: Record<string, unknown> = {
+    const selectFields = {
       id: products.id,
       name: products.name,
       barcode: products.barcode,
@@ -207,7 +207,7 @@ export default defineEventHandler(async (event) => {
 
     const allProducts = await queryBuilder
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(products.name) as ProductQueryResult[]
+      .orderBy(products.name) as unknown as ProductQueryResult[]
 
     // Transformer les données pour correspondre au format attendu par le frontend
     const formattedProducts = allProducts.map((product) => ({

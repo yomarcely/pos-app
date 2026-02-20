@@ -37,10 +37,10 @@ function buildTree(flatCategories: CategoryRow[]): Category[] {
       id: cat.id,
       name: cat.name,
       parentId: cat.parentId,
-      sortOrder: cat.sortOrder,
+      sortOrder: cat.sortOrder ?? 0,
       icon: cat.icon,
       color: cat.color,
-      isArchived: cat.isArchived,
+      isArchived: cat.isArchived ?? false,
       children: [],
     })
   })

@@ -6,33 +6,33 @@ import { logger } from '~/server/utils/logger'
 
 // Types pour les valeurs de resync produits
 interface ProductSourceValues {
-  price: string | null
+  price: string
   purchasePrice: string | null
-  name: string | null
+  name: string
   description: string | null
   barcode: string | null
   supplierId: number | null
   categoryId: number | null
   brandId: number | null
-  tva: number | null
+  tva: string | null
   tvaId: number | null
   image: string | null
-  variationGroupIds: number[] | null
+  variationGroupIds: unknown
 }
 
 interface ProductGlobalUpdate {
-  price?: string | null
+  price?: string
   purchasePrice?: string | null
-  name?: string | null
+  name?: string
   description?: string | null
   barcode?: string | null
   supplierId?: number | null
   categoryId?: number | null
   brandId?: number | null
-  tva?: number | null
+  tva?: string | null
   tvaId?: number | null
   image?: string | null
-  variationGroupIds?: number[] | null
+  variationGroupIds?: unknown
 }
 
 interface ProductOverrideReset {
@@ -58,10 +58,10 @@ interface CustomerSourceValues {
   phone: string | null
   address: string | null
   metadata: Record<string, unknown> | null
-  gdprConsent: boolean | null
+  gdprConsent: boolean
   gdprConsentDate: Date | null
   marketingConsent: boolean | null
-  loyaltyProgram: string | null
+  loyaltyProgram: boolean | null
   discount: string | null
 }
 
@@ -72,10 +72,10 @@ interface CustomerGlobalUpdate {
   phone?: string | null
   address?: string | null
   metadata?: Record<string, unknown> | null
-  gdprConsent?: boolean | null
+  gdprConsent?: boolean
   gdprConsentDate?: Date | null
   marketingConsent?: boolean | null
-  loyaltyProgram?: string | null
+  loyaltyProgram?: boolean | null
   discount?: string | null
 }
 
