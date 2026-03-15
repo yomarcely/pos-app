@@ -552,54 +552,14 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { useToast } from '@/composables/useToast'
 
 // Import du composant RuleItem
 import RuleItem from '~/components/sync/RuleItem.vue'
-
-const toast = useToast()
-
-interface Establishment {
-  id: number
-  name: string
-  city?: string
-}
-
-type ProductRules = {
-  syncName: boolean
-  syncDescription: boolean
-  syncBarcode: boolean
-  syncCategory: boolean
-  syncSupplier: boolean
-  syncBrand: boolean
-  syncPriceHt: boolean
-  syncPriceTtc: boolean
-  syncTva: boolean
-  syncImage: boolean
-  syncVariations: boolean
-}
-
-type CustomerRules = {
-  syncCustomerInfo: boolean
-  syncCustomerContact: boolean
-  syncCustomerAddress: boolean
-  syncCustomerGdpr: boolean
-  syncLoyaltyProgram: boolean
-  syncDiscount: boolean
-}
-
-type ProductRuleKey = keyof ProductRules
-type CustomerRuleKey = keyof CustomerRules
-
-interface SyncGroup {
-  id: number
-  name: string
-  description?: string
-  establishmentCount: number
-  establishments: Establishment[]
-  productRules?: Partial<ProductRules>
-  customerRules?: Partial<CustomerRules>
-}
+import { useSyncGroups } from '@/composables/useSyncGroups'
+import { useEstablishmentsSelect } from '@/composables/useEstablishmentsSelect'
+import { useSyncGroupForm } from '@/composables/useSyncGroupForm'
+import { useEditSyncGroup } from '@/composables/useEditSyncGroup'
+import { useResync } from '@/composables/useResync'
 
 // Helpers
 function countEnabled(rules?: Record<string, boolean>) {
@@ -607,438 +567,42 @@ function countEnabled(rules?: Record<string, boolean>) {
   return Object.values(rules).filter(Boolean).length
 }
 
-// State
-const loading = ref(true)
-const syncGroups = ref<SyncGroup[]>([])
-const availableEstablishments = ref<Establishment[]>([])
+const {
+  loading,
+  syncGroups,
+  selectedGroup,
+  deleteGroupDialogOpen,
+  loadSyncGroups,
+  openDeleteGroupDialog,
+  deleteGroup,
+} = useSyncGroups()
 
-// Dialog states
-const createGroupDialogOpen = ref(false)
-const editGroupDialogOpen = ref(false)
-const deleteGroupDialogOpen = ref(false)
+const { availableEstablishments, loadEstablishments } = useEstablishmentsSelect()
 
-const newGroup = reactive({
-  name: '',
-  description: '',
-  establishmentIds: [] as number[],
-  productRules: {
-    syncName: true,
-    syncDescription: true,
-    syncBarcode: true,
-    syncCategory: true,
-    syncSupplier: true,
-    syncBrand: true,
-    syncPriceHt: true,
-    syncPriceTtc: false,
-    syncTva: true,
-    syncImage: true,
-    syncVariations: true,
-  },
-  customerRules: {
-    syncCustomerInfo: true,
-    syncCustomerContact: true,
-    syncCustomerAddress: true,
-    syncCustomerGdpr: true,
-    syncLoyaltyProgram: false,
-    syncDiscount: false,
-  },
-})
+const {
+  resyncDialogOpen,
+  resyncData,
+  fieldLabels,
+  showResyncDialog,
+  performResync,
+  skipResync,
+} = useResync(loadSyncGroups)
 
-const editGroup = reactive({
-  id: 0,
-  name: '',
-  establishmentIds: [] as number[],
-  productRules: {
-    syncName: true,
-    syncDescription: true,
-    syncBarcode: true,
-    syncCategory: true,
-    syncSupplier: true,
-    syncBrand: true,
-    syncPriceHt: true,
-    syncPriceTtc: false,
-    syncTva: true,
-    syncImage: true,
-    syncVariations: true,
-  },
-  customerRules: {
-    syncCustomerInfo: true,
-    syncCustomerContact: true,
-    syncCustomerAddress: true,
-    syncCustomerGdpr: true,
-    syncLoyaltyProgram: false,
-    syncDiscount: false,
-  },
-})
+const {
+  editGroupDialogOpen,
+  editGroup,
+  openEditGroupDialog,
+  toggleEditEstablishmentSelection,
+  updateGroupRules,
+} = useEditSyncGroup(loadSyncGroups, showResyncDialog)
 
-const selectedGroup = ref<SyncGroup | null>(null)
-
-// Labels pour les champs
-const fieldLabels: Record<string, string> = {
-  // Produits
-  price: 'Prix TTC',
-  purchasePrice: 'Prix HT',
-  name: 'Nom',
-  description: 'Description',
-  barcode: 'Code-barres',
-  supplierId: 'Fournisseur',
-  categoryId: 'Catégorie',
-  brandId: 'Marque',
-  tva: 'TVA',
-  tvaId: 'TVA',
-  image: 'Image',
-  variationGroupIds: 'Variations',
-  // Clients
-  firstName: 'Prénom',
-  lastName: 'Nom',
-  email: 'Email',
-  phone: 'Téléphone',
-  address: 'Adresse',
-  metadata: 'Métadonnées',
-  gdprConsent: 'Consentement RGPD',
-  gdprConsentDate: 'Date consentement RGPD',
-  marketingConsent: 'Consentement marketing',
-  loyaltyProgram: 'Programme de fidélité',
-  discount: 'Remise',
-}
-
-// Resync dialog
-const resyncDialogOpen = ref(false)
-const resyncData = reactive({
-  groupId: 0,
-  groupName: '',
-  entityType: 'product' as 'product' | 'customer',
-  fields: [] as string[],
-  sourceEstablishmentId: null as number | null,
-  establishments: [] as any[],
-})
-
-// Charger les données
-async function loadSyncGroups() {
-  try {
-    loading.value = true
-    const response = await $fetch<{ success: boolean; syncGroups: SyncGroup[] }>('/api/sync-groups')
-    syncGroups.value = response.syncGroups
-  } catch (error) {
-    console.error('Erreur lors du chargement des groupes:', error)
-    toast.error('Erreur lors du chargement des groupes de synchronisation')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadEstablishments() {
-  try {
-    const response = await $fetch<{ success: boolean; establishments: any[] }>('/api/establishments')
-    availableEstablishments.value = response.establishments
-      .filter((e: any) => e.isActive)
-      .map((e: any) => ({
-        id: e.id,
-        name: e.name,
-        city: e.city,
-      }))
-  } catch (error) {
-    console.error('Erreur lors du chargement des établissements:', error)
-  }
-}
-
-// Toggle selection établissement
-function toggleEstablishmentSelection(id: number, checked: boolean | 'indeterminate') {
-  console.log('toggleEstablishmentSelection appelé avec:', { id, checked })
-
-  if (checked === 'indeterminate') {
-    return
-  }
-
-  const index = newGroup.establishmentIds.indexOf(id)
-
-  if (checked && index === -1) {
-    // Ajouter si coché et pas déjà dans la liste
-    newGroup.establishmentIds.push(id)
-  } else if (!checked && index > -1) {
-    // Retirer si décoché et présent dans la liste
-    newGroup.establishmentIds.splice(index, 1)
-  }
-
-  console.log('Établissements sélectionnés:', newGroup.establishmentIds)
-}
-
-// Toggle selection établissement pour l'édition
-function toggleEditEstablishmentSelection(id: number, checked: boolean | 'indeterminate') {
-  if (checked === 'indeterminate') {
-    return
-  }
-
-  const index = editGroup.establishmentIds.indexOf(id)
-
-  if (checked && index === -1) {
-    editGroup.establishmentIds.push(id)
-  } else if (!checked && index > -1) {
-    editGroup.establishmentIds.splice(index, 1)
-  }
-}
-
-// Créer un groupe
-function openCreateGroupDialog() {
-  // Réinitialiser le formulaire
-  newGroup.name = ''
-  newGroup.description = ''
-  newGroup.establishmentIds = []
-  newGroup.productRules.syncName = true
-  newGroup.productRules.syncDescription = true
-  newGroup.productRules.syncBarcode = true
-  newGroup.productRules.syncCategory = true
-  newGroup.productRules.syncSupplier = true
-  newGroup.productRules.syncBrand = true
-  newGroup.productRules.syncPriceHt = true
-  newGroup.productRules.syncPriceTtc = false
-  newGroup.productRules.syncTva = true
-  newGroup.productRules.syncImage = true
-  newGroup.productRules.syncVariations = true
-  newGroup.customerRules.syncCustomerInfo = true
-  newGroup.customerRules.syncCustomerContact = true
-  newGroup.customerRules.syncCustomerAddress = true
-  newGroup.customerRules.syncCustomerGdpr = true
-  newGroup.customerRules.syncLoyaltyProgram = false
-  newGroup.customerRules.syncDiscount = false
-
-  createGroupDialogOpen.value = true
-}
-
-async function createGroup() {
-  console.log('Création du groupe avec:', newGroup)
-
-  if (!newGroup.name.trim()) {
-    toast.error('Le nom du groupe est obligatoire')
-    return
-  }
-
-  if (newGroup.establishmentIds.length < 2) {
-    console.log('Nombre d\'établissements:', newGroup.establishmentIds.length)
-    toast.error('Sélectionnez au moins 2 établissements')
-    return
-  }
-
-  try {
-    await $fetch('/api/sync-groups/create', {
-      method: 'POST',
-      body: newGroup,
-    })
-
-    toast.success('Groupe de synchronisation créé avec succès')
-    createGroupDialogOpen.value = false
-    await loadSyncGroups()
-  } catch (error: any) {
-    console.error('Erreur lors de la création du groupe:', error)
-    toast.error(error.data?.message || 'Impossible de créer le groupe')
-  }
-}
-
-// Modifier un groupe
-function openEditGroupDialog(group: SyncGroup) {
-  selectedGroup.value = group
-  editGroup.id = group.id
-  editGroup.name = group.name
-  editGroup.establishmentIds = group.establishments.map(e => e.id)
-  Object.assign(
-    editGroup.productRules,
-    {
-      syncName: true,
-      syncDescription: true,
-      syncBarcode: true,
-      syncCategory: true,
-      syncSupplier: true,
-      syncBrand: true,
-      syncPriceHt: true,
-      syncPriceTtc: false,
-      syncTva: true,
-      syncImage: true,
-      syncVariations: true,
-    },
-    group.productRules,
-  )
-  Object.assign(
-    editGroup.customerRules,
-    {
-      syncCustomerInfo: true,
-      syncCustomerContact: true,
-      syncCustomerAddress: true,
-      syncCustomerGdpr: true,
-      syncLoyaltyProgram: false,
-      syncDiscount: false,
-    },
-    group.customerRules,
-  )
-  editGroupDialogOpen.value = true
-}
-
-async function updateGroupRules() {
-  if (!selectedGroup.value) return
-
-  // Vérifier qu'il y a au moins 2 établissements
-  if (editGroup.establishmentIds.length < 2) {
-    toast.error('Le groupe doit contenir au moins 2 établissements')
-    return
-  }
-
-  // Détecter les options qui viennent d'être réactivées (false -> true)
-  const originalProductRules: Partial<ProductRules> = selectedGroup.value.productRules || {}
-  const originalCustomerRules: Partial<CustomerRules> = selectedGroup.value.customerRules || {}
-
-  const reactivatedProductFields: string[] = []
-  const reactivatedCustomerFields: string[] = []
-
-  // Vérifier les champs produits
-  const productFieldsMap: Record<ProductRuleKey, string> = {
-    syncPriceTtc: 'price',
-    syncPriceHt: 'purchasePrice',
-    syncName: 'name',
-    syncDescription: 'description',
-    syncBarcode: 'barcode',
-    syncSupplier: 'supplierId',
-    syncCategory: 'categoryId',
-    syncBrand: 'brandId',
-    syncTva: 'tva',
-    syncImage: 'image',
-    syncVariations: 'variationGroupIds',
-  }
-
-  for (const ruleKey of Object.keys(productFieldsMap) as ProductRuleKey[]) {
-    const fieldName = productFieldsMap[ruleKey]
-    if (!originalProductRules[ruleKey] && editGroup.productRules[ruleKey]) {
-      reactivatedProductFields.push(fieldName)
-    }
-  }
-
-  // Vérifier les champs clients
-  const customerFieldsMap: Record<CustomerRuleKey, string> = {
-    syncCustomerInfo: 'firstName,lastName',
-    syncCustomerContact: 'email,phone',
-    syncCustomerAddress: 'address,metadata',
-    syncCustomerGdpr: 'gdprConsent,gdprConsentDate,marketingConsent',
-    syncLoyaltyProgram: 'loyaltyProgram',
-    syncDiscount: 'discount',
-  }
-
-  for (const ruleKey of Object.keys(customerFieldsMap) as CustomerRuleKey[]) {
-    const fieldNames = customerFieldsMap[ruleKey]
-    if (!originalCustomerRules[ruleKey] && editGroup.customerRules[ruleKey]) {
-      // Plusieurs champs peuvent être associés à une règle (ex: syncCustomerInfo = firstName + lastName)
-      reactivatedCustomerFields.push(...fieldNames.split(','))
-    }
-  }
-
-  try {
-    // Mettre à jour les établissements du groupe
-    const originalEstablishmentIds = selectedGroup.value.establishments.map(e => e.id)
-    if (JSON.stringify(originalEstablishmentIds.sort()) !== JSON.stringify(editGroup.establishmentIds.sort())) {
-      await $fetch(`/api/sync-groups/${selectedGroup.value.id}/establishments`, {
-        method: 'PATCH',
-        body: {
-          establishmentIds: editGroup.establishmentIds,
-        },
-      })
-      toast.success('Établissements du groupe mis à jour')
-    }
-
-    // Mettre à jour les règles produits
-    await $fetch(`/api/sync-groups/${selectedGroup.value.id}/rules`, {
-      method: 'PATCH',
-      body: {
-        entityType: 'product',
-        ...editGroup.productRules,
-      },
-    })
-
-    // Mettre à jour les règles clients
-    await $fetch(`/api/sync-groups/${selectedGroup.value.id}/rules`, {
-      method: 'PATCH',
-      body: {
-        entityType: 'customer',
-        ...editGroup.customerRules,
-      },
-    })
-
-    toast.success('Configuration mise à jour avec succès')
-    editGroupDialogOpen.value = false
-
-    // Si des options ont été réactivées, proposer la resynchronisation
-    if (reactivatedProductFields.length > 0) {
-      showResyncDialog(selectedGroup.value, 'product', reactivatedProductFields)
-    } else if (reactivatedCustomerFields.length > 0) {
-      showResyncDialog(selectedGroup.value, 'customer', reactivatedCustomerFields)
-    } else {
-      await loadSyncGroups()
-    }
-  } catch (error: any) {
-    console.error('Erreur lors de la mise à jour:', error)
-    toast.error(error.data?.message || 'Impossible de mettre à jour la configuration')
-  }
-}
-
-// Supprimer un groupe
-function openDeleteGroupDialog(group: SyncGroup) {
-  selectedGroup.value = group
-  deleteGroupDialogOpen.value = true
-}
-
-async function deleteGroup() {
-  if (!selectedGroup.value) return
-
-  try {
-    await $fetch(`/api/sync-groups/${selectedGroup.value.id}/delete`, {
-      method: 'DELETE',
-    })
-
-    toast.success('Groupe supprimé avec succès')
-    deleteGroupDialogOpen.value = false
-    await loadSyncGroups()
-  } catch (error) {
-    console.error('Erreur lors de la suppression:', error)
-    toast.error('Impossible de supprimer le groupe')
-  }
-}
-
-// Resynchronisation
-function showResyncDialog(group: SyncGroup, entityType: 'product' | 'customer', fields: string[]) {
-  resyncData.groupId = group.id
-  resyncData.groupName = group.name
-  resyncData.entityType = entityType
-  resyncData.fields = fields
-  resyncData.sourceEstablishmentId = null
-  resyncData.establishments = group.establishments || []
-  resyncDialogOpen.value = true
-}
-
-async function performResync() {
-  if (!resyncData.sourceEstablishmentId) {
-    toast.error('Veuillez sélectionner un établissement source')
-    return
-  }
-
-  try {
-    const response: any = await $fetch(`/api/sync-groups/${resyncData.groupId}/resync`, {
-      method: 'POST',
-      body: {
-        sourceEstablishmentId: resyncData.sourceEstablishmentId,
-        entityType: resyncData.entityType,
-        fields: resyncData.fields,
-      },
-    })
-
-    toast.success(response.message || 'Resynchronisation effectuée avec succès')
-    resyncDialogOpen.value = false
-    await loadSyncGroups()
-  } catch (error: any) {
-    console.error('Erreur lors de la resynchronisation:', error)
-    toast.error(error.data?.message || 'Erreur lors de la resynchronisation')
-  }
-}
-
-function skipResync() {
-  resyncDialogOpen.value = false
-  loadSyncGroups()
-}
+const {
+  createGroupDialogOpen,
+  newGroup,
+  openCreateGroupDialog,
+  toggleEstablishmentSelection,
+  createGroup,
+} = useSyncGroupForm(loadSyncGroups)
 
 // Charger au montage
 onMounted(async () => {
