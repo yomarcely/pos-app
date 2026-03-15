@@ -9,7 +9,7 @@ import {
   productStocks,
   customerEstablishments,
 } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import type { SyncResult } from '~/types/sync'
 import { logger } from '~/server/utils/logger'
 
@@ -571,37 +571,43 @@ export async function syncProductToGroup(
           .where(eq(products.id, productId))
 
         // Pour chaque établissement cible, s'assurer qu'il a un stock initialisé
-        for (const targetEstabId of group.targetEstablishments) {
-          try {
-            // Vérifier si le stock existe déjà
-            const [existingStock] = await db
-              .select()
-              .from(productStocks)
-              .where(
-                and(
-                  eq(productStocks.productId, productId),
-                  eq(productStocks.establishmentId, targetEstabId)
-                )
+        try {
+          // 1 SELECT bulk pour tous les établissements cibles
+          const existingStocks = await db
+            .select({ establishmentId: productStocks.establishmentId })
+            .from(productStocks)
+            .where(
+              and(
+                eq(productStocks.productId, productId),
+                inArray(productStocks.establishmentId, group.targetEstablishments)
               )
+            )
 
-            // Si le stock n'existe pas, le créer avec un stock à 0
-            if (!existingStock) {
-              await db.insert(productStocks).values({
+          // Filtre en mémoire : quels établissements n'ont pas encore de stock
+          const existingSet = new Set(existingStocks.map(s => s.establishmentId))
+          const missingEstabs = group.targetEstablishments.filter(id => !existingSet.has(id))
+
+          // 1 INSERT bulk pour les manquants
+          if (missingEstabs.length > 0) {
+            await db.insert(productStocks).values(
+              missingEstabs.map(estId => ({
                 tenantId,
                 productId,
-                establishmentId: targetEstabId,
+                establishmentId: estId,
                 stock: 0,
                 stockByVariation: [],
                 minStock: 5,
-              })
-            }
-          } catch (error) {
-            logger.error({ err: error, targetEstabId }, 'Erreur lors de l\'initialisation du stock pour l\'établissement')
+              }))
+            )
+          }
+        } catch (error) {
+          logger.error({ err: error }, 'Erreur lors de l\'initialisation des stocks en bulk')
+          group.targetEstablishments.forEach(estId => {
             errors.push({
-              establishmentId: targetEstabId,
+              establishmentId: estId,
               error: error instanceof Error ? error.message : 'Erreur inconnue',
             })
-          }
+          })
         }
       } catch (error) {
         logger.error({ err: error }, 'Erreur lors de la synchronisation du produit')
@@ -750,21 +756,28 @@ export async function syncCustomerToGroup(
     // S'assurer que customer_establishments existe pour toutes les cibles (et la source)
     const establishIds = new Set<number>([sourceEstablishmentId])
     groups.forEach(g => g.targetEstablishments.forEach(id => establishIds.add(id)))
-    for (const estId of establishIds) {
-      const existing = await db
-        .select({ id: customerEstablishments.id })
-        .from(customerEstablishments)
-        .where(
-          and(
-            eq(customerEstablishments.tenantId, tenantId),
-            eq(customerEstablishments.customerId, customerId),
-            eq(customerEstablishments.establishmentId, estId)
-          )
-        )
-        .limit(1)
+    const allEstablishIds = [...establishIds]
 
-      if (existing.length === 0) {
-        await db.insert(customerEstablishments).values({
+    // 1 SELECT bulk pour tous les établissements concernés
+    const existingLinks = await db
+      .select({ establishmentId: customerEstablishments.establishmentId })
+      .from(customerEstablishments)
+      .where(
+        and(
+          eq(customerEstablishments.tenantId, tenantId),
+          eq(customerEstablishments.customerId, customerId),
+          inArray(customerEstablishments.establishmentId, allEstablishIds)
+        )
+      )
+
+    // Filtre en mémoire : quels établissements n'ont pas encore de lien
+    const existingSet = new Set(existingLinks.map(l => l.establishmentId))
+    const missingIds = allEstablishIds.filter(id => !existingSet.has(id))
+
+    // 1 INSERT bulk pour les manquants
+    if (missingIds.length > 0) {
+      await db.insert(customerEstablishments).values(
+        missingIds.map(estId => ({
           tenantId,
           customerId,
           establishmentId: estId,
@@ -775,8 +788,8 @@ export async function syncCustomerToGroup(
           lastPurchaseDate: null,
           totalPurchases: '0',
           purchaseCount: 0,
-        })
-      }
+        }))
+      )
     }
 
     return results

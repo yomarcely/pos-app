@@ -284,8 +284,8 @@ async function saveNewCategory() {
       await loadCategories()
       showAddCategoryDialog.value = false
     }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
+  } catch (error: unknown) {
+    toast.error(extractFetchError(error, 'Erreur lors de la création'))
   }
 }
 
@@ -305,8 +305,8 @@ async function saveNewSupplier() {
       form.value.supplierId = created.id.toString()
       showAddSupplierDialog.value = false
     }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
+  } catch (error: unknown) {
+    toast.error(extractFetchError(error, 'Erreur lors de la création'))
   }
 }
 
@@ -326,8 +326,8 @@ async function saveNewBrand() {
       form.value.brandId = created.id.toString()
       showAddBrandDialog.value = false
     }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
+  } catch (error: unknown) {
+    toast.error(extractFetchError(error, 'Erreur lors de la création'))
   }
 }
 
@@ -426,9 +426,9 @@ async function saveProduct() {
       toast.success('Produit créé avec succès')
       navigateTo('/produits')
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la création du produit:', error)
-    toast.error(error.data?.message || 'Erreur lors de la création du produit')
+    toast.error(extractFetchError(error, 'Erreur lors de la création du produit'))
   }
 }
 

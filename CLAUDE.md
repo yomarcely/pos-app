@@ -18,7 +18,7 @@
 - Logging : **Pino** (`server/utils/logger.ts`)
 - Structure : **Monorepo** (frontend + backend Nitro dans le même repo)
 - Taille : **46 677 lignes** (hors node_modules, .nuxt, .output — mesuré 2026-03-15)
-- Tests : **Vitest** (~57 fichiers de tests)
+- Tests : **Vitest** (64 fichiers — 371 tests, 0 échec au 2026-03-16)
 
 ---
 
@@ -343,7 +343,7 @@ Si l'authentification Supabase est remplacée par un autre provider, **exactemen
 - [x] **Calculs financiers** → ✅ audité et corrigé (`docs/audit/07-calculs-financiers.md`) — P1 validation totaux serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash NF525 aligné — 16 tests unitaires dans `tests/unit/financialValidation.test.ts`
 - [x] **NF525 couverture tests** → ✅ 42 tests unitaires écrits (`tests/unit/nf525/`) — toutes fonctions couvertes sans mock — 371 tests / 64 fichiers
 - [x] **Tests failing** → ✅ 0 test en échec (corrigés le 2026-03-15) — 329 tests passent sur 58 fichiers
-- [ ] **Audit 03 items restants** → ⏳ N+1 sync, signUp composant, `$fetch` caisse hors store
+- [x] **Audit 03** → ✅ tous items corrigés (N+1 sync, signUp, $fetch caisse) — `docs/audit/03-supabase-fetch.md`
 
 ---
 
@@ -374,7 +374,7 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 ## 📊 Audits en cours
 - [Cartographie](docs/audit/01-cartographie.md) — mars 2026 ✅
 - [Typescript](docs/audit/02-typescript-strict.md) — mars 2026 ✅
-- [Supabase_fetch](docs/audit/03-supabase-fetch.md) — mars 2026 (items restants : N+1 sync, signUp, $fetch caisse)
+- [Supabase_fetch](docs/audit/03-supabase-fetch.md) — mars 2026 ✅
 - [Deadcode](docs/audit/04-dead-code.md) — mars 2026 ✅
 - [Migrations](docs/audit/05-migrations.md) — mars 2026 ✅ (bug 0007 corrigé)
 - [Composables à extraire](docs/audit/06-composables-a-extraire.md) — mars 2026 🔄 EN COURS
@@ -431,4 +431,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-16 | NF525 couverture tests | 42 tests unitaires écrits dans `tests/unit/nf525/` (6 fichiers) — toutes fonctions exportées couvertes sans mock — déterminisme, unicité, cas fraude, ordre inversé documenté | ✅ |
 
-*Dernière mise à jour : 2026-03-16 — par Claude Code (session NF525 tests : 371 tests / 64 fichiers)*
+| 2026-03-16 | Audit 03 clôture | M4 traité (N/A — pas de types DB générés), audit 03 clôturé — tous items ✅ | ✅ |
+
+*Dernière mise à jour : 2026-03-16 — par Claude Code (session audit 03 clôture)*

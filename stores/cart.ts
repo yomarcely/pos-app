@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Product, ProductInCart } from '@/types'
+import type { Product, ProductInCart, SalePayload, SaleResponse } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
 import { useProductsStore } from '@/stores/products'
 
@@ -31,7 +31,7 @@ export const useCartStore = defineStore('cart', () => {
   let nextPendingId = 1
   const zeroGlobal = { value: 0, type: '%' as '%' }
 
-  function addPendingCart(clientId: number | null = null) {
+  function addPendingCart(clientId: number | null = null): void {
     if (!items.value.length) return
 
     pendingCart.value.push({
@@ -45,7 +45,7 @@ export const useCartStore = defineStore('cart', () => {
     clearCart()
   }
 
-  function recoverPendingCart(id: number) {
+  function recoverPendingCart(id: number): void {
     const index = pendingCart.value.findIndex(c => c.id === id)
     if (index === -1) return
 
@@ -123,13 +123,13 @@ export const useCartStore = defineStore('cart', () => {
     return true
   }
 
-  function removeFromCart(id: number, variation = '') {
+  function removeFromCart(id: number, variation = ''): void {
     items.value = items.value.filter(
       item => !(item.id === id && item.variation === variation)
     )
   }
 
-  function clearCart() {
+  function clearCart(): void {
     items.value = []
     globalDiscount.value = 0
     globalDiscountType.value = '%'
@@ -163,7 +163,7 @@ export const useCartStore = defineStore('cart', () => {
     variation: string,
     discount: number,
     type: '%' | '€'
-  ) {
+  ): void {
     const item = items.value.find(
       p => p.id === productId && p.variation === variation
     )
@@ -173,7 +173,7 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  function updateGlobalDiscount(value: number, type: '%' | '€') {
+  function updateGlobalDiscount(value: number, type: '%' | '€'): void {
     globalDiscount.value = value
     globalDiscountType.value = type
   }
@@ -182,7 +182,7 @@ export const useCartStore = defineStore('cart', () => {
    * Applique la remise globale sur chaque produit du panier
    * et réinitialise la remise globale à 0
    */
-  function applyGlobalDiscountToItems() {
+  function applyGlobalDiscountToItems(): void {
     if (items.value.length === 0 || globalDiscount.value === 0) return
 
     if (globalDiscountType.value === '%') {
@@ -227,7 +227,7 @@ export const useCartStore = defineStore('cart', () => {
     productId: number,
     oldVariation: string,
     newVariation: string
-  ) {
+  ): void {
     const item = items.value.find(
       p => p.id === productId && p.variation === oldVariation
     )
@@ -270,6 +270,20 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
+  async function checkDayClosure(registerId: number): Promise<boolean> {
+    const result = await $fetch<{ isClosed: boolean }>('/api/sales/check-closure', {
+      params: { registerId },
+    })
+    return result.isClosed
+  }
+
+  async function submitSale(payload: SalePayload): Promise<SaleResponse> {
+    return $fetch<SaleResponse>('/api/sales/create', {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
   return {
     // état
     items,
@@ -297,6 +311,8 @@ export const useCartStore = defineStore('cart', () => {
     updateVariation,
     addPendingCart,
     recoverPendingCart,
-    validateStock
+    validateStock,
+    checkDayClosure,
+    submitSale,
   }
 })

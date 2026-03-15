@@ -12,7 +12,7 @@ export const useSellersStore = defineStore('sellers', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function loadSellers(establishmentId?: number) {
+  async function loadSellers(establishmentId?: number): Promise<void> {
     // Si on filtre par établissement, on recharge toujours
     if (!establishmentId && (loaded.value || loading.value)) return
 
@@ -34,11 +34,11 @@ export const useSellersStore = defineStore('sellers', () => {
     }
   }
 
-  function selectSellerById(id: number | string | null) {
+  function selectSellerById(id: number | string | null): void {
     selectedSeller.value = id ? String(id) : null
   }
 
-  function hydrateSelectedSeller() {
+  function hydrateSelectedSeller(): void {
     if (!process.client) return
     const savedId = localStorage.getItem(STORAGE_KEY)
     if (savedId) {
@@ -46,7 +46,7 @@ export const useSellersStore = defineStore('sellers', () => {
     }
   }
 
-  function ensureValidSelectedSeller() {
+  function ensureValidSelectedSeller(): void {
     if (!sellers.value.length) {
       selectedSeller.value = null
       return
@@ -60,13 +60,13 @@ export const useSellersStore = defineStore('sellers', () => {
     selectedSeller.value = firstSeller ? String(firstSeller.id) : null
   }
 
-  async function initialize(establishmentId?: number) {
+  async function initialize(establishmentId?: number): Promise<void> {
     hydrateSelectedSeller()
     await loadSellers(establishmentId)
     ensureValidSelectedSeller()
   }
 
-  function clearSeller() {
+  function clearSeller(): void {
     selectedSeller.value = null
   }
 

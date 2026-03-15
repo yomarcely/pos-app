@@ -255,7 +255,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       // Répartir les vendeurs sur les établissements disponibles
       if (insertedSellers.length > 0 && insertedEstablishments.length > 0) {
         const sellerEstablishmentValues = insertedSellers.map((seller, index) => {
-          const establishment = insertedEstablishments[index % insertedEstablishments.length]
+          const establishment = insertedEstablishments[index % insertedEstablishments.length]!
           return {
             tenantId: tenant.id,
             sellerId: seller.id,
@@ -465,7 +465,7 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       // Créer un groupe de synchronisation par défaut pour le tenant principal
       // Mise en situation : synchroniser les produits et clients entre les deux premiers établissements seulement
       if (tenant.establishments.length >= 2) {
-        const [est1, est2] = tenant.establishments
+        const [est1, est2] = tenant.establishments as [typeof tenant.establishments[0], typeof tenant.establishments[0]]
 
         // Insérer le groupe
         const [insertedGroup] = await tx
@@ -476,6 +476,10 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
             tenantId: tenant.id,
           })
           .returning({ id: syncGroups.id })
+
+        if (!insertedGroup) {
+          throw new Error('Échec de la création du groupe de synchronisation dans le seed')
+        }
 
         // Lier uniquement les 2 premiers établissements au groupe de synchronisation
         await tx.insert(syncGroupEstablishments).values([

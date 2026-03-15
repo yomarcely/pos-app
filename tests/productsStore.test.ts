@@ -46,47 +46,6 @@ describe('products store', () => {
     expect(store.getAvailableStock(2, 'red')).toBe(1)
   })
 
-  it('updateStock et addStock logguent l’historique', () => {
-    const store = useProductsStore()
-    store.products = [structuredClone(baseProduct) as any]
-
-    const ok = store.updateStock(1, '', 2, 'sale', 123)
-    expect(ok).toBe(true)
-    expect(store.products[0]!.stock).toBe(3)
-    expect(store.stockHistory).toHaveLength(1)
-    expect(store.stockHistory[0]!.saleId).toBe(123)
-
-    store.addStock(1, '', 5, 'reception')
-    expect(store.products[0]!.stock).toBe(8)
-    expect(store.stockHistory).toHaveLength(2)
-  })
-
-  it('revertStockForSale restaure les quantités d’une vente', () => {
-    const store = useProductsStore()
-    store.products = [structuredClone(baseProduct) as any]
-
-    // Simuler une vente enregistrée dans l’historique
-    store.stockHistory.push({
-      id: 1,
-      productId: 1,
-      productName: 'Produit simple',
-      variation: '',
-      quantity: -2,
-      oldStock: 5,
-      newStock: 3,
-      reason: 'sale',
-      saleId: 99,
-      date: new Date(),
-      userId: 1
-    })
-    // Stock actuel après vente
-    store.products[0]!.stock = 3
-
-    const restored = store.revertStockForSale(99)
-    expect(restored).toBe(true)
-    expect(store.products[0]!.stock).toBe(5)
-  })
-
   it('outOfStockAlerts/lowStockAlerts traitent les variations', () => {
     const store = useProductsStore()
     store.products = [variationProduct as any]

@@ -11,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/composables/useToast'
 import { useCustomerStore } from '@/stores/customer'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { fetchCommunesByPostalCode } from '@/composables/useGeoApi'
+import type { Commune } from '@/types/geo'
 import { Loader2 } from 'lucide-vue-next'
 
 const { success, error: showError } = useToast()
@@ -42,7 +44,7 @@ const form = ref({
 const loading = ref(false)
 const loadingPostalCode = ref(false)
 const postalCodeError = ref('')
-const availableCities = ref<Array<{ nom: string; code: string }>>([])
+const availableCities = ref<Commune[]>([])
 
 // Debounce timer for postal code lookup
 let postalCodeTimeout: NodeJS.Timeout
@@ -75,21 +77,15 @@ async function handlePostalCodeChange() {
     try {
       loadingPostalCode.value = true
 
-      // API française des codes postaux
-      const response = await fetch(`https://geo.api.gouv.fr/communes?codePostal=${postalCode}&fields=nom,code,codesPostaux,centre&format=json&geometry=centre`)
-
-      if (!response.ok) {
-        throw new Error('Code postal non trouvé')
-      }
-
-      const data = await response.json()
+      const data = await fetchCommunesByPostalCode(postalCode)
 
       if (data && data.length > 0) {
         // Stocker toutes les villes disponibles
         availableCities.value = data
 
         // Sélectionner automatiquement la première ville
-        form.value.city = data[0].nom
+        const first = data[0]
+        if (first) form.value.city = first.nom
 
         // Si une seule ville, pas besoin d'afficher le menu
         if (data.length === 1) {
@@ -100,7 +96,7 @@ async function handlePostalCodeChange() {
       }
     } catch (error) {
       console.error('Erreur lors de la recherche du code postal:', error)
-      postalCodeError.value = 'Impossible de trouver la ville'
+      postalCodeError.value = error instanceof Error ? error.message : 'Impossible de trouver la ville'
     } finally {
       loadingPostalCode.value = false
     }
@@ -164,9 +160,9 @@ async function submitClient() {
       notes: '',
       alerts: '',
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erreur lors de la création du client:', err)
-    showError('Erreur', err.data?.message || 'Impossible de créer le client')
+    showError('Erreur', extractFetchError(err, 'Impossible de créer le client'))
   } finally {
     loading.value = false
   }

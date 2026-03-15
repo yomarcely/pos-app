@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Session, User } from '@supabase/supabase-js'
 import { useSupabaseClient } from '@/composables/useSupabaseClient'
+import { useSellersStore } from '@/stores/sellers'
 
 type Tenant = {
   id: string
@@ -44,7 +45,18 @@ const extractTenants = (user: User | null, fallbackTenant?: string) => {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const supabase = useSupabaseClient()
+  let supabase: ReturnType<typeof useSupabaseClient> | null = null
+  try {
+    supabase = useSupabaseClient()
+  } catch {
+    console.warn('[Auth] Supabase non configuré — mode dégradé actif (vérifiez vos variables d\'environnement)')
+  }
+
+  const requireSupabase = () => {
+    if (!supabase) throw new Error('Supabase non configuré — vérifiez vos variables d\'environnement')
+    return supabase
+  }
+
   const config = useRuntimeConfig()
 
   const user = ref<User | null>(null)
@@ -67,11 +79,36 @@ export const useAuthStore = defineStore('auth', () => {
     tenantId.value = selectedTenant
   }
 
+  const signUp = async (email: string, password: string, name: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: signUpError } = await requireSupabase().auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      })
+      if (signUpError) throw signUpError
+      if (!data.user) throw new Error('Compte créé mais utilisateur non retourné')
+
+      session.value = data.session
+      setUserContext(data.user)
+
+      return data.user
+    } catch (err: unknown) {
+      console.error('[Auth] signUp error', err)
+      error.value = { message: err instanceof Error ? err.message : 'Erreur lors de la création du compte' }
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   const signIn = async (email: string, password: string) => {
     loading.value = true
     error.value = null
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error: signInError } = await requireSupabase().auth.signInWithPassword({ email, password })
       if (signInError) {
         throw signInError
       }
@@ -80,9 +117,9 @@ export const useAuthStore = defineStore('auth', () => {
       setUserContext(data.user || data.session?.user || null)
 
       return data.user
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Auth] signIn error', err)
-      error.value = { message: err?.message || 'Échec de connexion' }
+      error.value = { message: err instanceof Error ? err.message : 'Échec de connexion' }
       throw err
     } finally {
       loading.value = false
@@ -90,22 +127,41 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-    session.value = null
-    user.value = null
-    tenantId.value = null
-    tenants.value = []
+    loading.value = true
+    error.value = null
+    try {
+      const { error: signOutError } = await requireSupabase().auth.signOut()
+      if (signOutError) {
+        // Erreur Supabase (ex: token déjà expiré) — on log mais on nettoie quand même l'état local
+        console.error('[Auth] signOut returned error', signOutError)
+        error.value = { message: signOutError.message }
+      }
+    } catch (err: unknown) {
+      console.error('[Auth] signOut threw', err)
+      error.value = { message: err instanceof Error ? err.message : 'Échec de déconnexion' }
+    } finally {
+      // Toujours nettoyer l'état local, même si Supabase a échoué
+      session.value = null
+      user.value = null
+      tenantId.value = null
+      tenants.value = []
+      loading.value = false
+      useSellersStore().clearSeller()
+    }
   }
 
   const restoreSession = async () => {
-    const { data, error: sessionError } = await supabase.auth.getSession()
+    const { data, error: sessionError } = await requireSupabase().auth.getSession()
     if (sessionError) {
-      console.error('[Auth] restoreSession error', sessionError)
-      return null
+      // Distingue "erreur réseau / Supabase indisponible" de "pas de session"
+      console.error('[Auth] restoreSession: network/Supabase error', sessionError)
+      error.value = { message: sessionError.message }
+      // On throw pour que le middleware puisse différencier les deux cas
+      throw sessionError
     }
     session.value = data.session
     setUserContext(data.session?.user || null)
-    return data.session
+    return data.session // null = pas de session active (cas normal)
   }
 
   const selectTenant = (id: string) => {
@@ -123,7 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
     return headers
   }
 
-  supabase.auth.onAuthStateChange((_event, newSession) => {
+  supabase?.auth.onAuthStateChange((_event, newSession) => {
     session.value = newSession
     setUserContext(newSession?.user || null)
   })
@@ -137,6 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     accessToken,
+    signUp,
     signIn,
     signOut,
     restoreSession,

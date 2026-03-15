@@ -1,3 +1,11 @@
+// ⚠️ DANGER — DEV UNIQUEMENT
+// Ce script supprime TOUTES les entrées de __drizzle_migrations.
+// NE JAMAIS exécuter en production ou staging.
+// Usage : uniquement pour réinitialiser une base de développement locale.
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('reset-migrations ne peut pas s\'exécuter en production')
+}
+
 import postgres from 'postgres'
 
 const sql = postgres({

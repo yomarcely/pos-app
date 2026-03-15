@@ -238,9 +238,9 @@ async function deleteGroup() {
 
     deleteGroupDialogOpen.value = false
     await loadVariations()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la suppression du groupe:', error)
-    toast.error(error.data?.message || 'Impossible de supprimer le groupe')
+    toast.error(extractFetchError(error, 'Impossible de supprimer le groupe'))
   }
 }
 

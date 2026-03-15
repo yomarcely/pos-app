@@ -82,6 +82,7 @@ import type {
   MovementType
 } from '@/types/mouvements'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { normalizeProduct } from '@/utils/productHelpers'
 
 definePageMeta({
   layout: 'dashboard'
@@ -110,30 +111,6 @@ const brands = ref<Brand[]>([])
 const allVariations = ref<Variation[]>([])
 const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
-function normalizeProduct(raw: any): Product {
-  const normalizedVariationIds = Array.isArray(raw.variationGroupIds)
-    ? raw.variationGroupIds.map((id: any) => {
-        const numericId = Number(id)
-        return Number.isFinite(numericId) ? numericId : String(id)
-      })
-    : []
-
-  const normalizedStockByVariation = raw.stockByVariation
-    ? Object.fromEntries(
-        Object.entries(raw.stockByVariation as Record<string, number | string>).map(([key, value]) => [
-          key.toString(),
-          Number(value) || 0,
-        ]),
-      )
-    : undefined
-
-  return {
-    ...raw,
-    stock: raw.stock ?? 0,
-    variationGroupIds: normalizedVariationIds.length ? normalizedVariationIds : undefined,
-    stockByVariation: normalizedStockByVariation,
-  }
-}
 
 function hasVariations(product: Product): boolean {
   return !!(
@@ -160,13 +137,13 @@ watch(searchQuery, () => {
     }
 
     try {
-      const response = await $fetch('/api/products', {
+      const response = await $fetch<{ products: Product[]; count: number }>('/api/products', {
         params: {
           search: searchQuery.value.trim(),
           ...(selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {})
         }
       })
-      searchSuggestions.value = (response.products as any[]).map(normalizeProduct)
+      searchSuggestions.value = response.products.map(normalizeProduct)
     } catch (error) {
       console.error('Erreur lors de la recherche:', error)
     }
@@ -215,11 +192,11 @@ async function searchProduct() {
   if (!searchQuery.value.trim()) return
 
   try {
-    const response = await $fetch('/api/products', {
+    const response = await $fetch<{ products: Product[]; count: number }>('/api/products', {
       params: { search: searchQuery.value.trim() }
     })
 
-    const products = (response.products as any[]).map(normalizeProduct)
+    const products = response.products.map(normalizeProduct)
 
     if (products.length === 0) {
       toast.error('Aucun produit trouvé')
@@ -251,15 +228,15 @@ async function loadCatalogProducts() {
   try {
     loadingCatalog.value = true
 
-    const params: any = {}
+    const params: Record<string, string | number> = {}
     if (catalogSearchQuery.value) params.search = catalogSearchQuery.value
     if (selectedCategoryFilter.value) params.categoryId = selectedCategoryFilter.value
     if (selectedSupplierFilter.value) params.supplierId = selectedSupplierFilter.value
     if (selectedBrandFilter.value) params.brandId = selectedBrandFilter.value
     if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
-    const response = await $fetch('/api/products', { params })
-    catalogProducts.value = (response.products as any[]).map(normalizeProduct)
+    const response = await $fetch<{ products: Product[]; count: number }>('/api/products', { params })
+    catalogProducts.value = response.products.map(normalizeProduct)
   } catch (error) {
     console.error('Erreur lors du chargement du catalogue:', error)
   } finally {
@@ -297,8 +274,8 @@ async function loadCategories() {
 // Charger les fournisseurs
 async function loadSuppliers() {
   try {
-    const response: any = await $fetch('/api/suppliers')
-    suppliers.value = Array.isArray(response) ? response : response.suppliers || []
+    const response = await $fetch<Supplier[]>('/api/suppliers')
+    suppliers.value = response
   } catch (error) {
     console.error('Erreur lors du chargement des fournisseurs:', error)
   }
@@ -317,12 +294,12 @@ async function loadBrands() {
 // Charger les variations
 async function loadVariations() {
   try {
-    const response = await $fetch('/api/variations/groups', {
+    const response = await $fetch<{ success: boolean; groups: Array<{ id: number; name: string; variations: Variation[] }> }>('/api/variations/groups', {
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
     })
     // Aplatir tous les groupes et leurs variations
     const flatVariations: Variation[] = []
-    for (const group of response.groups as any) {
+    for (const group of response.groups) {
       for (const variation of group.variations) {
         flatVariations.push({
           id: variation.id,
@@ -509,20 +486,20 @@ async function validateMovement() {
     }
 
     // Créer le mouvement groupé
-    const response = await $fetch('/api/movements/create', {
+    const response = await $fetch<{ success: boolean; movement: { id: number; movementNumber: string } }>('/api/movements/create', {
       method: 'POST',
       body: {
         type,
         comment: comment.value || undefined,
         items,
       },
-    }) as any
+    })
 
     toast.success(`Mouvement ${response.movement.movementNumber} créé avec succès`)
     clearAll()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de l\'enregistrement:', error)
-    toast.error(error.data?.message || 'Erreur lors de l\'enregistrement')
+    toast.error(extractFetchError(error, 'Erreur lors de l\'enregistrement'))
   }
 }
 

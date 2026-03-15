@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProductsPage from '@/pages/produits/index.vue'
-import { ref as vueRef, onMounted as vueOnMounted } from 'vue'
+import { ref as vueRef, onMounted as vueOnMounted, watch as vueWatch } from 'vue'
 
 // Stubs minimalistes
 const ButtonStub = { template: '<button @click="$emit(\'click\')"><slot /></button>' }
@@ -23,6 +23,13 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => toastMock
 }))
 
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: vueRef(null),
+    initialize: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
 const navigateToMock = vi.fn()
 vi.stubGlobal('navigateTo', navigateToMock)
 
@@ -33,6 +40,8 @@ describe('Page produits', () => {
     vi.stubGlobal('definePageMeta', vi.fn())
     vi.stubGlobal('ref', vueRef)
     vi.stubGlobal('onMounted', vueOnMounted)
+    vi.stubGlobal('watch', vueWatch)
+    vi.stubGlobal('extractFetchError', (err: unknown, fallback: string) => fallback)
     toastMock.error.mockClear()
     toastMock.success.mockClear()
     navigateToMock.mockClear()

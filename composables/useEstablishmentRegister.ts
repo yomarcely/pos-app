@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue'
+import type { EstablishmentDetail } from '@/types/pos'
 
 export interface Establishment {
   id: number
@@ -18,6 +19,7 @@ const establishments = ref<Establishment[]>([])
 const allRegisters = ref<Register[]>([])
 const selectedEstablishmentId = ref<number | null>(null)
 const selectedRegisterId = ref<number | null>(null)
+const selectedEstablishmentDetail = ref<EstablishmentDetail | null>(null)
 const loading = ref(false)
 const initialized = ref(false)
 
@@ -50,6 +52,24 @@ export function useEstablishmentRegister() {
       }))
     } catch (error) {
       console.error('Erreur lors du chargement des établissements:', error)
+    }
+  }
+
+  async function fetchCurrentEstablishmentDetail() {
+    if (!selectedEstablishmentId.value) {
+      selectedEstablishmentDetail.value = null
+      return
+    }
+    try {
+      const response = await $fetch<{ success: boolean; establishment: EstablishmentDetail }>(
+        `/api/establishments/${selectedEstablishmentId.value}`
+      )
+      if (response.success) {
+        selectedEstablishmentDetail.value = response.establishment
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du détail établissement:', error)
+      selectedEstablishmentDetail.value = null
     }
   }
 
@@ -119,6 +139,7 @@ export function useEstablishmentRegister() {
       loadRegisters(),
     ])
     ensureValidSelections()
+    await fetchCurrentEstablishmentDetail()
     loading.value = false
     initialized.value = true
   }
@@ -127,6 +148,13 @@ export function useEstablishmentRegister() {
   watch([selectedEstablishmentId, selectedRegisterId], () => {
     if (initialized.value) {
       saveSelections()
+    }
+  })
+
+  // Recharger le détail complet quand l'établissement sélectionné change
+  watch(selectedEstablishmentId, () => {
+    if (initialized.value) {
+      fetchCurrentEstablishmentDetail()
     }
   })
 
@@ -157,6 +185,7 @@ export function useEstablishmentRegister() {
     allRegisters,
     selectedEstablishmentId,
     selectedRegisterId,
+    selectedEstablishmentDetail,
     loading,
 
     // Computed
@@ -168,5 +197,6 @@ export function useEstablishmentRegister() {
     initialize,
     loadEstablishments,
     loadRegisters,
+    fetchCurrentEstablishmentDetail,
   }
 }

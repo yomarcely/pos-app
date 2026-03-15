@@ -131,6 +131,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import type { SelectedProduct, Variation, MovementType } from '@/types/mouvements'
+import { hasVariations as _hasVariations } from '@/utils/productHelpers'
+
+// Adaptateur : délègue à productHelpers (source de vérité unique)
+function hasVariations(product: any): boolean {
+  return _hasVariations(product)
+}
 
 const props = defineProps<{
   selectedProducts: SelectedProduct[]
@@ -144,13 +150,6 @@ defineEmits<{
   'clearAll': []
   'validate': []
 }>()
-
-function hasVariations(product: any): boolean {
-  return !!(
-    (product.variationGroupIds && product.variationGroupIds.length > 0) ||
-    (product.stockByVariation && Object.keys(product.stockByVariation).length > 0)
-  )
-}
 
 function getProductVariations(product: any): Variation[] {
   const idsFromProduct = Array.isArray(product.variationGroupIds)

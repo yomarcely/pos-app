@@ -28,6 +28,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!newSeller) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du vendeur' })
+    }
+
     // Affecter le vendeur aux établissements sélectionnés
     if (body.establishmentIds && body.establishmentIds.length > 0) {
       await db.insert(sellerEstablishments).values(

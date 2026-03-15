@@ -1,7 +1,6 @@
-// server/database/sync-sequences.ts
 import 'dotenv/config'
 import { sql } from 'drizzle-orm'
-import { db, closeConnection } from './connection'
+import { db, closeConnection } from '../server/database/connection'
 
 /**
  * Script pour synchroniser les séquences PostgreSQL après un seed

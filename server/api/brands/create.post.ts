@@ -22,6 +22,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!newBrand) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de la marque' })
+    }
+
     logger.info({
       brandId: newBrand.id,
       brandName: newBrand.name,

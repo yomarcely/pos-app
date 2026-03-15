@@ -11,6 +11,7 @@
             <CardDescription v-if="seller.code" class="mt-1">
               Code: {{ seller.code }}
             </CardDescription>
+            <div v-if="loadError" class="mt-1 text-xs text-destructive">{{ loadError }}</div>
             <div v-if="establishments.length > 0" class="mt-2 flex flex-wrap gap-1">
               <Badge
                 v-for="establishment in establishments"
@@ -73,6 +74,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { extractFetchError } from '@/composables/useFetchError'
 import { User, MoreVertical, Pencil, Trash2, CircleOff, CircleCheck, Building2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -109,8 +111,10 @@ defineEmits<{
 
 const establishments = ref<Establishment[]>([])
 const loading = ref(true)
+const loadError = ref('')
 
 async function loadEstablishments() {
+  loadError.value = ''
   try {
     loading.value = true
     const response = await $fetch<{ establishments: Establishment[] }>(
@@ -118,7 +122,9 @@ async function loadEstablishments() {
     )
     establishments.value = response.establishments || []
   } catch (error) {
+    const message = extractFetchError(error, 'Impossible de charger les établissements')
     console.error('Erreur lors du chargement des établissements:', error)
+    loadError.value = message
     establishments.value = []
   } finally {
     loading.value = false

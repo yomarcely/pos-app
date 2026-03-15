@@ -28,6 +28,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!newRegister) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de la caisse' })
+    }
+
     logger.info({
       registerId: newRegister.id,
       registerName: newRegister.name,

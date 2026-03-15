@@ -60,6 +60,10 @@ export default defineEventHandler(async (event) => {
       )
       .returning()
 
+    if (!updated) {
+      throw createError({ statusCode: 500, message: 'Échec de la mise à jour de la variation' })
+    }
+
     logger.info(`Variation mise à jour: ${updated.name}`)
 
     return {

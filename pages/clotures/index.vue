@@ -308,7 +308,7 @@ async function loadClosures() {
   try {
     loading.value = true
 
-    const params: any = {}
+    const params: Record<string, string | number> = {}
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
     if (selectedRegisterId.value) params.registerId = selectedRegisterId.value

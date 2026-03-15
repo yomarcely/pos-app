@@ -174,9 +174,9 @@ async function deleteCategory() {
       showDeleteDialog.value = false
       await loadCategories()
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la suppression:', error)
-    toast.error(error.data?.message || 'Erreur lors de la suppression de la catégorie')
+    toast.error(extractFetchError(error, 'Erreur lors de la suppression de la catégorie'))
   }
 }
 

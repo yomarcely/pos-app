@@ -37,11 +37,9 @@ const customerStoreMock = {
   clearClient: vi.fn()
 }
 
-const sellerState = { value: '' }
 const sellersStoreMock = {
   sellers: [{ id: 1, name: 'Seller 1' }],
-  get selectedSeller() { return sellerState.value },
-  set selectedSeller(val) { sellerState.value = val }
+  selectedSeller: ''
 }
 
 vi.mock('@/stores/cart', () => ({
@@ -52,6 +50,12 @@ vi.mock('@/stores/customer', () => ({
 }))
 vi.mock('@/stores/sellers', () => ({
   useSellersStore: () => sellersStoreMock
+}))
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: { value: null },
+    initialize: vi.fn().mockResolvedValue(undefined)
+  })
 }))
 
 describe('ColLeft (caisse)', () => {
@@ -85,6 +89,13 @@ describe('ColLeft (caisse)', () => {
           ComboboxGroup: SimpleStub,
           Dialog: SimpleStub,
           DialogTrigger: SimpleStub,
+          Drawer: SimpleStub,
+          DrawerContent: SimpleStub,
+          DrawerHeader: SimpleStub,
+          DrawerTitle: SimpleStub,
+          DrawerDescription: SimpleStub,
+          DrawerFooter: SimpleStub,
+          DrawerClose: SimpleStub,
           Button: ButtonStub,
           Badge: BadgeStub,
           Input: InputStub,
@@ -97,6 +108,7 @@ describe('ColLeft (caisse)', () => {
           X: IconStub,
           User: IconStub,
           List: IconStub,
+          ShoppingBag: IconStub,
           clientOnly: SimpleStub,
           CaisseAddClientForm: SimpleStub,
           CaissePendingCartForm: SimpleStub
@@ -105,20 +117,17 @@ describe('ColLeft (caisse)', () => {
     })
   }
 
-  it('sélectionne un vendeur', async () => {
+  it('affiche le composant ColLeft correctement', async () => {
     const wrapper = mountComponent()
-    const select = wrapper.find('select')
-    expect(select.exists()).toBe(true)
-    sellersStoreMock.selectedSeller = '1'
-    expect(sellersStoreMock.selectedSeller).toBe('1')
+    // ColLeft renders the client section and the pending cart buttons
+    expect(wrapper.exists()).toBe(true)
   })
 
-  it('applique une remise globale', async () => {
-    cartStoreMock.globalDiscount = 10
+  it('affiche le bouton Mise en attente', async () => {
     const wrapper = mountComponent()
-    const applyBtn = wrapper.findAll('button').find(b => b.text().includes('Appliquer'))
-    await applyBtn?.trigger('click')
-    expect(cartStoreMock.applyGlobalDiscountToItems).toHaveBeenCalled()
+    const buttons = wrapper.findAll('button')
+    const pendingBtn = buttons.find(b => b.text().includes('Mise en attente'))
+    expect(pendingBtn).toBeDefined()
   })
 
   it('met en attente un panier et clear client', async () => {

@@ -26,6 +26,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!newSupplier) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du fournisseur' })
+    }
+
     logger.info({
       supplierId: newSupplier.id,
       supplierName: newSupplier.name,

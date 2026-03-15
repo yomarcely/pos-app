@@ -77,7 +77,7 @@ export function createMockEvent(options: {
         headers: options.headers || {}
       }
     }
-  }
+  } as unknown as import('h3').H3Event
 }
 
 // Helper pour créer un mock de base de données simple

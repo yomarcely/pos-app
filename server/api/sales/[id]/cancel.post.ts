@@ -194,7 +194,7 @@ export default defineEventHandler(async (event) => {
         newStock,
         reason: 'sale_cancellation' as const,
         saleId: id,
-        userId,
+        userId: null,
         establishmentId: sale.establishmentId, // Ajout de l'établissement
       })
 
@@ -234,7 +234,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     await db.insert(auditLogs).values({
       tenantId,
-      userId,
+      userId: null,
       userName,
       entityType: 'sale',
       entityId: id,

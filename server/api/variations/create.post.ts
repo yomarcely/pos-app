@@ -39,6 +39,10 @@ export default defineEventHandler(async (event) => {
       sortOrder: body.sortOrder || 0,
     }).returning()
 
+    if (!newVariation) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de la variation' })
+    }
+
     logger.info({
       variationId: newVariation.id,
       variationName: newVariation.name,

@@ -294,13 +294,15 @@ import { Card, CardContent } from '@/components/ui/card'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useToast } from '@/composables/useToast'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { fetchCommunesByPostalCode } from '@/composables/useGeoApi'
+import type { Commune } from '@/types/geo'
 
 const toast = useToast()
 const { selectedEstablishmentId } = useEstablishmentRegister()
 const loading = ref(false)
 const loadingPostalCode = ref(false)
 const postalCodeError = ref('')
-const availableCities = ref<Array<{ nom: string; code: string }>>([])
+const availableCities = ref<Commune[]>([])
 
 // Formulaire
 const form = ref({
@@ -352,21 +354,15 @@ async function handlePostalCodeChange() {
     try {
       loadingPostalCode.value = true
 
-      // API française des codes postaux
-      const response = await fetch(`https://geo.api.gouv.fr/communes?codePostal=${postalCode}&fields=nom,code,codesPostaux,centre&format=json&geometry=centre`)
-
-      if (!response.ok) {
-        throw new Error('Code postal non trouvé')
-      }
-
-      const data = await response.json()
+      const data = await fetchCommunesByPostalCode(postalCode)
 
       if (data && data.length > 0) {
         // Stocker toutes les villes disponibles
         availableCities.value = data
 
         // Sélectionner automatiquement la première ville
-        form.value.city = data[0].nom
+        const first = data[0]
+        if (first) form.value.city = first.nom
 
         // Si une seule ville, pas besoin d'afficher le menu
         if (data.length === 1) {
@@ -377,7 +373,7 @@ async function handlePostalCodeChange() {
       }
     } catch (error) {
       console.error('Erreur lors de la recherche du code postal:', error)
-      postalCodeError.value = 'Impossible de trouver la ville'
+      postalCodeError.value = error instanceof Error ? error.message : 'Impossible de trouver la ville'
     } finally {
       loadingPostalCode.value = false
     }
@@ -421,9 +417,9 @@ async function handleSubmit() {
 
     toast.success('Client créé avec succès')
     navigateTo('/clients')
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la création du client:', error)
-    toast.error(error.data?.message || 'Erreur lors de la création du client')
+    toast.error(extractFetchError(error, 'Erreur lors de la création du client'))
   } finally {
     loading.value = false
   }

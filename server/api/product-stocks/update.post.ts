@@ -133,6 +133,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!movement) {
+      throw createError({ statusCode: 500, message: 'Échec de l\'enregistrement du mouvement de stock' })
+    }
+
     await db.insert(stockMovements).values({
       tenantId,
       movementId: movement.id,

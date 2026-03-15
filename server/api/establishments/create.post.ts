@@ -36,6 +36,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!newEstablishment) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de l\'établissement' })
+    }
+
     logger.info({
       establishmentId: newEstablishment.id,
       establishmentName: newEstablishment.name,

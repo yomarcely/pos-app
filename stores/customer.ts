@@ -13,7 +13,7 @@ export const useCustomerStore = defineStore('customer', () => {
   const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
   // Actions
-  async function loadCustomers() {
+  async function loadCustomers(): Promise<void> {
     if (loading.value) return
     loading.value = true
     error.value = null
@@ -21,7 +21,8 @@ export const useCustomerStore = defineStore('customer', () => {
     try {
       await initializeEstablishments()
 
-      const response = await $fetch('/api/clients', {
+      type ClientsResponse = { success: boolean; clients: Customer[] }
+      const response = await $fetch<ClientsResponse>('/api/clients', {
         params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       })
 
@@ -39,11 +40,11 @@ export const useCustomerStore = defineStore('customer', () => {
     }
   }
 
-  function selectClient(c: Customer) {
+  function selectClient(c: Customer): void {
     client.value = c
   }
 
-  function clearClient() {
+  function clearClient(): void {
     client.value = null
   }
 

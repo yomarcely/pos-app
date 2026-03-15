@@ -32,8 +32,8 @@ const handleSubmit = async () => {
     await auth.signIn(form.email, form.password)
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
     await navigateTo(redirect)
-  } catch (err: any) {
-    const message = err?.message || 'Échec de connexion'
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Échec de connexion'
     error.value = message
     toast.error(message)
   } finally {

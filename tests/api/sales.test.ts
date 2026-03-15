@@ -46,6 +46,16 @@ vi.mock('~/server/utils/audit', () => ({
   logSaleCreation: vi.fn(() => Promise.resolve()),
   logClosure: vi.fn(() => Promise.resolve()),
   logChainVerification: vi.fn(() => Promise.resolve()),
+  logSystemError: vi.fn(() => Promise.resolve()),
+  logSaleCancellation: vi.fn(() => Promise.resolve()),
+  logAuditEvent: vi.fn(() => Promise.resolve()),
+  AuditEventType: {
+    SALE_CREATE: 'sale_create',
+    SALE_CANCEL: 'sale_cancel',
+    CLOSURE_CREATE: 'closure_create',
+    SYSTEM_ERROR: 'system_error',
+    CHAIN_VERIFICATION: 'chain_verification',
+  }
 }))
 
 // getRequestIP est auto-importé par Nitro (global)

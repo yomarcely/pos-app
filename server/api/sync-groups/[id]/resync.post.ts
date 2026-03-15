@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, products, productEstablishments, customers, customerEstablishments } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -246,6 +246,22 @@ async function resyncProducts(
     sourceOverrides.map(o => [o.productId, o])
   )
 
+  // overrideReset ne dépend que de fields (constant pour tout le resync) — calculé une seule fois
+  const overrideReset: ProductOverrideReset = {}
+  if (fields.includes('price')) overrideReset.priceOverride = null
+  if (fields.includes('purchasePrice')) overrideReset.purchasePriceOverride = null
+  if (fields.includes('name')) overrideReset.nameOverride = null
+  if (fields.includes('description')) overrideReset.descriptionOverride = null
+  if (fields.includes('barcode')) overrideReset.barcodeOverride = null
+  if (fields.includes('supplierId')) overrideReset.supplierIdOverride = null
+  if (fields.includes('categoryId')) overrideReset.categoryIdOverride = null
+  if (fields.includes('brandId')) overrideReset.brandIdOverride = null
+  if (fields.includes('tva')) overrideReset.tvaOverride = null
+  if (fields.includes('tvaId')) overrideReset.tvaIdOverride = null
+  if (fields.includes('image')) overrideReset.imageOverride = null
+  if (fields.includes('variationGroupIds')) overrideReset.variationGroupIdsOverride = null
+  const hasOverrideReset = Object.keys(overrideReset).length > 0
+
   // Traiter les produits par batches
   while (true) {
     // Récupérer un batch de produits
@@ -273,11 +289,63 @@ async function resyncProducts(
     if (globalProducts.length === 0) break
 
     // Traiter ce batch dans une transaction
+    const batchProductIds = globalProducts.map(p => p.id)
+
     await db.transaction(async (trx) => {
+      // --- Bulk overrides : 1 SELECT + 1 UPDATE + 1 INSERT (au lieu de N×M requêtes) ---
+      if (hasOverrideReset) {
+        // 1. SELECT bulk : quels (productId, establishmentId) existent déjà
+        const existingOverrides = await trx
+          .select({
+            productId: productEstablishments.productId,
+            establishmentId: productEstablishments.establishmentId,
+          })
+          .from(productEstablishments)
+          .where(
+            and(
+              eq(productEstablishments.tenantId, tenantId),
+              inArray(productEstablishments.productId, batchProductIds),
+              inArray(productEstablishments.establishmentId, establishmentIdsForOverrides)
+            )
+          )
+
+        // 2. UPDATE bulk : réinitialise les overrides sur toutes les lignes existantes
+        await trx
+          .update(productEstablishments)
+          .set(overrideReset)
+          .where(
+            and(
+              eq(productEstablishments.tenantId, tenantId),
+              inArray(productEstablishments.productId, batchProductIds),
+              inArray(productEstablishments.establishmentId, establishmentIdsForOverrides)
+            )
+          )
+
+        // 3. INSERT bulk : crée les lignes manquantes
+        const existingSet = new Set(existingOverrides.map(o => `${o.productId}-${o.establishmentId}`))
+        const missingPairs = batchProductIds.flatMap(productId =>
+          establishmentIdsForOverrides
+            .filter(estId => !existingSet.has(`${productId}-${estId}`))
+            .map(estId => ({ productId, estId }))
+        )
+        if (missingPairs.length > 0) {
+          await trx.insert(productEstablishments).values(
+            missingPairs.map(({ productId, estId }) => ({
+              tenantId,
+              productId,
+              establishmentId: estId,
+              ...overrideReset,
+              isAvailable: true,
+              notes: null,
+            }))
+          )
+        }
+      }
+
+      // --- UPDATE global par produit (globalUpdate diffère par produit → reste séquentiel) ---
       for (const product of globalProducts) {
         const sourceOverride = overrideMap.get(product.id)
 
-        // Déterminer la valeur source (override s'il existe, sinon globale)
         const sourceValues: ProductSourceValues = {
           price: sourceOverride?.priceOverride ?? product.price,
           purchasePrice: sourceOverride?.purchasePriceOverride ?? product.purchasePrice,
@@ -293,7 +361,6 @@ async function resyncProducts(
           variationGroupIds: sourceOverride?.variationGroupIdsOverride ?? product.variationGroupIds,
         }
 
-        // Mettre à jour le produit global si nécessaire
         const globalUpdate: ProductGlobalUpdate = {}
         if (fields.includes('price')) globalUpdate.price = sourceValues.price
         if (fields.includes('purchasePrice')) globalUpdate.purchasePrice = sourceValues.purchasePrice
@@ -313,48 +380,6 @@ async function resyncProducts(
             .update(products)
             .set(globalUpdate)
             .where(and(eq(products.tenantId, tenantId), eq(products.id, product.id)))
-        }
-
-        // Supprimer les overrides pour les champs resynchronisés
-        const overrideReset: ProductOverrideReset = {}
-        if (fields.includes('price')) overrideReset.priceOverride = null
-        if (fields.includes('purchasePrice')) overrideReset.purchasePriceOverride = null
-        if (fields.includes('name')) overrideReset.nameOverride = null
-        if (fields.includes('description')) overrideReset.descriptionOverride = null
-        if (fields.includes('barcode')) overrideReset.barcodeOverride = null
-        if (fields.includes('supplierId')) overrideReset.supplierIdOverride = null
-        if (fields.includes('categoryId')) overrideReset.categoryIdOverride = null
-        if (fields.includes('brandId')) overrideReset.brandIdOverride = null
-        if (fields.includes('tva')) overrideReset.tvaOverride = null
-        if (fields.includes('tvaId')) overrideReset.tvaIdOverride = null
-        if (fields.includes('image')) overrideReset.imageOverride = null
-        if (fields.includes('variationGroupIds')) overrideReset.variationGroupIdsOverride = null
-
-        if (Object.keys(overrideReset).length > 0) {
-          for (const estId of establishmentIdsForOverrides) {
-            const result = await trx
-              .update(productEstablishments)
-              .set(overrideReset)
-              .where(
-                and(
-                  eq(productEstablishments.tenantId, tenantId),
-                  eq(productEstablishments.productId, product.id),
-                  eq(productEstablishments.establishmentId, estId)
-                )
-              )
-              .returning({ id: productEstablishments.id })
-
-            if (result.length === 0) {
-              await trx.insert(productEstablishments).values({
-                tenantId,
-                productId: product.id,
-                establishmentId: estId,
-                ...overrideReset,
-                isAvailable: true,
-                notes: null,
-              })
-            }
-          }
         }
 
         syncedCount++

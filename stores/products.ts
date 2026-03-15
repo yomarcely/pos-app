@@ -13,16 +13,13 @@ export const useProductsStore = defineStore('products', () => {
   const error = ref<string | null>(null)
   const currentEstablishmentId = ref<number | null>(null)
 
-  // Historique des mouvements de stock pour audit
-  const stockHistory = ref<StockMovement[]>([])
-
   const {
     selectedEstablishmentId,
     initialize: initializeEstablishments,
   } = useEstablishmentRegister()
 
   // Actions
-  async function loadProducts(establishmentId?: number | null) {
+  async function loadProducts(establishmentId?: number | null): Promise<void> {
     if (loading.value) return
     loading.value = true
     error.value = null
@@ -96,190 +93,6 @@ export const useProductsStore = defineStore('products', () => {
       return product.stockByVariation[variation] ?? 0
     }
     return product.stock ?? 0
-  }
-
-  /**
-   * Met à jour le stock d'un produit (décrémente lors d'une vente, permet les stocks négatifs)
-   * @param productId - ID du produit
-   * @param variation - Variation du produit (optionnel)
-   * @param quantity - Quantité à déduire
-   * @param reason - Raison du mouvement (vente, ajustement, etc.)
-   * @param saleId - ID de la vente associée (optionnel)
-   */
-  function updateStock(
-    productId: number,
-    variation: string,
-    quantity: number,
-    reason: StockMovementReason = 'sale',
-    saleId?: number
-  ): boolean {
-    const product = products.value.find(p => p.id === productId)
-    if (!product) {
-      console.error(`Produit ${productId} non trouvé`)
-      return false
-    }
-
-    let oldStock = 0
-    let newStock = 0
-
-    // Mise à jour du stock selon le type (permet les stocks négatifs)
-    if (variation && product.stockByVariation) {
-      oldStock = product.stockByVariation[variation] ?? 0
-      newStock = oldStock - quantity
-      product.stockByVariation[variation] = newStock
-    } else if (product.stock !== undefined) {
-      oldStock = product.stock
-      newStock = oldStock - quantity
-      product.stock = newStock
-    }
-
-    // Enregistrer le mouvement dans l'historique local (non persisté)
-    stockHistory.value.push({
-      id: Date.now(),
-      productId,
-      productName: product.name,
-      variation,
-      quantity: -quantity, // Négatif car c'est une sortie
-      oldStock,
-      newStock,
-      reason,
-      saleId,
-      date: new Date(),
-      userId: 0 // Historique local uniquement, non persisté en base
-    })
-
-    console.log(`✅ Stock mis à jour pour ${product.name}: ${oldStock} → ${newStock}`)
-    return true
-  }
-
-  /**
-   * Ajoute du stock (réception, ajustement)
-   * @param productId - ID du produit
-   * @param variation - Variation du produit (optionnel)
-   * @param quantity - Quantité à ajouter
-   * @param reason - Raison du mouvement
-   */
-  function addStock(
-    productId: number,
-    variation: string,
-    quantity: number,
-    reason: StockMovementReason = 'reception'
-  ): boolean {
-    const product = products.value.find(p => p.id === productId)
-    if (!product) {
-      console.error(`Produit ${productId} non trouvé`)
-      return false
-    }
-
-    let oldStock = 0
-    let newStock = 0
-
-    if (variation && product.stockByVariation) {
-      oldStock = product.stockByVariation[variation] ?? 0
-      newStock = oldStock + quantity
-      product.stockByVariation[variation] = newStock
-    } else if (product.stock !== undefined) {
-      oldStock = product.stock
-      newStock = oldStock + quantity
-      product.stock = newStock
-    }
-
-    // Enregistrer le mouvement dans l'historique local (non persisté)
-    stockHistory.value.push({
-      id: Date.now(),
-      productId,
-      productName: product.name,
-      variation,
-      quantity, // Positif car c'est une entrée
-      oldStock,
-      newStock,
-      reason,
-      date: new Date(),
-      userId: 0 // Historique local uniquement, non persisté en base
-    })
-
-    console.log(`✅ Stock ajouté pour ${product.name}: ${oldStock} → ${newStock}`)
-    return true
-  }
-
-  /**
-   * Annule une sortie de stock (en cas d'annulation de vente)
-   * @param saleId - ID de la vente à annuler
-   */
-  function revertStockForSale(saleId: number): boolean {
-    // Récupérer tous les mouvements liés à cette vente
-    const saleMovements = stockHistory.value.filter(
-      m => m.saleId === saleId && m.reason === 'sale'
-    )
-
-    if (saleMovements.length === 0) {
-      console.warn(`Aucun mouvement de stock trouvé pour la vente ${saleId}`)
-      return false
-    }
-
-    // Restituer le stock pour chaque produit
-    let allSuccess = true
-    for (const movement of saleMovements) {
-      const product = products.value.find(p => p.id === movement.productId)
-      if (!product) {
-        allSuccess = false
-        continue
-      }
-
-      const quantityToRestore = Math.abs(movement.quantity)
-      const success = addStock(
-        movement.productId,
-        movement.variation,
-        quantityToRestore,
-        'sale_cancellation'
-      )
-
-      if (!success) allSuccess = false
-    }
-
-    return allSuccess
-  }
-
-  /**
-   * Définit le stock manuellement (pour ajustements/inventaires)
-   * @param productId - ID du produit
-   * @param variation - Variation du produit (optionnel)
-   * @param newStock - Nouveau stock
-   */
-  function setStock(
-    productId: number,
-    variation: string,
-    newStock: number
-  ): boolean {
-    const product = products.value.find(p => p.id === productId)
-    if (!product) return false
-
-    let oldStock = 0
-
-    if (variation && product.stockByVariation) {
-      oldStock = product.stockByVariation[variation] ?? 0
-      product.stockByVariation[variation] = Math.max(0, newStock)
-    } else if (product.stock !== undefined) {
-      oldStock = product.stock
-      product.stock = Math.max(0, newStock)
-    }
-
-    const delta = newStock - oldStock
-
-    stockHistory.value.push({
-      id: Date.now(),
-      productId,
-      productName: product.name,
-      variation,
-      quantity: delta,
-      oldStock,
-      newStock,
-      reason: 'inventory_adjustment',
-      date: new Date(),
-      userId: 0 // Historique local uniquement, non persisté en base
-    })
-
-    return true
   }
 
   // Getters
@@ -431,7 +244,6 @@ export const useProductsStore = defineStore('products', () => {
     loading,
     error,
     currentEstablishmentId,
-    stockHistory,
 
     // Getters
     getById,
@@ -445,32 +257,6 @@ export const useProductsStore = defineStore('products', () => {
     loadProducts,
     hasEnoughStock,
     getAvailableStock,
-    updateStock,
-    addStock,
-    revertStockForSale,
-    setStock
   }
 })
 
-// Types pour l'historique des mouvements
-export type StockMovementReason = 
-  | 'sale'                    // Vente
-  | 'sale_cancellation'       // Annulation de vente
-  | 'reception'               // Réception fournisseur
-  | 'inventory_adjustment'    // Ajustement d'inventaire
-  | 'loss'                    // Perte/Casse
-  | 'return'                  // Retour client
-
-export interface StockMovement {
-  id: number
-  productId: number
-  productName: string
-  variation: string
-  quantity: number          // Positif = entrée, Négatif = sortie
-  oldStock: number
-  newStock: number
-  reason: StockMovementReason
-  saleId?: number
-  date: Date
-  userId: number
-}

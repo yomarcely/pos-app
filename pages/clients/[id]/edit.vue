@@ -608,9 +608,9 @@ async function loadClient() {
 
     // Charger les statistiques du client
     await loadClientStats()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors du chargement du client:', error)
-    toast.error(error.data?.message || 'Erreur lors du chargement du client')
+    toast.error(extractFetchError(error, 'Erreur lors du chargement du client'))
     navigateTo('/clients')
   } finally {
     loadingClient.value = false
@@ -682,9 +682,9 @@ async function handleSubmit() {
 
     toast.success('Client modifié avec succès')
     navigateTo('/clients')
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la modification du client:', error)
-    toast.error(error.data?.message || 'Erreur lors de la modification du client')
+    toast.error(extractFetchError(error, 'Erreur lors de la modification du client'))
   } finally {
     loading.value = false
   }

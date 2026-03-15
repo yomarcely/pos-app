@@ -256,9 +256,9 @@ async function saveTaxRate() {
 
     await refresh()
     dialogOpen.value = false
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de l\'enregistrement:', error)
-    toast.error(error?.data?.message || 'Une erreur est survenue')
+    toast.error(extractFetchError(error, 'Une erreur est survenue'))
   } finally {
     saving.value = false
   }
@@ -273,9 +273,9 @@ async function confirmDelete() {
     })
     toast.success('Taux de TVA archivé avec succès')
     await refresh()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de l\'archivage:', error)
-    toast.error(error?.data?.message || 'Une erreur est survenue')
+    toast.error(extractFetchError(error, 'Une erreur est survenue'))
   }
 }
 </script>

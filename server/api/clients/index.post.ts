@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
         .where(eq(establishments.tenantId, tenantId))
         .limit(2)
       if (estabs.length === 1) {
-        establishmentId = estabs[0].id
+        establishmentId = estabs[0]?.id
       }
     }
 
@@ -101,6 +101,10 @@ export default defineEventHandler(async (event) => {
       .insert(customers)
       .values(clientData)
       .returning()
+
+    if (!newClient) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du client' })
+    }
 
     // Lier le client à l'établissement source (même hors synchro)
     if (establishmentId) {
@@ -138,7 +142,7 @@ export default defineEventHandler(async (event) => {
     if (userId) {
       await db.insert(auditLogs).values({
         tenantId,
-        userId,
+        userId: null,
         userName: auth.user?.email || auth.user?.user_metadata?.name || 'Utilisateur',
         entityType: 'customer',
         entityId: newClient.id,

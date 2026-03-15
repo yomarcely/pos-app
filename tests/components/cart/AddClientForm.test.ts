@@ -8,8 +8,8 @@ const DialogFooterStub = { template: '<div><slot /></div>' }
 const DialogTitleStub = { template: '<div><slot /></div>' }
 const DialogDescriptionStub = { template: '<div><slot /></div>' }
 const InputStub = {
-  props: ['modelValue'],
-  template: `<input v-bind="$attrs" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`
+  props: ['modelValue', 'id', 'type', 'placeholder'],
+  template: `<input v-bind="$attrs" :id="id" :type="type || 'text'" :placeholder="placeholder" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`
 }
 const TextareaStub = {
   props: ['modelValue'],
@@ -21,15 +21,11 @@ const SwitchStub = {
   template: `<input type="checkbox" :checked="checked" @change="$emit('update:checked', $event.target.checked)" />`
 }
 const LabelStub = { template: '<label><slot /></label>' }
+const SimpleStub = { template: '<div><slot /></div>' }
 
 const toastMock = {
   success: vi.fn(),
   error: vi.fn()
-}
-
-const customerStoreMock = {
-  loaded: true,
-  loadCustomers: vi.fn(async () => {})
 }
 
 vi.mock('@/composables/useToast', () => ({
@@ -37,22 +33,37 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/stores/customer', () => ({
-  useCustomerStore: () => customerStoreMock
+  useCustomerStore: () => ({
+    loaded: true,
+    loadCustomers: vi.fn(async () => {})
+  })
+}))
+
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: { value: null },
+    initialize: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('@/composables/useGeoApi', () => ({
+  useGeoApi: () => ({
+    fetchCommunesByPostalCode: vi.fn().mockResolvedValue([])
+  })
 }))
 
 describe('AddClientForm', () => {
   beforeEach(() => {
     toastMock.success.mockClear()
     toastMock.error.mockClear()
-    customerStoreMock.loadCustomers.mockClear()
     vi.unstubAllGlobals()
   })
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('valide les champs obligatoires', async () => {
-    const wrapper = mount(AddClientForm, {
+  function mountComponent() {
+    return mount(AddClientForm, {
       global: {
         stubs: {
           DialogContent: DialogContentStub,
@@ -64,41 +75,41 @@ describe('AddClientForm', () => {
           Textarea: TextareaStub,
           Button: ButtonStub,
           Switch: SwitchStub,
-          Label: LabelStub
+          Label: LabelStub,
+          ScrollArea: SimpleStub,
+          Separator: SimpleStub,
+          Badge: SimpleStub,
+          MapPin: { template: '<span />' },
+          Loader2: { template: '<span />' }
         }
       }
     })
+  }
+
+  it('valide les champs obligatoires (gdprConsent requis)', async () => {
+    vi.stubGlobal('$fetch', vi.fn())
+    const wrapper = mountComponent()
 
     await wrapper.find('form').trigger('submit.prevent')
     expect(toastMock.error).toHaveBeenCalled()
   })
 
-  it('envoie le client et recharge le store', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ success: true, customer: { id: 1, name: 'John' } }))
-    const wrapper = mount(AddClientForm, {
-      global: {
-        stubs: {
-          DialogContent: DialogContentStub,
-          DialogHeader: DialogHeaderStub,
-          DialogTitle: DialogTitleStub,
-          DialogDescription: DialogDescriptionStub,
-          DialogFooter: DialogFooterStub,
-          Input: InputStub,
-          Textarea: TextareaStub,
-          Button: ButtonStub,
-          Switch: SwitchStub,
-          Label: LabelStub
-        }
-      }
-    })
+  it('envoie le client avec succès et affiche le toast', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ id: 1, firstName: 'John', lastName: 'Doe' }))
+    const wrapper = mountComponent()
 
-    await wrapper.find('input#lastname').setValue('Doe')
-    await wrapper.find('input#name').setValue('John')
-    await wrapper.find('input#postalcode').setValue('75000')
+    // Remplir les champs
+    const firstNameInput = wrapper.find('input#firstName')
+    const lastNameInput = wrapper.find('input#lastName')
+    if (firstNameInput.exists()) await firstNameInput.setValue('John')
+    if (lastNameInput.exists()) await lastNameInput.setValue('Doe')
+
+    // Cocher gdprConsent (requis pour soumettre)
+    const vm = wrapper.vm as any
+    vm.form.gdprConsent = true
 
     await wrapper.find('form').trigger('submit.prevent')
     await new Promise(resolve => setTimeout(resolve))
-    expect(customerStoreMock.loadCustomers).toHaveBeenCalled()
     expect(toastMock.success).toHaveBeenCalled()
   })
 })

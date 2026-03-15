@@ -141,13 +141,6 @@ export interface SyncLog {
 // DTOs POUR LES API
 // ==========================================
 
-export interface CreateSyncGroupDto {
-  name: string
-  description?: string
-  establishmentIds: number[]
-  productRules?: Partial<Pick<SyncRules, 'syncName' | 'syncDescription' | 'syncBarcode' | 'syncCategory' | 'syncSupplier' | 'syncBrand' | 'syncPriceHt' | 'syncPriceTtc' | 'syncTva' | 'syncImage' | 'syncVariations'>>
-  customerRules?: Partial<Pick<SyncRules, 'syncCustomerInfo' | 'syncCustomerContact' | 'syncCustomerAddress' | 'syncCustomerGdpr' | 'syncLoyaltyProgram' | 'syncDiscount'>>
-}
 
 export interface UpdateSyncRulesDto {
   syncGroupId: number

@@ -23,13 +23,17 @@ export default defineEventHandler(async (event) => {
     const token = getAccessTokenFromEvent(event)
 
     if (token && supabaseServerClient) {
-      const { data } = await supabaseServerClient.auth.getUser(token)
-      if (data.user) {
+      const { data, error: getUserError } = await supabaseServerClient.auth.getUser(token)
+      if (getUserError) {
+        logger.warn({ path, err: getUserError }, '[DEV MODE] getUser error — aucun contexte auth défini')
+      } else if (data.user) {
         const tenantId = getTenantFromUser(data.user, event)
-        event.context.auth = {
-          user: data.user,
-          accessToken: token,
-          tenantId,
+        if (tenantId) {
+          event.context.auth = {
+            user: data.user,
+            accessToken: token,
+            tenantId,
+          }
         }
         logger.debug({ tenantId, userId: data.user.id }, '✅ [DEV MODE] Auth context set')
       }

@@ -6,7 +6,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const auth = useAuthStore()
 
   if (!auth.isAuthenticated) {
-    await auth.restoreSession()
+    try {
+      await auth.restoreSession()
+    } catch {
+      // Erreur réseau ou Supabase indisponible : on laisse isAuthenticated à false
+      // → le guard ci-dessous redirigera vers /login
+    }
   }
 
   // Routes publiques (accessibles sans authentification)

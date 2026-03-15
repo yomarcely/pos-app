@@ -50,17 +50,3 @@ export const logger = pino({
     res: pino.stdSerializers.res,
   },
 })
-
-/**
- * Logger pour les requêtes HTTP avec contexte
- */
-export function createRequestLogger(path: string, method: string) {
-  return logger.child({ path, method })
-}
-
-/**
- * Logger pour un module spécifique
- */
-export function createModuleLogger(module: string) {
-  return logger.child({ module })
-}

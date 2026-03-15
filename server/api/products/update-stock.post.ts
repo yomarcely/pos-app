@@ -131,6 +131,10 @@ export default defineEventHandler(async (event) => {
         userId: body.userId || null,
       }).returning()
 
+      if (!movement) {
+        throw createError({ statusCode: 500, message: 'Échec de l\'enregistrement du mouvement de stock' })
+      }
+
       // Enregistrer la création de l'ajustement dans l'audit log (NF525)
       await tx.insert(auditLogs).values({
         tenantId,

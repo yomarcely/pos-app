@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { movements, stockMovements } from '~/server/database/schema'
+import { movements } from '~/server/database/schema'
 import { sql } from 'drizzle-orm'
 
 /**
@@ -39,33 +39,12 @@ export async function createMovement(
     })
     .returning()
 
+  if (!movement) {
+    throw new Error('Échec de la création du mouvement en base de données')
+  }
+
   return {
     id: movement.id,
     movementNumber: movement.movementNumber,
-  }
-}
-
-/**
- * Récupère un mouvement avec ses détails
- */
-export async function getMovementWithDetails(movementId: number) {
-  const [movement] = await db
-    .select()
-    .from(movements)
-    .where(sql`${movements.id} = ${movementId}`)
-    .limit(1)
-
-  if (!movement) {
-    return null
-  }
-
-  const details = await db
-    .select()
-    .from(stockMovements)
-    .where(sql`${stockMovements.movementId} = ${movementId}`)
-
-  return {
-    ...movement,
-    details,
   }
 }

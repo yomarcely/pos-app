@@ -84,11 +84,11 @@ export default defineEventHandler(async (event) => {
       transfer: 'transfer',
     }
 
-    const reason = reasonMap[body.type]
+    const reason = reasonMap[body.type] ?? 'inventory_adjustment'
 
     const result = await db.transaction(async (tx) => {
       // 1. Créer le mouvement principal
-      const movement = await createMovement(body.type, body.comment, userId, tenantId)
+      const movement = await createMovement(body.type, body.comment, undefined, tenantId)
 
       // 2. Créer les lignes de stock_movements
       const stockMovementsData = []
@@ -165,7 +165,7 @@ export default defineEventHandler(async (event) => {
           oldStock,
           newStock,
           reason,
-          userId,
+          userId: null,
         })
 
         stockMovementsData.push({

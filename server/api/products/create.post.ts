@@ -27,6 +27,10 @@ export default defineEventHandler(async (event) => {
       .values(productData)
       .returning()
 
+    if (!newProduct) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du produit' })
+    }
+
     // Créer le stock initial pour l'établissement source
     if (establishmentId) {
       await db.insert(productStocks).values({

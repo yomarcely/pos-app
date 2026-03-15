@@ -32,6 +32,10 @@ export default defineEventHandler(async (event) => {
       })
       .returning()
 
+    if (!group) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du groupe de synchronisation' })
+    }
+
     // Ajouter les établissements au groupe
     await db.insert(syncGroupEstablishments).values(
       validatedData.establishmentIds.map((establishmentId) => ({

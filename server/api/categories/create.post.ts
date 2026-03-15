@@ -29,6 +29,10 @@ export default defineEventHandler(async (event) => {
       ...validatedData,
     }).returning()
 
+    if (!newCategory) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de la catégorie' })
+    }
+
     logger.info({
       categoryId: newCategory.id,
       categoryName: newCategory.name,

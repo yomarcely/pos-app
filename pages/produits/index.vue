@@ -95,7 +95,7 @@ async function loadProducts() {
   try {
     loading.value = true
 
-    const params: any = {}
+    const params: Record<string, string | number> = {}
     if (searchQuery.value && searchQuery.value.trim() !== '') {
       params.search = searchQuery.value.trim()
     }
@@ -160,9 +160,9 @@ async function deleteProduct(product: Product) {
 
     toast.success('Produit supprimé avec succès')
     await loadProducts()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la suppression du produit:', error)
-    toast.error(error.data?.message || 'Erreur lors de la suppression du produit')
+    toast.error(extractFetchError(error, 'Erreur lors de la suppression du produit'))
   }
 }
 

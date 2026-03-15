@@ -5,6 +5,9 @@
       <div v-if="loading" class="text-sm text-muted-foreground">
         Chargement des établissements...
       </div>
+      <div v-else-if="loadError" class="text-sm text-destructive">
+        {{ loadError }}
+      </div>
       <div v-else-if="establishments.length === 0" class="text-sm text-muted-foreground">
         Aucun établissement disponible
       </div>
@@ -43,6 +46,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { extractFetchError } from '@/composables/useFetchError'
 
 interface Establishment {
   id: number
@@ -67,6 +71,7 @@ const emit = defineEmits<{
 
 const establishments = ref<Establishment[]>([])
 const loading = ref(true)
+const loadError = ref('')
 
 const selectedCount = computed(() => props.modelValue.length)
 
@@ -97,12 +102,15 @@ function toggleEstablishment(id: number, checked: boolean | 'indeterminate') {
 }
 
 async function loadEstablishments() {
+  loadError.value = ''
   try {
     loading.value = true
     const response = await $fetch<{ establishments: Establishment[] }>('/api/establishments')
     establishments.value = response.establishments || []
   } catch (error) {
+    const message = extractFetchError(error, 'Impossible de charger les établissements')
     console.error('Erreur lors du chargement des établissements:', error)
+    loadError.value = message
     establishments.value = []
   } finally {
     loading.value = false

@@ -78,7 +78,7 @@ export async function logAuditEvent(params: {
   changes?: Record<string, string | number | boolean | undefined>
   metadata?: AuditMetadata
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   try {
     await db.insert(auditLogs).values({
       tenantId: params.tenantId,
@@ -119,7 +119,7 @@ export async function logSaleCreation(params: {
   establishmentId: number
   registerId: number
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -153,7 +153,7 @@ export async function logSaleCancellation(params: {
   ticketNumber: string
   reason: string
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -187,7 +187,7 @@ export async function logClosure(params: {
   totalTTC: number
   closureHash: string
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -221,7 +221,7 @@ export async function logChainVerification(params: {
   brokenLinksCount: number
   registerId?: number | null
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -250,7 +250,7 @@ export async function logSystemError(params: {
   errorStack?: string
   context?: string
   ipAddress?: string | null
-}) {
+}): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: null,

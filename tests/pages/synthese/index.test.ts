@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SynthesePage from '@/pages/synthese/index.vue'
-import { ref as vueRef, watch as vueWatch } from 'vue'
+import { ref as vueRef, watch as vueWatch, ref } from 'vue'
+
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: ref(1),
+    selectedRegisterId: ref(1),
+    initialize: vi.fn().mockResolvedValue(undefined)
+  })
+}))
 
 const toastMock = {
   error: vi.fn(),
@@ -42,6 +50,8 @@ describe('Page synthese', () => {
       }
       if (url.includes('cancel')) return Promise.resolve({ success: true, sale: { id: 1 } })
       if (url.includes('close-day')) return Promise.resolve({ success: true, closure: { closureHash: 'hashhashhashhash' } })
+      if (url.includes('establishments')) return Promise.resolve({ establishments: [] })
+      if (url.includes('registers')) return Promise.resolve({ registers: [] })
       return Promise.resolve({})
     })
   })
@@ -73,8 +83,11 @@ describe('Page synthese', () => {
 
   it('charge la synthèse et affiche le statut ouvert', async () => {
     const wrapper = mountPage()
+    await new Promise(resolve => setTimeout(resolve, 50))
     await wrapper.vm.$nextTick()
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/sales/daily-summary?date='))
+    // The page also calls /api/establishments and /api/registers via useEstablishmentRegister
+    const calls = fetchMock.mock.calls.map((c: any[]) => c[0])
+    expect(calls.some((url: string) => url.includes('daily-summary'))).toBe(true)
     expect(wrapper.text()).toContain('Synthèse journalière')
   })
 

@@ -17,14 +17,14 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useSupabaseClient } from '@/composables/useSupabaseClient'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
   class?: HTMLAttributes["class"]
 }>()
 
-const supabase = useSupabaseClient()
+const authStore = useAuthStore()
 const toast = useToast()
 const router = useRouter()
 
@@ -66,29 +66,11 @@ const handleSubmit = async () => {
   loading.value = true
 
   try {
-    // Création du compte avec Supabase
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          name: form.name,
-        },
-      },
-    })
-
-    if (signUpError) {
-      throw signUpError
-    }
-
-    if (data.user) {
-      toast.success('Compte créé avec succès ! Bienvenue !')
-
-      // Redirection vers le dashboard
-      await router.push('/dashboard')
-    }
-  } catch (err: any) {
-    const message = err?.message || 'Erreur lors de la création du compte'
+    await authStore.signUp(form.email, form.password, form.name)
+    toast.success('Compte créé avec succès ! Bienvenue !')
+    await router.push('/dashboard')
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erreur lors de la création du compte'
     error.value = message
     toast.error(message)
   } finally {

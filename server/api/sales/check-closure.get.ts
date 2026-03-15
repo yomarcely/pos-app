@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     const dateParam = query.date as string
     const registerIdParam = query.registerId as string
 
-    const targetDate = dateParam || new Date().toISOString().split('T')[0]
+    const targetDate = dateParam || new Date().toISOString().slice(0, 10)
     const registerId = registerIdParam ? Number(registerIdParam) : null
 
     // Construction des conditions WHERE dynamiques

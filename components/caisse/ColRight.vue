@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard, Printer, Lock } from 'lucide-vue-next'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
+import { extractFetchError } from '@/composables/useFetchError'
 import { useCartStore } from '@/stores/cart'
 import { useProductsStore } from '@/stores/products'
 import { useCustomerStore } from '@/stores/customer'
@@ -20,13 +21,10 @@ const productsStore = useProductsStore()
 const customerStore = useCustomerStore()
 const sellersStore = useSellersStore()
 const variationStore = useVariationGroupsStore()
-const { selectedRegisterId } = useEstablishmentRegister()
+const { selectedRegisterId, selectedRegister, selectedEstablishmentDetail } = useEstablishmentRegister()
 
 const payments = ref<{ mode: string; amount: number }[]>([])
 const isDayClosed = ref(false)
-const currentEstablishment = ref<any>(null)
-const registers = ref<any[]>([])
-const currentRegister = ref<any>(null)
 
 const { totalTTC, totalHT, totalTVA } = storeToRefs(cartStore)
 
@@ -49,14 +47,8 @@ async function checkClosure() {
     isDayClosed.value = false
     return
   }
-
   try {
-    const closureCheck = await $fetch('/api/sales/check-closure', {
-      params: {
-        registerId: selectedRegisterId.value
-      }
-    })
-    isDayClosed.value = closureCheck.isClosed
+    isDayClosed.value = await cartStore.checkDayClosure(selectedRegisterId.value)
   } catch (error) {
     console.error('Erreur lors de la vérification de clôture:', error)
     isDayClosed.value = false
@@ -64,9 +56,8 @@ async function checkClosure() {
 }
 
 // Vérifier la clôture au chargement
-onMounted(async () => {
-  await refreshSelectionsFromStorage()
-  await checkClosure()
+onMounted(() => {
+  checkClosure()
 })
 
 // Revérifier la clôture quand la caisse change
@@ -101,49 +92,12 @@ function removePayment(mode: string) {
   payments.value = payments.value.filter((p) => p.mode !== mode)
 }
 
-async function refreshSelectionsFromStorage() {
-  // Etablissement
-  try {
-    const savedEstablishmentId = localStorage.getItem('pos_selected_establishment')
-    if (savedEstablishmentId) {
-      const response = await $fetch<{ success: boolean; establishment: any }>(`/api/establishments/${savedEstablishmentId}`)
-      if (response.success) {
-        currentEstablishment.value = response.establishment
-      }
-    } else {
-      currentEstablishment.value = null
-    }
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour de l\'établissement:', error)
-    currentEstablishment.value = null
-  }
-
-  // Caisses
-  try {
-    const registersResponse = await $fetch<{ registers: any[] }>('/api/registers')
-    registers.value = registersResponse.registers
-
-    const savedRegisterId = localStorage.getItem('pos_selected_register')
-    if (savedRegisterId) {
-      const register = registers.value.find(r => r.id === Number(savedRegisterId))
-      currentRegister.value = register || null
-    } else {
-      currentRegister.value = null
-    }
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour de la caisse:', error)
-    currentRegister.value = null
-  }
-}
 
 const isSubmitting = ref(false)
 
 async function validerVente() {
   if (isSubmitting.value) return
   isSubmitting.value = true
-
-  // Toujours utiliser la sélection la plus récente
-  await refreshSelectionsFromStorage()
 
   // 0. Vérifier que la journée n'est pas clôturée
   if (isDayClosed.value) {
@@ -168,14 +122,12 @@ async function validerVente() {
 
   // Vérifier que le paiement est correct selon le type de transaction
   if (totalTTC.value > 0 && balance.value > 0) {
-    // Vente normale : il reste de l'argent à payer
     toast.error(`Il reste ${balance.value.toFixed(2)} € à payer`)
     isSubmitting.value = false
     return
   }
 
   if (totalTTC.value < 0 && balance.value < 0) {
-    // Remboursement : il reste de l'argent à rembourser
     toast.error(`Il reste ${Math.abs(balance.value).toFixed(2)} € à rembourser`)
     isSubmitting.value = false
     return
@@ -188,14 +140,24 @@ async function validerVente() {
     return
   }
 
-  if (!currentEstablishment.value || !currentEstablishment.value.id) {
+  const establishment = selectedEstablishmentDetail.value
+  if (!establishment?.id) {
     toast.error('Veuillez sélectionner un établissement')
     isSubmitting.value = false
     return
   }
 
-  if (!currentRegister.value || !currentRegister.value.id) {
+  const register = selectedRegister.value
+  if (!register?.id) {
     toast.error('Veuillez sélectionner une caisse')
+    isSubmitting.value = false
+    return
+  }
+
+  // 2bis. Vérifier le stock disponible (protection UX avant appel API)
+  const stockCheck = cartStore.validateStock()
+  if (!stockCheck.valid) {
+    toast.error(stockCheck.errors.join('\n'))
     isSubmitting.value = false
     return
   }
@@ -227,8 +189,8 @@ async function validerVente() {
           productName: item.name,
           quantity: item.quantity,
           restockOnReturn: item.restockOnReturn ?? false,
-          unitPrice: finalPrice, // Prix après remise
-          originalPrice: item.price, // Prix d'origine
+          unitPrice: finalPrice,
+          originalPrice: item.price,
           variation: variationKey,
           discount: item.discount,
           discountType: item.discountType,
@@ -254,15 +216,12 @@ async function validerVente() {
         value: cartStore.globalDiscount,
         type: cartStore.globalDiscountType,
       },
-      establishmentId: currentEstablishment.value.id,
-      registerId: currentRegister.value.id,
+      establishmentId: establishment.id,
+      registerId: register.id,
     }
 
-    // 5. Envoyer à l'API (NF525)
-    const response = await $fetch('/api/sales/create', {
-      method: 'POST',
-      body: saleData,
-    })
+    // 5. Envoyer à l'API (NF525) via le store
+    const response = await cartStore.submitSale(saleData)
 
     if (!response.success) {
       throw new Error('Échec de l\'enregistrement de la vente')
@@ -275,8 +234,7 @@ async function validerVente() {
     console.log('✅ Vente NF525 enregistrée :', response.sale)
 
     // 7. Afficher le récapitulatif
-    const establishment = currentEstablishment.value
-    let receipt = `
+    const receipt = `
 ╔════════════════════════════════════╗
 ║         TICKET DE CAISSE           ║
 ╚════════════════════════════════════╝
@@ -290,7 +248,7 @@ ${establishment.email ? `Email: ${establishment.email}` : ''}
 
 N° Ticket: ${response.sale.ticketNumber}
 Date: ${new Date(response.sale.saleDate).toLocaleString('fr-FR')}
-Caisse: ${currentRegister.value?.name || 'N/A'}
+Caisse: ${register.name}
 Vendeur: ${sellersStore.sellers.find(s => s.id === Number(sellersStore.selectedSeller))?.name || 'N/A'}
 ${customerStore.client ? `Client: ${customerStore.clientName}\n` : ''}
 ────────────────────────────────────
@@ -336,14 +294,15 @@ Merci de votre visite !
     console.log(receipt)
     toast.success('Vente enregistrée avec succès !', 'Consultez la console pour le ticket')
 
-    // 9. Nettoyer
+    // 8. Nettoyer
     cartStore.clearCart()
     customerStore.clearClient()
     payments.value = []
 
   } catch (error) {
+    const message = extractFetchError(error, 'Erreur lors de la validation de la vente')
     console.error('Erreur lors de la validation:', error)
-    toast.error('Une erreur est survenue lors de la validation de la vente')
+    toast.error(message)
   } finally {
     isSubmitting.value = false
   }

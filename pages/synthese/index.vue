@@ -164,9 +164,9 @@ async function closeDay() {
 
       alert(`Journée clôturée avec succès!\nHash de clôture: ${response.closure.closureHash.substring(0, 32)}...`)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la clôture:', error)
-    alert(error.data?.message || 'Erreur lors de la clôture de la journée')
+    alert(extractFetchError(error, 'Erreur lors de la clôture de la journée'))
   } finally {
     closingDay.value = false
   }

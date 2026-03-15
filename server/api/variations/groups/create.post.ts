@@ -29,6 +29,10 @@ export default defineEventHandler(async (event) => {
       createdByEstablishmentId: establishmentId,
     }).returning()
 
+    if (!newGroup) {
+      throw createError({ statusCode: 500, message: 'Échec de la création du groupe de variation' })
+    }
+
     logger.info({
       groupId: newGroup.id,
       groupName: newGroup.name,

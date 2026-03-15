@@ -15,7 +15,7 @@
  */
 
 import { sql } from 'drizzle-orm'
-import { db } from './db'
+import { db } from './connection'
 
 export async function runTaxRatesMigration() {
   console.log('🔄 Début de la migration tax_rates...')
@@ -96,7 +96,7 @@ export async function runTaxRatesMigration() {
       SELECT DISTINCT tenant_id FROM products LIMIT 1;
     `)
 
-    const tenantId = result.rows[0]?.tenant_id || 'default'
+    const tenantId = (result[0] as Record<string, unknown> | undefined)?.tenant_id as string || 'default'
 
     await db.execute(sql`
       INSERT INTO tax_rates (tenant_id, name, rate, code, description, is_default)

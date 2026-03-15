@@ -6,7 +6,7 @@ export const useVariationGroupsStore = defineStore('variationGroups', () => {
   const groups = ref<VariationGroup[]>([])
   const loaded = ref(false)
 
-  async function loadGroups() {
+  async function loadGroups(): Promise<void> {
     if (loaded.value) return
 
     try {

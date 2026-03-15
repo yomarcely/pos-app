@@ -1,0 +1,26 @@
+-- ==========================================
+-- Migration: Liaison Vendeurs-Établissements
+-- ==========================================
+-- Date: 2025-12-07
+-- Description: Permet d'affecter un vendeur à un ou plusieurs établissements
+-- Bénéfice: Filtrage automatique des vendeurs par établissement dans la page caisse
+
+-- Table de liaison many-to-many
+CREATE TABLE IF NOT EXISTS "seller_establishments" (
+  "id" SERIAL PRIMARY KEY,
+  "tenant_id" VARCHAR(64) NOT NULL,
+  "seller_id" INTEGER NOT NULL REFERENCES "sellers"("id") ON DELETE CASCADE,
+  "establishment_id" INTEGER NOT NULL REFERENCES "establishments"("id") ON DELETE CASCADE,
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+
+  -- Contrainte unique : un vendeur ne peut être affecté qu'une fois à un établissement
+  UNIQUE("seller_id", "establishment_id")
+);
+
+-- Index pour performance
+CREATE INDEX IF NOT EXISTS "seller_establishments_tenant_id_idx" ON "seller_establishments" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "seller_establishments_seller_id_idx" ON "seller_establishments" ("seller_id");
+CREATE INDEX IF NOT EXISTS "seller_establishments_establishment_id_idx" ON "seller_establishments" ("establishment_id");
+
+-- Commentaire
+COMMENT ON TABLE "seller_establishments" IS 'Table de liaison many-to-many entre vendeurs et établissements (NF525)';

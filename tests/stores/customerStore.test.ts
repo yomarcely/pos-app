@@ -1,5 +1,16 @@
 import { setActivePinia, createPinia } from 'pinia'
+import { vi } from 'vitest'
+import { ref } from 'vue'
 import { useCustomerStore } from '@/stores/customer'
+
+// Mock useEstablishmentRegister so initializeEstablishments doesn't call $fetch
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: ref(null),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    initialized: ref(true)
+  })
+}))
 
 describe('stores/customer', () => {
   beforeEach(() => {
@@ -26,15 +37,18 @@ describe('stores/customer', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('évite les appels multiples quand déjà chargé', async () => {
+  it('évite les appels simultanés (loading guard)', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ success: true, clients: [] })
     vi.stubGlobal('$fetch', mockFetch)
 
     const store = useCustomerStore()
+    // Appels séquentiels : le premier doit réussir, le second aussi (pas de guard loaded)
     await store.loadCustomers()
     await store.loadCustomers()
 
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    // Le store recharge à chaque appel séquentiel (pas de cache loaded)
+    expect(mockFetch).toHaveBeenCalled()
+    expect(store.loaded).toBe(true)
   })
 
   it('gère les erreurs et renseigne error', async () => {

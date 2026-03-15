@@ -129,8 +129,8 @@ export default defineEventHandler(async (event) => {
         if (!paymentMethods[payment.mode]) {
           paymentMethods[payment.mode] = { amount: 0, count: 0 }
         }
-        paymentMethods[payment.mode].amount += payment.amount
-        paymentMethods[payment.mode].count += 1
+        paymentMethods[payment.mode]!.amount += payment.amount
+        paymentMethods[payment.mode]!.count += 1
       })
     })
 
@@ -186,6 +186,10 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 5. CALCULER MOYENNES
     // ==========================================
+    if (!activeSalesStats || !quantityStats || !cancelledStats) {
+      throw createError({ statusCode: 500, message: 'Erreur lors du calcul des statistiques journalières' })
+    }
+
     const totalTTC = Number(activeSalesStats.totalTTC)
     const totalHT = Number(activeSalesStats.totalHT)
     const totalTVA = Number(activeSalesStats.totalTVA)
