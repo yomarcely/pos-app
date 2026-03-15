@@ -341,7 +341,7 @@ Si l'authentification Supabase est remplacée par un autre provider, **exactemen
 - [x] **Dead code** → ✅ traité (`docs/audit/04-dead-code.md`)
 - [x] **Types TypeScript** → ✅ 0 erreur TS sources (`docs/audit/02-typescript-strict.md`)
 - [x] **Calculs financiers** → ✅ audité et corrigé (`docs/audit/07-calculs-financiers.md`) — P1 validation totaux serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash NF525 aligné — 16 tests unitaires dans `tests/unit/financialValidation.test.ts`
-- [x] **NF525 couverture tests** → ✅ audité (`docs/audit/08-nf525-tests.md`) — 0 test unitaire réel, 38 tests à écrire
+- [x] **NF525 couverture tests** → ✅ 42 tests unitaires écrits (`tests/unit/nf525/`) — toutes fonctions couvertes sans mock — 371 tests / 64 fichiers
 - [x] **Tests failing** → ✅ 0 test en échec (corrigés le 2026-03-15) — 329 tests passent sur 58 fichiers
 - [ ] **Audit 03 items restants** → ⏳ N+1 sync, signUp composant, `$fetch` caisse hors store
 
@@ -429,4 +429,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 ---
 
-*Dernière mise à jour : 2026-03-15 — par Claude Code (session calculs financiers P1–P4 : 329 tests / 58 fichiers)*
+| 2026-03-16 | NF525 couverture tests | 42 tests unitaires écrits dans `tests/unit/nf525/` (6 fichiers) — toutes fonctions exportées couvertes sans mock — déterminisme, unicité, cas fraude, ordre inversé documenté | ✅ |
+
+*Dernière mise à jour : 2026-03-16 — par Claude Code (session NF525 tests : 371 tests / 64 fichiers)*
