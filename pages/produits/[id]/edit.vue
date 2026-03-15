@@ -396,7 +396,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
-import { useToast } from '@/composables/useToast'
 import { useRoute, useRouter } from 'vue-router'
 import FormDialog from '@/components/common/FormDialog.vue'
 import ProductFormGeneral from '@/components/produits/form/ProductFormGeneral.vue'
@@ -408,78 +407,56 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
-import type { Product as BaseProduct } from '@/types'
+import { useProductEditor } from '@/composables/useProductEditor'
+import { useProductCatalogData } from '@/composables/useProductCatalogData'
+import { useProductStockMovement } from '@/composables/useProductStockMovement'
 
-type ProductApi = Omit<BaseProduct, 'purchasePrice'> & {
-  purchasePrice: number | null
-  supplierCode?: string | null
-  effectivePrice?: number
-  effectivePurchasePrice?: number | null
-  tvaId?: number | null
-}
-
-type ProductApiResponse = {
-  success: boolean
-  product: ProductApi
-}
-
-const toast = useToast()
 const route = useRoute()
 const router = useRouter()
 const activeTab = ref('general')
-const loading = ref(false)
-const loadingProduct = ref(true)
-const savingMovement = ref(false)
 
 const productId = computed(() => parseInt(route.params.id as string))
 
-// Original product data
-const originalProduct = ref<any>(null)
 const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
-// Form data
-const form = ref({
-  name: '',
-  description: '',
-  supplierId: null as string | null,
-  brandId: null as string | null,
-  image: null as string | null,
-  price: '',
-  purchasePrice: '',
-  tva: '20',
-  tvaId: null as number | null,
-  categoryId: null as string | null,
-  hasVariations: false,
-  variationGroupIds: [] as number[],
-  minStock: 0,
-  minStockByVariation: {} as Record<number, number>,
-  supplierCode: '',
-  barcode: '',
-  barcodeByVariation: {} as Record<number, string>,
-})
+function goBack() {
+  router.push('/produits')
+}
 
-// Data
-const suppliers = ref<any[]>([])
-const brands = ref<any[]>([])
-const categories = ref<any[]>([])
-const variationGroups = ref<any[]>([])
+const {
+  originalProduct,
+  loading,
+  loadingProduct,
+  form,
+  loadProduct,
+  saveProduct: saveProductEditor,
+  updateGeneralForm,
+  updatePricingForm,
+} = useProductEditor(productId, selectedEstablishmentId, goBack)
+
+const {
+  suppliers,
+  brands,
+  categories,
+  variationGroups,
+  showAddCategoryDialog,
+  showAddSupplierDialog,
+  showAddBrandDialog,
+  newCategoryName,
+  newSupplierName,
+  newBrandName,
+  loadSuppliers,
+  loadBrands,
+  loadCategories,
+  loadVariationGroups,
+  openAddSupplierDialog,
+  openAddBrandDialog,
+  saveNewCategory,
+  saveNewSupplier,
+  saveNewBrand,
+} = useProductCatalogData(selectedEstablishmentId, form)
+
 const selectedGroupId = ref<number | null>(null)
-
-// Dialogs
-const showAddCategoryDialog = ref(false)
-const showAddSupplierDialog = ref(false)
-const showAddBrandDialog = ref(false)
-const newCategoryName = ref('')
-const newSupplierName = ref('')
-const newBrandName = ref('')
-
-// Stock movements
-const stockDialogOpen = ref(false)
-const movementType = ref<'reception' | 'adjustment'>('reception')
-const movementQuantities = ref<Record<string | number, number | null>>({})
-const historyDialogOpen = ref(false)
-const loadingHistory = ref(false)
-const stockHistory = ref<any[]>([])
 
 // Computed
 const selectedVariationsList = computed(() => {
@@ -512,365 +489,25 @@ watch(
   { immediate: true }
 )
 
-// Update handlers
-function updateGeneralForm(updatedForm: any) {
-  form.value.name = updatedForm.name
-  form.value.description = updatedForm.description
-  form.value.supplierId = updatedForm.supplierId
-  form.value.brandId = updatedForm.brandId
-  form.value.image = updatedForm.image
-}
+const {
+  stockDialogOpen,
+  movementType,
+  movementQuantities,
+  historyDialogOpen,
+  loadingHistory,
+  stockHistory,
+  savingMovement,
+  getStockByVariation,
+  openStockDialog,
+  setMovementQuantity,
+  submitStockMovement,
+  formatDate,
+  reasonLabel,
+  openHistory,
+} = useProductStockMovement(productId, form, selectedVariationsList, originalProduct, loadProduct)
 
-function updatePricingForm(updatedForm: any) {
-  form.value.price = updatedForm.price
-  form.value.purchasePrice = updatedForm.purchasePrice
-  form.value.tva = updatedForm.tva
-  form.value.tvaId = updatedForm.tvaId
-  form.value.categoryId = updatedForm.categoryId
-}
-
-function getStockByVariation(variationId: number): number {
-  if (!originalProduct.value?.stockByVariation) return 0
-  return originalProduct.value.stockByVariation[variationId] || 0
-}
-
-function resetMovementQuantities() {
-  if (form.value.hasVariations) {
-    const quantities: Record<string | number, number | null> = {}
-    for (const variation of selectedVariationsList.value) {
-      quantities[variation.id] = null
-    }
-    movementQuantities.value = quantities
-  } else {
-    movementQuantities.value = { base: null }
-  }
-}
-
-function openStockDialog(type: 'reception' | 'adjustment') {
-  movementType.value = type
-  resetMovementQuantities()
-  stockDialogOpen.value = true
-}
-
-function setMovementQuantity(key: string | number, value: string | number) {
-  const parsed = Number(value)
-  movementQuantities.value = {
-    ...movementQuantities.value,
-    [key]: Number.isFinite(parsed) ? parsed : null,
-  }
-}
-
-async function submitStockMovement() {
-  const items: any[] = []
-  const adjustmentType = movementType.value === 'reception' ? 'add' : 'set'
-
-  if (form.value.hasVariations) {
-    for (const variation of selectedVariationsList.value) {
-      const qty = movementQuantities.value[variation.id]
-      if (qty === null || qty === undefined || !Number.isFinite(qty)) continue
-      items.push({
-        productId: productId.value,
-        variation: variation.id.toString(),
-        quantity: Number(qty),
-        adjustmentType,
-      })
-    }
-  } else {
-    const qty = movementQuantities.value['base']
-    if (qty !== null && qty !== undefined && Number.isFinite(qty)) {
-      items.push({
-        productId: productId.value,
-        quantity: Number(qty),
-        adjustmentType,
-      })
-    }
-  }
-
-  if (!items.length) {
-    toast.error('Renseignez au moins une quantité')
-    return
-  }
-
-  savingMovement.value = true
-  try {
-    await $fetch('/api/movements/create', {
-      method: 'POST',
-      body: {
-        type: movementType.value,
-        items,
-      },
-    })
-    toast.success('Mouvement enregistré')
-    stockDialogOpen.value = false
-    await loadProduct()
-  } catch (error: any) {
-    console.error('Erreur lors du mouvement de stock:', error)
-    toast.error(error.data?.message || 'Erreur lors du mouvement de stock')
-  } finally {
-    savingMovement.value = false
-  }
-}
-
-function formatDate(date: string | Date) {
-  return new Date(date).toLocaleString('fr-FR')
-}
-
-function reasonLabel(reason: string) {
-  const map: Record<string, string> = {
-    reception: 'Entrée',
-    inventory_adjustment: 'Ajustement',
-    loss: 'Perte',
-    transfer: 'Transfert',
-  }
-  return map[reason] || reason
-}
-
-async function openHistory() {
-  historyDialogOpen.value = true
-  if (stockHistory.value.length) return
-  await loadHistory()
-}
-
-async function loadHistory() {
-  try {
-    loadingHistory.value = true
-    const response: any = await $fetch(`/api/products/${productId.value}/stock-history`)
-    stockHistory.value = response.movements || []
-  } catch (error) {
-    console.error('Erreur lors du chargement de l\'historique:', error)
-    toast.error('Erreur lors du chargement de l\'historique')
-  } finally {
-    loadingHistory.value = false
-  }
-}
-
-// Navigation
-function goBack() {
-  router.push('/produits')
-}
-
-function openAddSupplierDialog() {
-  newSupplierName.value = ''
-  showAddSupplierDialog.value = true
-}
-
-function openAddBrandDialog() {
-  newBrandName.value = ''
-  showAddBrandDialog.value = true
-}
-
-async function saveNewCategory() {
-  if (!newCategoryName.value.trim()) return
-  try {
-    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined
-    const response: any = await $fetch('/api/categories/create', {
-      method: 'POST',
-      body: { name: newCategoryName.value, parentId: null },
-      params,
-    })
-    if (response?.success) {
-      toast.success('Catégorie créée avec succès')
-      await loadCategories()
-      showAddCategoryDialog.value = false
-    }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
-  }
-}
-
-async function saveNewSupplier() {
-  if (!newSupplierName.value.trim()) return
-  try {
-    const response: any = await $fetch('/api/suppliers/create', {
-      method: 'POST',
-      body: { name: newSupplierName.value }
-    })
-    const created = response?.supplier || response
-    if (created?.id) {
-      toast.success('Fournisseur créé avec succès')
-      await loadSuppliers()
-      form.value.supplierId = created.id.toString()
-      showAddSupplierDialog.value = false
-    }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
-  }
-}
-
-async function saveNewBrand() {
-  if (!newBrandName.value.trim()) return
-  try {
-    const response: any = await $fetch('/api/brands/create', {
-      method: 'POST',
-      body: { name: newBrandName.value }
-    })
-    const created = response?.brand || response
-    if (created?.id) {
-      toast.success('Marque créée avec succès')
-      await loadBrands()
-      form.value.brandId = created.id.toString()
-      showAddBrandDialog.value = false
-    }
-  } catch (error: any) {
-    toast.error(error.data?.message || 'Erreur lors de la création')
-  }
-}
-
-// Load data
-async function loadProduct() {
-  try {
-    loadingProduct.value = true
-    const response = await $fetch<ProductApiResponse>(`/api/products/${productId.value}`, {
-      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
-    })
-
-    if (response.success && response.product) {
-      originalProduct.value = response.product
-      const product = response.product
-
-      // Populate form
-      form.value.name = product.name || ''
-      form.value.description = product.description || ''
-      form.value.supplierId = product.supplierId ? product.supplierId.toString() : null
-      form.value.brandId = product.brandId ? product.brandId.toString() : null
-      form.value.image = product.image || null
-      const effectivePrice = product.effectivePrice ?? product.price
-      const effectivePurchase = product.effectivePurchasePrice ?? product.purchasePrice
-      form.value.price = effectivePrice?.toString() || ''
-      form.value.purchasePrice = effectivePurchase?.toString() || ''
-      form.value.tva = product.tva?.toString() || '20'
-      form.value.tvaId = product.tvaId || null
-      form.value.categoryId = product.categoryId ? product.categoryId.toString() : null
-      form.value.hasVariations = !!product.variationGroupIds && product.variationGroupIds.length > 0
-      form.value.variationGroupIds = (product.variationGroupIds || []).map((id) => Number(id))
-      form.value.minStock = product.minStock || 0
-      form.value.minStockByVariation = product.minStockByVariation || {}
-      form.value.supplierCode = product.supplierCode || ''
-      form.value.barcode = product.barcode || ''
-      form.value.barcodeByVariation = product.barcodeByVariation || {}
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement du produit:', error)
-    toast.error('Erreur lors du chargement du produit')
-    goBack()
-  } finally {
-    loadingProduct.value = false
-  }
-}
-
-async function loadSuppliers() {
-  try {
-    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/suppliers', { params })
-    suppliers.value = Array.isArray(response) ? response : (response.suppliers || [])
-  } catch (error) {
-    console.error('Erreur lors du chargement des fournisseurs:', error)
-  }
-}
-
-async function loadBrands() {
-  try {
-    const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/brands', { params })
-    brands.value = Array.isArray(response) ? response : (response.brands || [])
-  } catch (error) {
-    console.error('Erreur lors du chargement des marques:', error)
-  }
-}
-
-async function loadCategories() {
-  try {
-    const response: any = await $fetch('/api/categories', {
-      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
-    })
-    categories.value = response.categories || []
-  } catch (error) {
-    console.error('Erreur lors du chargement des catégories:', error)
-  }
-}
-
-async function loadVariationGroups() {
-  try {
-    const response: any = await $fetch('/api/variations/groups', {
-      params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
-    })
-    variationGroups.value = response.groups || []
-  } catch (error) {
-    console.error('Erreur lors du chargement des variations:', error)
-  }
-}
-
-// Save product
 async function saveProduct() {
-  if (!form.value.name.trim()) {
-    toast.error('Le nom du produit est obligatoire')
-    return
-  }
-
-  // Validation variations
-  if (form.value.hasVariations && (!form.value.variationGroupIds || form.value.variationGroupIds.length === 0)) {
-    toast.error('Sélectionnez au moins une variation')
-    return
-  }
-
-  const selectedVariationIds = form.value.hasVariations ? form.value.variationGroupIds : []
-  const stockByVariation = form.value.hasVariations
-    ? Object.fromEntries(selectedVariationIds.map(id => [id, originalProduct.value?.stockByVariation?.[id] ?? 0]))
-    : null
-  const minStockByVariation = form.value.hasVariations
-    ? Object.fromEntries(selectedVariationIds.map(id => [id, form.value.minStockByVariation[id] ?? 0]))
-    : null
-
-  const targetEstablishmentId = selectedEstablishmentId.value
-  const originalEffectivePrice = originalProduct.value?.effectivePrice ?? originalProduct.value?.price
-  const originalEffectivePurchase = originalProduct.value?.effectivePurchasePrice ?? originalProduct.value?.purchasePrice
-  const priceChanged = form.value.price !== (originalEffectivePrice?.toString() || '')
-  const purchasePriceChanged = form.value.purchasePrice !== (originalEffectivePurchase?.toString() || '')
-
-  if (!targetEstablishmentId && (priceChanged || purchasePriceChanged)) {
-    toast.error('Sélectionnez un établissement pour modifier les prix locaux')
-    return
-  }
-
-  loading.value = true
-  try {
-    const payload = {
-      name: form.value.name,
-      description: form.value.description || null,
-      barcode: form.value.barcode || null,
-      barcodeByVariation: form.value.hasVariations ? form.value.barcodeByVariation : null,
-      supplierCode: form.value.supplierCode || null,
-      price: parseFloat(form.value.price) || 0,
-      purchasePrice: form.value.purchasePrice ? parseFloat(form.value.purchasePrice) : null,
-      tva: parseFloat(form.value.tva),
-      tvaId: form.value.tvaId,
-      hasVariations: form.value.hasVariations,
-      minStock: form.value.minStock,
-      minStockByVariation,
-      stockByVariation,
-      variationGroupIds: form.value.hasVariations ? form.value.variationGroupIds : null,
-      categoryId: form.value.categoryId ? parseInt(form.value.categoryId) : null,
-      supplierId: form.value.supplierId ? parseInt(form.value.supplierId) : null,
-      brandId: form.value.brandId ? parseInt(form.value.brandId) : null,
-      image: form.value.image,
-    }
-
-    const response: any = await $fetch(`/api/products/${productId.value}`, {
-      method: 'PUT',
-      body: payload,
-      params: targetEstablishmentId ? { establishmentId: targetEstablishmentId } : undefined,
-    })
-
-    if (response?.success) {
-      toast.success('Produit mis à jour avec succès')
-      goBack()
-    }
-  } catch (error: any) {
-    console.error('Erreur lors de la mise à jour du produit:', error)
-    toast.error(error.data?.message || 'Erreur lors de la mise à jour du produit')
-  } finally {
-    loading.value = false
-  }
+  await saveProductEditor(originalProduct)
 }
 
 // Init
