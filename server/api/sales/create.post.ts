@@ -1,17 +1,18 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks } from '~/server/database/schema'
-import { desc, gte, lt, and, eq, like, sql } from 'drizzle-orm'
+import { desc, gte, lt, and, eq, like, sql, inArray } from 'drizzle-orm'
 import {
   generateTicketNumber,
   generateTicketHash,
   generateTicketSignature,
   type TicketData,
 } from '~/server/utils/nf525'
-import { logSaleCreation } from '~/server/utils/audit'
+import { logSaleCreation, logSystemError } from '~/server/utils/audit'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 import { logger } from '~/server/utils/logger'
+import { recomputeTotalTTC, validateTotalTTC } from '~/server/utils/financialValidation'
 
 /**
  * ==========================================
@@ -202,7 +203,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // VÉRIFIER SI LA JOURNÉE EST CLÔTURÉE POUR CETTE CAISSE
     // ==========================================
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date().toISOString().slice(0, 10)
     const [todayClosure] = await db
       .select()
       .from(closures)
@@ -241,7 +242,7 @@ export default defineEventHandler(async (event) => {
       .orderBy(desc(sales.id))
       .limit(1)
 
-    const previousHash = lastSale.length > 0 ? lastSale[0].currentHash : null
+    const previousHash = lastSale.length > 0 ? (lastSale[0]?.currentHash ?? null) : null
 
     // ==========================================
     // 2. GÉNÉRER LE NUMÉRO DE TICKET
@@ -298,6 +299,15 @@ export default defineEventHandler(async (event) => {
         tva: tvaNum,
       }
     })
+
+    // Valider la cohérence des totaux envoyés par le client
+    const recomputed = recomputeTotalTTC(parsedItems)
+    if (!validateTotalTTC(Number(body.totals.totalTTC), recomputed)) {
+      throw createError({
+        statusCode: 400,
+        message: `Totaux incohérents : déclaré ${body.totals.totalTTC}€, calculé ${recomputed}€`,
+      })
+    }
 
     // Préparer les données pour le hash NF525 (avec TOUTES les données fiscales)
     const ticketData: TicketData = {
@@ -362,6 +372,10 @@ export default defineEventHandler(async (event) => {
         })
         .returning()
 
+      if (!createdSale) {
+        throw createError({ statusCode: 500, message: 'Échec de l\'enregistrement de la vente' })
+      }
+
       // 5.2 Enregistrer les lignes de vente
       const saleItemsData = parsedItems.map(item => {
         const totalTTC = item.unitPrice * item.quantity
@@ -391,22 +405,44 @@ export default defineEventHandler(async (event) => {
       await tx.insert(saleItems).values(saleItemsData)
 
       // 5.3 Mettre à jour le stock et enregistrer les mouvements
+
+      // Pré-fetch bulk : 1 SELECT pour tous les stocks nécessaires
+      const itemProductIds = body.items.map(i => i.productId)
+      const allProductStocks = await tx
+        .select()
+        .from(productStocks)
+        .where(
+          and(
+            inArray(productStocks.productId, itemProductIds),
+            eq(productStocks.establishmentId, establishment.id),
+            eq(productStocks.tenantId, tenantId)
+          )
+        )
+      const stockMap = new Map(allProductStocks.map(s => [s.productId, s]))
+
+      // Pré-fetch bulk : 1 SELECT pour toutes les variations par nom (clés non-numériques)
+      const variationNamesToLookup = [
+        ...new Set(
+          body.items
+            .map(i => i.variation)
+            .filter((v): v is string => !!v && !/^\d+$/.test(v))
+        ),
+      ]
+      const variationNameMap = new Map<string, number>()
+      if (variationNamesToLookup.length > 0) {
+        const foundVariations = await tx
+          .select({ id: variations.id, name: variations.name })
+          .from(variations)
+          .where(inArray(variations.name, variationNamesToLookup))
+        foundVariations.forEach(v => variationNameMap.set(v.name, v.id))
+      }
+
       const stockMovementsData = []
       const stockUpdateLogs: string[] = []
 
       for (const item of body.items) {
-        // Récupérer le stock de l'établissement pour ce produit
-        const [productStock] = await tx
-          .select()
-          .from(productStocks)
-          .where(
-            and(
-              eq(productStocks.productId, item.productId),
-              eq(productStocks.establishmentId, establishment.id),
-              eq(productStocks.tenantId, tenantId)
-            )
-          )
-          .limit(1)
+        // Lookup mémoire au lieu d'un SELECT par item
+        const productStock = stockMap.get(item.productId)
 
         if (!productStock) {
           logger.warn({ productId: item.productId, establishmentId: establishment.id }, 'Stock établissement non trouvé, stock non mis à jour')
@@ -427,13 +463,10 @@ export default defineEventHandler(async (event) => {
             if (Number.isFinite(numericKey) && String(numericKey) in stockByVar) {
               variationKey = String(numericKey)
             } else {
-              const [foundVar] = await tx
-                .select({ id: variations.id })
-                .from(variations)
-                .where(eq(variations.name, variationKey))
-                .limit(1)
-              if (foundVar && String(foundVar.id) in stockByVar) {
-                variationKey = String(foundVar.id)
+              // Lookup mémoire au lieu d'un SELECT par item
+              const foundVarId = variationNameMap.get(variationKey)
+              if (foundVarId !== undefined && String(foundVarId) in stockByVar) {
+                variationKey = String(foundVarId)
               } else {
                 logger.warn({ variation: variationKey, productId: item.productId }, 'Variation inconnue, stock non mis à jour pour cette ligne')
                 variationKey = null
@@ -545,6 +578,14 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la création de la vente')
+
+    await logSystemError({
+      tenantId: getTenantIdFromEvent(event),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      context: 'sales/create',
+      ipAddress: getRequestIP(event) || null,
+    })
 
     throw createError({
       statusCode: 500,
