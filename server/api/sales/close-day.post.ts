@@ -5,8 +5,9 @@ import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
-import { logClosure } from '~/server/utils/audit'
+import { logClosure, logSystemError } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
+import { assertHTplusTVAequalsTTC } from '~/server/utils/financialValidation'
 
 /**
  * ==========================================
@@ -111,10 +112,21 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 3. CALCULER LES TOTAUX
     // ==========================================
-    const totalTTC = activeSales.reduce((sum, s) => sum + Number(s.totalTTC), 0)
-    const totalHT = activeSales.reduce((sum, s) => sum + Number(s.totalHT), 0)
-    const totalTVA = activeSales.reduce((sum, s) => sum + Number(s.totalTVA), 0)
+    const totalTTCCents = activeSales.reduce(
+      (sum, s) => sum + Math.round(Number(s.totalTTC) * 100), 0
+    )
+    const totalHtCents = activeSales.reduce(
+      (sum, s) => sum + Math.round(Number(s.totalHT) * 100), 0
+    )
+    const totalTVACents = activeSales.reduce(
+      (sum, s) => sum + Math.round(Number(s.totalTVA) * 100), 0
+    )
+    const totalTTC = totalTTCCents / 100
+    const totalHT = totalHtCents / 100
+    const totalTVA = totalTVACents / 100
     const ticketCount = activeSales.length
+
+    assertHTplusTVAequalsTTC(totalHT, totalTVA, totalTTC, 'close-day')
     const cancelledCount = cancelledSales.length
 
     // Totaux par mode de paiement
@@ -128,19 +140,16 @@ export default defineEventHandler(async (event) => {
     activeSales.forEach(sale => {
       const payments = sale.payments as PaymentEntry[]
       payments.forEach(payment => {
-        if (!paymentMethods[payment.mode]) {
-          paymentMethods[payment.mode] = 0
-        }
-        paymentMethods[payment.mode] += payment.amount
+        paymentMethods[payment.mode] = (paymentMethods[payment.mode] ?? 0) + payment.amount
       })
     })
 
     // ==========================================
     // 4. GÉNÉRER LE HASH DE CLÔTURE (NF525)
     // ==========================================
-    const lastTicketHash = activeSales.length > 0 ? activeSales[0].currentHash : 'INITIAL'
-    const firstTicketNumber = activeSales.length > 0 ? activeSales[activeSales.length - 1].ticketNumber : null
-    const lastTicketNumber = activeSales.length > 0 ? activeSales[0].ticketNumber : null
+    const lastTicketHash = activeSales.length > 0 ? (activeSales[0]?.currentHash ?? 'INITIAL') : 'INITIAL'
+    const firstTicketNumber = activeSales.length > 0 ? (activeSales[activeSales.length - 1]?.ticketNumber ?? null) : null
+    const lastTicketNumber = activeSales.length > 0 ? (activeSales[0]?.ticketNumber ?? null) : null
 
     const closureData = {
       date: body.date,
@@ -179,8 +188,12 @@ export default defineEventHandler(async (event) => {
       lastTicketNumber,
       lastTicketHash,
       closedBy: userName,
-      closedById: userId,
+      closedById: null,
     }).returning()
+
+    if (!newClosure) {
+      throw createError({ statusCode: 500, message: 'Échec de la création de la clôture' })
+    }
 
     logger.info({
       closureId: newClosure.id,
@@ -194,7 +207,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     await logClosure({
       tenantId,
-      userId,
+      userId: null,
       userName,
       closureId: newClosure.id,
       closureDate: body.date,
@@ -259,6 +272,14 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la clôture de journée')
+
+    await logSystemError({
+      tenantId: getTenantIdFromEvent(event),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      context: 'sales/close-day',
+      ipAddress: getRequestIP(event) || null,
+    })
 
     throw createError({
       statusCode: 500,
