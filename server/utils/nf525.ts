@@ -86,7 +86,8 @@ export function generateTicketHash(
       .map(item => {
         const discount = item.discount ? `${item.discount}${item.discountType}` : 'NO_DISCOUNT'
         const tvaCode = item.tvaCode || `TVA${item.tva}` // Utiliser tvaCode si disponible, sinon fallback
-        return `${item.productId}:${item.quantity}:${item.unitPrice}:${item.totalTTC}:${tvaCode}:${discount}`
+        const totalTTC = Number(item.totalTTC).toFixed(2) // Aligné avec la valeur stockée en DB
+        return `${item.productId}:${item.quantity}:${item.unitPrice}:${totalTTC}:${tvaCode}:${discount}`
       })
       .join('|'),
 
@@ -167,39 +168,6 @@ export function generateTicketSignature(
 }
 
 /**
- * Génère les données d'archive pour un ticket (format NF525)
- *
- * @param sale - Vente complète avec hash et signature
- * @returns Données formatées pour archivage
- */
-export interface ArchivedTicket {
-  ticketNumber: string
-  saleDate: string
-  totalTTC: number
-  hash: string
-  signature: string
-  previousHash: string | null
-}
-
-export function prepareTicketForArchive(
-  ticketNumber: string,
-  saleDate: Date,
-  totalTTC: number,
-  currentHash: string,
-  signature: string,
-  previousHash: string | null
-): ArchivedTicket {
-  return {
-    ticketNumber,
-    saleDate: saleDate.toISOString(),
-    totalTTC,
-    hash: currentHash,
-    signature,
-    previousHash,
-  }
-}
-
-/**
  * Génère le hash d'un fichier d'archive (pour intégrité)
  *
  * @param fileContent - Contenu du fichier d'archive
@@ -246,7 +214,8 @@ export function verifyTicketChain(
 
   for (let i = 0; i < tickets.length; i++) {
     const ticket = tickets[i]
-    const previousTicket = i > 0 ? tickets[i - 1] : null
+    if (!ticket) continue
+    const previousTicket = i > 0 ? (tickets[i - 1] ?? null) : null
 
     // Vérifier que le previousHash correspond au hash du ticket précédent
     if (previousTicket && ticket.previousHash !== previousTicket.currentHash) {
