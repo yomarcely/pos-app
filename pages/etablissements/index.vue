@@ -338,7 +338,7 @@
         <DialogHeader>
           <DialogTitle>Nouvelle caisse</DialogTitle>
           <DialogDescription>
-            Ajouter une caisse à l'établissement {{ selectedEstablishment?.name }}
+            Ajouter une caisse à l'établissement {{ selectedEstablishmentForRegister?.name }}
           </DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-4">
@@ -432,400 +432,53 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EstablishmentCard from '@/components/establishments/EstablishmentCard.vue'
-import { useToast } from '@/composables/useToast'
+import { useEstablishments } from '@/composables/useEstablishments'
+import { useRegisters } from '@/composables/useRegisters'
 
-const toast = useToast()
+const {
+  loading,
+  establishments,
+  createDialogOpen,
+  editDialogOpen,
+  deleteDialogOpen,
+  newEstablishment,
+  editEstablishment,
+  selectedEstablishment,
+  loadEstablishments,
+  openCreateDialog,
+  createEstablishment,
+  openEditDialog,
+  updateEstablishment,
+  toggleEstablishmentStatus,
+  openDeleteDialog,
+  deleteEstablishment,
+} = useEstablishments()
 
-interface Establishment {
-  id: number
-  name: string
-  address: string | null
-  postalCode: string | null
-  city: string | null
-  country: string | null
-  phone: string | null
-  email: string | null
-  siret: string | null
-  naf: string | null
-  tvaNumber: string | null
-  isActive: boolean
-}
+const {
+  registers,
+  addRegisterDialogOpen,
+  editRegisterDialogOpen,
+  deleteRegisterDialogOpen,
+  newRegister,
+  editRegister,
+  selectedRegister,
+  selectedEstablishmentForRegister,
+  loadRegisters,
+  getRegistersByEstablishment,
+  openAddRegisterDialog,
+  createRegister,
+  openEditRegisterDialog,
+  updateRegister,
+  toggleRegisterStatus,
+  openDeleteRegisterDialog,
+  deleteRegister,
+} = useRegisters(establishments)
 
-type ApiEstablishment = Omit<Establishment, 'isActive'> & { isActive: boolean | null }
-
-interface Register {
-  id: number
-  establishmentId: number
-  name: string
-  isActive: boolean
-}
-
-type ApiRegister = Omit<Register, 'isActive'> & { isActive: boolean | null }
-
-// State
-const loading = ref(true)
-const establishments = ref<Establishment[]>([])
-const registers = ref<Register[]>([])
-
-// Dialog states
-const createDialogOpen = ref(false)
-const editDialogOpen = ref(false)
-const deleteDialogOpen = ref(false)
-
-// Dialog states - Registers
-const addRegisterDialogOpen = ref(false)
-const editRegisterDialogOpen = ref(false)
-const deleteRegisterDialogOpen = ref(false)
-
-const newEstablishment = ref({
-  name: '',
-  address: '',
-  postalCode: '',
-  city: '',
-  country: 'France',
-  phone: '',
-  email: '',
-  siret: '',
-  naf: '',
-  tvaNumber: '',
-  isActive: true,
-})
-
-const editEstablishment = ref({
-  id: 0,
-  name: '',
-  address: '',
-  postalCode: '',
-  city: '',
-  country: '',
-  phone: '',
-  email: '',
-  siret: '',
-  naf: '',
-  tvaNumber: '',
-  isActive: true,
-})
-
-const selectedEstablishment = ref<Establishment | null>(null)
-
-const newRegister = ref({
-  name: '',
-  isActive: true,
-})
-
-const editRegister = ref({
-  id: 0,
-  establishmentId: 0,
-  name: '',
-  isActive: true,
-})
-
-const selectedRegister = ref<Register | null>(null)
-
-// Charger les données
-async function loadEstablishments() {
-  try {
-    loading.value = true
-    const response = await $fetch<{ establishments: ApiEstablishment[] }>('/api/establishments')
-    establishments.value = response.establishments.map(
-      (establishment): Establishment => ({
-        ...establishment,
-        isActive: establishment.isActive ?? true,
-      })
-    )
-  } catch (error) {
-    console.error('Erreur lors du chargement des établissements:', error)
-    toast.error('Erreur lors du chargement des établissements')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadRegisters() {
-  try {
-    const response = await $fetch<{ registers: any[] }>('/api/registers')
-    registers.value = response.registers.map(
-      (register): Register => ({
-        id: register.id,
-        establishmentId: register.establishmentId,
-        name: register.name,
-        isActive: register.isActive ?? true,
-      })
-    )
-  } catch (error) {
-    console.error('Erreur lors du chargement des caisses:', error)
-  }
-}
-
-function getRegistersByEstablishment(establishmentId: number): Register[] {
-  return registers.value.filter(r => r.establishmentId === establishmentId)
-}
-
-// Créer
-function openCreateDialog() {
-  newEstablishment.value = {
-    name: '',
-    address: '',
-    postalCode: '',
-    city: '',
-    country: 'France',
-    phone: '',
-    email: '',
-    siret: '',
-    naf: '',
-    tvaNumber: '',
-    isActive: true,
-  }
-  createDialogOpen.value = true
-}
-
-async function createEstablishment() {
-  if (!newEstablishment.value.name.trim()) {
-    toast.error('Le nom de l\'établissement est obligatoire')
-    return
-  }
-
-  try {
-    await $fetch('/api/establishments/create', {
-      method: 'POST',
-      body: {
-        name: newEstablishment.value.name,
-        address: newEstablishment.value.address || null,
-        postalCode: newEstablishment.value.postalCode || null,
-        city: newEstablishment.value.city || null,
-        country: newEstablishment.value.country || 'France',
-        phone: newEstablishment.value.phone || null,
-        email: newEstablishment.value.email || null,
-        siret: newEstablishment.value.siret || null,
-        naf: newEstablishment.value.naf || null,
-        tvaNumber: newEstablishment.value.tvaNumber || null,
-        isActive: newEstablishment.value.isActive,
-      },
-    })
-
-    toast.success('Établissement créé avec succès')
-    createDialogOpen.value = false
-    await loadEstablishments()
-  } catch (error: any) {
-    console.error('Erreur lors de la création de l\'établissement:', error)
-    toast.error(error.data?.message || 'Impossible de créer l\'établissement')
-  }
-}
-
-// Modifier
-function openEditDialog(establishment: Establishment) {
-  editEstablishment.value = {
-    id: establishment.id,
-    name: establishment.name,
-    address: establishment.address || '',
-    postalCode: establishment.postalCode || '',
-    city: establishment.city || '',
-    country: establishment.country || '',
-    phone: establishment.phone || '',
-    email: establishment.email || '',
-    siret: establishment.siret || '',
-    naf: establishment.naf || '',
-    tvaNumber: establishment.tvaNumber || '',
-    isActive: establishment.isActive,
-  }
-  editDialogOpen.value = true
-}
-
-async function updateEstablishment() {
-  if (!editEstablishment.value.name.trim()) {
-    toast.error('Le nom de l\'établissement est obligatoire')
-    return
-  }
-
-  try {
-    await $fetch(`/api/establishments/${editEstablishment.value.id}/update`, {
-      method: 'PATCH',
-      body: {
-        name: editEstablishment.value.name,
-        address: editEstablishment.value.address || null,
-        postalCode: editEstablishment.value.postalCode || null,
-        city: editEstablishment.value.city || null,
-        country: editEstablishment.value.country || null,
-        phone: editEstablishment.value.phone || null,
-        email: editEstablishment.value.email || null,
-        siret: editEstablishment.value.siret || null,
-        naf: editEstablishment.value.naf || null,
-        tvaNumber: editEstablishment.value.tvaNumber || null,
-        isActive: editEstablishment.value.isActive,
-      },
-    })
-
-    toast.success('Établissement modifié avec succès')
-    editDialogOpen.value = false
-    await loadEstablishments()
-  } catch (error: any) {
-    console.error('Erreur lors de la modification de l\'établissement:', error)
-    toast.error(error.data?.message || 'Impossible de modifier l\'établissement')
-  }
-}
-
-// Changer le statut actif/inactif
-async function toggleEstablishmentStatus(establishment: Establishment) {
-  try {
-    await $fetch(`/api/establishments/${establishment.id}/update`, {
-      method: 'PATCH',
-      body: {
-        isActive: !establishment.isActive,
-      },
-    })
-
-    toast.success(establishment.isActive ? 'Établissement désactivé' : 'Établissement activé')
-    await loadEstablishments()
-  } catch (error) {
-    console.error('Erreur lors du changement de statut:', error)
-    toast.error('Impossible de changer le statut')
-  }
-}
-
-// Supprimer (désactiver)
-function openDeleteDialog(establishment: Establishment) {
-  selectedEstablishment.value = establishment
-  deleteDialogOpen.value = true
-}
-
-async function deleteEstablishment() {
-  if (!selectedEstablishment.value) return
-
-  try {
-    await $fetch(`/api/establishments/${selectedEstablishment.value.id}/delete`, {
-      method: 'DELETE',
-    })
-
-    toast.success('Établissement désactivé avec succès')
-    deleteDialogOpen.value = false
-    await loadEstablishments()
-  } catch (error) {
-    console.error('Erreur lors de la suppression de l\'établissement:', error)
-    toast.error('Impossible de supprimer l\'établissement')
-  }
-}
-
-// ========================================
-// GESTION DES CAISSES
-// ========================================
-
-function openAddRegisterDialog(establishment: Establishment) {
-  selectedEstablishment.value = establishment
-  newRegister.value = {
-    name: '',
-    isActive: true,
-  }
-  addRegisterDialogOpen.value = true
-}
-
-async function createRegister() {
-  if (!selectedEstablishment.value || !newRegister.value.name.trim()) {
-    toast.error('Le nom de la caisse est obligatoire')
-    return
-  }
-
-  try {
-    await $fetch('/api/registers/create', {
-      method: 'POST',
-      body: {
-        establishmentId: selectedEstablishment.value.id,
-        name: newRegister.value.name,
-        isActive: newRegister.value.isActive,
-      },
-    })
-
-    toast.success('Caisse créée avec succès')
-    addRegisterDialogOpen.value = false
-    await loadRegisters()
-  } catch (error: any) {
-    console.error('Erreur lors de la création de la caisse:', error)
-    toast.error(error.data?.message || 'Impossible de créer la caisse')
-  }
-}
-
-function openEditRegisterDialog(register: Register) {
-  editRegister.value = {
-    id: register.id,
-    establishmentId: register.establishmentId,
-    name: register.name,
-    isActive: register.isActive,
-  }
-  editRegisterDialogOpen.value = true
-}
-
-async function updateRegister() {
-  if (!editRegister.value.name.trim()) {
-    toast.error('Le nom de la caisse est obligatoire')
-    return
-  }
-
-  try {
-    await $fetch(`/api/registers/${editRegister.value.id}/update`, {
-      method: 'PATCH',
-      body: {
-        name: editRegister.value.name,
-        isActive: editRegister.value.isActive,
-      },
-    })
-
-    toast.success('Caisse modifiée avec succès')
-    editRegisterDialogOpen.value = false
-    await loadRegisters()
-  } catch (error: any) {
-    console.error('Erreur lors de la modification de la caisse:', error)
-    toast.error(error.data?.message || 'Impossible de modifier la caisse')
-  }
-}
-
-async function toggleRegisterStatus(register: Register) {
-  try {
-    await $fetch(`/api/registers/${register.id}/update`, {
-      method: 'PATCH',
-      body: {
-        isActive: !register.isActive,
-      },
-    })
-
-    toast.success(register.isActive ? 'Caisse désactivée' : 'Caisse activée')
-    await loadRegisters()
-  } catch (error) {
-    console.error('Erreur lors du changement de statut:', error)
-    toast.error('Impossible de changer le statut')
-  }
-}
-
-function openDeleteRegisterDialog(register: Register) {
-  selectedRegister.value = register
-  deleteRegisterDialogOpen.value = true
-}
-
-async function deleteRegister() {
-  if (!selectedRegister.value) return
-
-  try {
-    await $fetch(`/api/registers/${selectedRegister.value.id}/delete`, {
-      method: 'DELETE',
-    })
-
-    toast.success('Caisse désactivée avec succès')
-    deleteRegisterDialogOpen.value = false
-    await loadRegisters()
-  } catch (error) {
-    console.error('Erreur lors de la suppression de la caisse:', error)
-    toast.error('Impossible de supprimer la caisse')
-  }
-}
-
-// Navigation vers la synchronisation
 function goToSync() {
   navigateTo('/etablissements/synchronisation')
 }
 
-// Charger au montage
 onMounted(async () => {
-  await Promise.all([
-    loadEstablishments(),
-    loadRegisters(),
-  ])
+  await Promise.all([loadEstablishments(), loadRegisters()])
 })
 </script>
