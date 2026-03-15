@@ -17,8 +17,8 @@
 - Validation : **Zod** (schémas dans `server/validators/`)
 - Logging : **Pino** (`server/utils/logger.ts`)
 - Structure : **Monorepo** (frontend + backend Nitro dans le même repo)
-- Taille : ~46 000 lignes (hors node_modules)
-- Tests : **Vitest** (~54 fichiers de tests)
+- Taille : **46 677 lignes** (hors node_modules, .nuxt, .output — mesuré 2026-03-15)
+- Tests : **Vitest** (~57 fichiers de tests)
 
 ---
 
@@ -328,15 +328,22 @@ Si l'authentification Supabase est remplacée par un autre provider, **exactemen
 
 ## 🗺️ Zones prioritaires d'audit (à investiguer)
 
-- [ ] **Double système DB** : clarifier la frontière Drizzle (server) vs Supabase client (frontend)
-- [ ] **Scripts de migration ad-hoc** dans `server/database/` — les intégrer ou les supprimer
-- [ ] **Pages monolithiques** > 500 lignes — extraire la logique dans des composables
+- [x] **Double système DB** → ✅ documenté dans `docs/architecture/supabase-vs-drizzle.md`
+- [x] **Scripts de migration ad-hoc** → ✅ archivés dans `docs/legacy-migrations/`
+- [~] **Pages monolithiques** → 🔄 EN COURS
+  - `etablissements/index.vue` : 831 → 484 lignes (cible ~380)
+  - `synchronisation.vue` : 1050 → 614 lignes (cible ~420)
+  - `produits/[id]/edit.vue` : 891 → 528 lignes (cible ~430)
+  - `clients/[id]/edit.vue` : 697 lignes (non traité)
+  - `mouvements/index.vue` : 569 lignes (non traité)
 - [ ] **Stores Pinia** — duplication de logique entre stores (seulement 7 stores pour tout le métier)
-- [x] **Composables** — ✅ passé de 3 à 13 composables (10 extraits le 2026-03-15)
-- [ ] **Dead code** — fonctions/composants jamais appelés
-- [ ] **Types TypeScript** — usage de `any` ou types trop larges
-- [ ] **Calculs financiers** — vérification de la précision numérique (floating point)
-- [ ] **NF525** — couverture de tests de `server/utils/nf525.ts`
+- [x] **Composables** → ✅ passé de 3 à 13 composables (10 extraits le 2026-03-15)
+- [x] **Dead code** → ✅ traité (`docs/audit/04-dead-code.md`)
+- [x] **Types TypeScript** → ✅ 0 erreur TS sources (`docs/audit/02-typescript-strict.md`)
+- [x] **Calculs financiers** → ✅ audité et corrigé (`docs/audit/07-calculs-financiers.md`) — P1 validation totaux serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash NF525 aligné — 16 tests unitaires dans `tests/unit/financialValidation.test.ts`
+- [x] **NF525 couverture tests** → ✅ audité (`docs/audit/08-nf525-tests.md`) — 0 test unitaire réel, 38 tests à écrire
+- [x] **Tests failing** → ✅ 0 test en échec (corrigés le 2026-03-15) — 329 tests passent sur 58 fichiers
+- [ ] **Audit 03 items restants** → ⏳ N+1 sync, signUp composant, `$fetch` caisse hors store
 
 ---
 
@@ -365,12 +372,14 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 ---
 
 ## 📊 Audits en cours
-- [Cartographie](docs/audit/01-cartographie.md) — mars 2026
-- [Typescript](docs/audit/02-typescript-strict.md) - mars 2026
-- [Supabase_fetch](docs/audit/03-supabase-fetch.md) - mars 2026
-- [Deadcode](docs/audit/04-dead-code.md) - mars 2026
-- [Migrations](docs/audit/05-migrations.md) — mars 2026 ⚠️ Bug critique identifié (0007)
-- [Composables à extraire](docs/audit/06-composables-a-extraire.md) — mars 2026
+- [Cartographie](docs/audit/01-cartographie.md) — mars 2026 ✅
+- [Typescript](docs/audit/02-typescript-strict.md) — mars 2026 ✅
+- [Supabase_fetch](docs/audit/03-supabase-fetch.md) — mars 2026 (items restants : N+1 sync, signUp, $fetch caisse)
+- [Deadcode](docs/audit/04-dead-code.md) — mars 2026 ✅
+- [Migrations](docs/audit/05-migrations.md) — mars 2026 ✅ (bug 0007 corrigé)
+- [Composables à extraire](docs/audit/06-composables-a-extraire.md) — mars 2026 🔄 EN COURS
+- [Calculs financiers](docs/audit/07-calculs-financiers.md) — mars 2026 ✅ (4 risques identifiés)
+- [NF525 tests](docs/audit/08-nf525-tests.md) — mars 2026 ✅ (0 test réel, 38 à écrire)
 
 ## 🏗️ Architecture documentée
 - [Supabase vs Drizzle](docs/architecture/supabase-vs-drizzle.md) — frontière Auth / DB
@@ -392,7 +401,32 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 | 2026-03-15 | Convention auth serveur | BATCH 1 : section `🔐 Convention auth serveur` ajoutée dans CLAUDE.md (champs event.context.auth, getTenantIdFromEvent, règle sécurité serviceRoleKey, 4 fichiers à modifier si migration Auth) | ✅ |
 | 2026-03-15 | Tests getTenantFromUser | BATCH 2 : `tests/unit/getTenantFromUser.test.ts` créé — 11 tests couvrant les 4 priorités de fallback + cas null | ✅ |
 | 2026-03-15 | Sécurité serviceRoleKey | BATCH 3 : grep exhaustif sur .ts/.vue — 0 import côté client confirmé — résultat noté dans docs/architecture/supabase-vs-drizzle.md | ✅ |
+| 2026-03-15 | Mise à jour CLAUDE.md | BATCH 1 : zones prioritaires mises à jour (6 items complétés, 2 ajoutés). BATCH 2 : taille projet corrigée → 46 677 lignes (mesure exacte). | ✅ |
+| 2026-03-15 | Analyse tests failing | BATCH 3 : 26 tests en échec analysés — tous pré-existants (baseline maintenue par le refactor) — tableau de classification dans section ci-dessous | ✅ |
+| 2026-03-15 | Audit calculs financiers | BATCH 4 : `cartUtils.ts` ✅ (centimes+LRM correct) — `create.post.ts` ⚠️ (totaux non recalculés côté serveur, float par ligne) — `close-day.post.ts` ⚠️ (accumulation float, pas de vérification HT+TVA=TTC) — rapport dans `docs/audit/07-calculs-financiers.md` | ✅ |
+| 2026-03-15 | Audit NF525 couverture | BATCH 5 : 6 fonctions exportées, 0 test unitaire réel (toutes mockées dans sales.test.ts) — 38 tests identifiés dans 6 fichiers — cas critiques : déterminisme hash, chaîne cassée, ticket corrompu — rapport dans `docs/audit/08-nf525-tests.md` | ✅ |
+| 2026-03-15 | Corrections calculs financiers (P1–P4) | P1 : validation totalTTC serveur dans `create.post.ts` via `recomputeTotalTTC` + `validateTotalTTC` (tolérance 2 centimes LRM). P2 : accumulation centimes entiers dans `close-day.post.ts`. P3 : assertion HT+TVA=TTC (warn only). P4 : hash NF525 aligné sur DB via `.toFixed(2)`. `financialValidation.ts` créé (16 tests). 329 tests / 58 fichiers — 0 échec | ✅ |
+| 2026-03-15 | Correction 26 tests failing | 7 batches : produits/index (watch stub + useEstablishmentRegister mock), LoginForm (Pinia + store mock + texte FR), cart/ColLeft (tests alignés sur composant réel), cart/ColRight (refs + useEstablishmentRegister mock), cart/AddClientForm (IDs inputs + gdprConsent + composable mock), cart/Header (Pinia), ProductFormPricing (Suspense + useFetch stub), customerStore (useEstablishmentRegister mock + test expectation), sales.test (logSystemError manquant dans mock audit), synthese/index (useEstablishmentRegister mock + selectedRegisterId non-null) — résultat : 313 tests / 57 fichiers, 0 échec | ✅ |
 
 ---
 
-*Dernière mise à jour : 2026-03-15 — par Claude Code (session audit 5 : Extraction composables — 10 composables / 3 pages)*
+## 📝 Tests failing connus
+
+> Session 2026-03-15 : tous les 26 tests en échec ont été corrigés. Résultat final : **313 tests / 57 fichiers — 0 échec**.
+
+| Fichier test | Tests corrigés | Correction appliquée |
+|---|---|---|
+| `tests/api/sales.test.ts` | 6 | `logSystemError` ajouté dans le mock `~/server/utils/audit` |
+| `tests/components/LoginForm.test.ts` | 8 | Pinia initialisé (`setActivePinia`), store auth mocké, texte FR aligné |
+| `tests/components/cart/ColLeft.test.ts` | 2 | Tests réalignés sur le composant réel (pas de select vendeur dans ColLeft) + mock `useEstablishmentRegister` |
+| `tests/components/cart/ColRight.test.ts` | 1 | `useEstablishmentRegister` mocké avec `selectedRegisterId = ref(1)`, `checkDayClosure` mocké dans `cartStoreMock` |
+| `tests/components/cart/AddClientForm.test.ts` | 1 | IDs inputs corrigés (`firstName`, `lastName`, `postalCode`), gdprConsent géré, composable mocké |
+| `tests/components/cart/Header.test.ts` | 1 | Pinia initialisé, store sellers mocké, composant EstablishmentSelect/RegisterSelect stubbé |
+| `tests/components/ProductFormPricing.test.ts` | 2 | `useFetch` stubbé globalement, `Suspense` wrapper pour le top-level await |
+| `tests/stores/customerStore.test.ts` | 2 | `useEstablishmentRegister` mocké pour isoler `$fetch`, test expectation alignée sur comportement réel |
+| `tests/pages/produits/index.test.ts` | 2 | `watch` stubbé globalement, `useEstablishmentRegister` mocké, `extractFetchError` stubbé |
+| `tests/pages/synthese/index.test.ts` | 1 | `useEstablishmentRegister` mocké avec `selectedRegisterId = ref(1)`, assertion URL adaptée |
+
+---
+
+*Dernière mise à jour : 2026-03-15 — par Claude Code (session calculs financiers P1–P4 : 329 tests / 58 fichiers)*
