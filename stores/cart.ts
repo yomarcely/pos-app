@@ -92,7 +92,19 @@ export const useCartStore = defineStore('cart', () => {
   })
 
   // --- ACTIONS ---
-  
+
+  function toCartItem(product: Product, variation: string): ProductInCart {
+    return {
+      ...product,
+      quantity: 1,
+      discount: 0,
+      discountType: '%',
+      variation,
+      restockOnReturn: false,
+      _uniqueId: Date.now() + Math.random(),
+    }
+  }
+
   /**
    * Ajoute un produit au panier (permet les stocks négatifs)
    * @param product - Produit à ajouter
@@ -109,15 +121,7 @@ export const useCartStore = defineStore('cart', () => {
     if (existing) {
       existing.quantity++
     } else {
-      items.value.push({
-        ...product,
-        quantity: 1,
-        discount: 0,
-        discountType: '%',
-        variation,
-        restockOnReturn: false,
-        _uniqueId: Date.now() + Math.random(), // ID unique pour différencier les lignes
-      } as any)
+      items.value.push(toCartItem(product, variation))
     }
 
     return true
