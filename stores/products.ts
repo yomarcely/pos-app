@@ -211,14 +211,6 @@ export const useProductsStore = defineStore('products', () => {
   })
 
   /**
-   * Récupère tous les produits en stock faible (< 5)
-   * DEPRECATED: Utilisez lowStockAlerts pour plus de détails
-   */
-  const lowStockProducts = computed(() => {
-    return lowStockAlerts.value.map(alert => alert.product)
-  })
-
-  /**
    * Valeur totale du stock
    * Ne compte que les stocks positifs pour ne pas avoir de valeur négative
    */
@@ -250,7 +242,6 @@ export const useProductsStore = defineStore('products', () => {
     getById,
     outOfStockProducts,
     outOfStockAlerts,
-    lowStockProducts,
     lowStockAlerts,
     totalStockValue,
 
