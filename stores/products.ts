@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import type { Product } from '@/types'
 import { useVariationGroupsStore } from './variationGroups'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { extractFetchError } from '@/composables/useFetchError'
 
 export const useProductsStore = defineStore('products', () => {
   type ProductsResponse = { success: boolean; products: Product[]; count: number }
@@ -40,7 +41,7 @@ export const useProductsStore = defineStore('products', () => {
       }
     } catch (err) {
       console.error('Erreur chargement produits', err)
-      error.value = err instanceof Error ? err.message : String(err)
+      error.value = extractFetchError(err)
     } finally {
       loading.value = false
     }

@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { Seller } from '@/types'
+import { extractFetchError } from '@/composables/useFetchError'
 
 const STORAGE_KEY = 'pos_selected_seller'
 
@@ -28,7 +29,7 @@ export const useSellersStore = defineStore('sellers', () => {
         loaded.value = true
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
+      error.value = extractFetchError(err)
     } finally {
       loading.value = false
     }

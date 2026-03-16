@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Customer } from '@/types'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { extractFetchError } from '@/composables/useFetchError'
 
 export const useCustomerStore = defineStore('customer', () => {
   // État
@@ -34,7 +35,7 @@ export const useCustomerStore = defineStore('customer', () => {
       }
     } catch (err) {
       console.error('Erreur chargement clients', err)
-      error.value = err instanceof Error ? err.message : String(err)
+      error.value = extractFetchError(err)
     } finally {
       loading.value = false
     }
