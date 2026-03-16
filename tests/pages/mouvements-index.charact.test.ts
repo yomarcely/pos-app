@@ -44,7 +44,7 @@ describe('useMovementCart', () => {
     const { selectedProducts, addProductFromCatalog, validateMovement } = useMovementCart(movementType, allVariations)
     // Add a simple product without variations
     selectedProducts.value = [{
-      product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20 },
+      product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20, image: null },
       currentStock: 5,
       quantity: 3,
     }]
@@ -57,7 +57,7 @@ describe('useMovementCart', () => {
     const allVariations = ref<any[]>([])
     const { selectedProducts, removeProduct } = useMovementCart(movementType, allVariations)
     selectedProducts.value = [{
-      product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20 },
+      product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20, image: null },
       currentStock: 5,
       quantity: 1,
     }]
@@ -69,7 +69,7 @@ describe('useMovementCart', () => {
     const movementType = ref<any>('entry')
     const allVariations = ref<any[]>([])
     const { selectedProducts, comment, clearAll } = useMovementCart(movementType, allVariations)
-    selectedProducts.value = [{ product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20 }, currentStock: 5, quantity: 1 }]
+    selectedProducts.value = [{ product: { id: 1, name: 'Test', stock: 5, variationGroupIds: [], stockByVariation: {}, price: 10, tva: 20, image: null }, currentStock: 5, quantity: 1 }]
     comment.value = 'Test comment'
     clearAll()
     expect(selectedProducts.value).toHaveLength(0)
