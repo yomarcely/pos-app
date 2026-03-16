@@ -282,4 +282,170 @@ L'extraction devra se faire en sessions dédiées, **une page à la fois**, avec
 
 ---
 
-*Dernière mise à jour : 2026-03-15 — par Claude Code (audit session 2)*
+## Page 4 : `pages/clients/[id]/edit.vue` — 697 lignes
+
+### Structure actuelle
+
+| Section | Lignes (approx.) | Responsabilité |
+|---|---|---|
+| Template | l.1 – l.427 | Formulaire client (info perso, adresse, fidélité/remise, RGPD, notes/alertes) + dialog historique achats |
+| Script imports | l.429 – l.453 | Imports composants UI + icônes Lucide |
+| State | l.455 – l.496 | form, loading, loadingClient, clientStats, purchases, showPurchaseHistory, postalCode states |
+| `formatPrice()` / `formatDateTime()` | l.466 – l.483 | Helpers de formatage locaux |
+| `clientId` computed + `watch showPurchaseHistory` | l.485 – l.503 | computed depuis route.params + lazy load de l'historique |
+| `handlePostalCodeChange()` + `selectCity()` | l.506 – l.568 | Appel API externe `geo.api.gouv.fr` + debounce 500ms + dropdown villes multiples |
+| `clientName` computed | l.571 – l.578 | Computed : prénom + nom pour le titre |
+| `loadClient()` + `loadClientStats()` | l.580 – l.633 | GET /api/clients/:id + GET /api/clients/:id/stats |
+| `loadPurchaseHistory()` | l.635 – l.647 | GET /api/clients/:id/purchases |
+| `handleSubmit()` | l.649 – l.691 | Validation RGPD + PUT /api/clients/:id |
+| `onMounted` | l.693 – l.696 | Appel loadClient |
+
+### Composables à extraire
+
+#### `useClientEditor(clientId: Ref<number>)` (~90 lignes)
+**Responsabilité** : Chargement du client, de ses statistiques, et sauvegarde du formulaire
+```typescript
+// Expose :
+const form = ref<ClientForm | null>(null)
+const loading = ref(false)
+const loadingClient = ref(true)
+const clientStats = ref({ totalRevenue: number, loyaltyPoints: number, purchaseCount: number })
+const clientName = computed(() => string)
+async function loadClient(): Promise<void>
+async function handleSubmit(): Promise<void>
+```
+
+#### `useClientPurchaseHistory(clientId: Ref<number>)` (~35 lignes)
+**Responsabilité** : Chargement lazy de l'historique des achats (déclenché à l'ouverture du dialog)
+```typescript
+// Expose :
+const purchases = ref<Purchase[]>([])
+const loadingPurchases = ref(false)
+const showPurchaseHistory = ref(false)
+// watch interne : charge l'historique à la première ouverture
+```
+
+#### `usePostalCodeLookup(form: Ref<ClientForm | null>)` (~65 lignes)
+**Responsabilité** : Recherche automatique de ville via code postal (API externe `geo.api.gouv.fr`), debounce 500ms, gestion du dropdown multi-villes
+```typescript
+// Expose :
+const loadingPostalCode = ref(false)
+const postalCodeError = ref('')
+const availableCities = ref<Array<{ nom: string; code: string }>>([])
+function handlePostalCodeChange(): void
+function selectCity(cityName: string): void
+```
+
+> Note : `usePostalCodeLookup` est réutilisable pour tout formulaire contenant une adresse française (ex: établissements).
+
+### Résultat réel
+
+| Métrique | Avant | Après | Gain |
+|---|---|---|---|
+| `clients/[id]/edit.vue` | 697 lignes | **484 lignes** | -31% |
+| Composables extraits | — | 3 composables (usePostalCodeLookup, useClientPurchaseHistory, useClientEditor) | Testable |
+| Statut | — | ✅ 2026-03-16 | — |
+
+---
+
+## Page 5 : `pages/mouvements/index.vue` — 569 lignes
+
+### Structure actuelle
+
+| Section | Lignes (approx.) | Responsabilité |
+|---|---|---|
+| Template | l.1 – l.64 | Interface délégée à 4 composants (MovementTypeSelector, ProductSearchWithSuggestions, SelectedProductsTable, ProductCatalogDialog) — déjà bien componentisée |
+| Script imports + types | l.66 – l.89 | Imports composants, types `mouvements/`, `useEstablishmentRegister`, `normalizeProduct` |
+| State | l.91 – l.112 | movementType, searchQuery, selectedProducts, comment, searchSuggestions, catalog filters, catalogProducts, loadingCatalog, categories, suppliers, brands, allVariations |
+| `hasVariations()` + `getTotalStock()` | l.115 – l.127 | Helpers produit : détection variantes + calcul stock total |
+| `watch searchQuery` (debounced suggestions) | l.130 – l.151 | GET /api/products suggestions (debounce 300ms, filtré par établissement) |
+| `watch catalogSearchQuery` + `watch filters` | l.153 – l.164 | Rechargement catalogue sur modification des filtres |
+| `handleSearchFocus()` + `selectFirstSuggestion()` + `selectProductFromSuggestion()` | l.166 – l.188 | Handlers UX recherche rapide |
+| `searchProduct()` | l.190 – l.218 | GET /api/products par texte — ajout direct si 1 résultat, sinon ouvre catalogue |
+| `openProductSelector()` + `loadCatalogProducts()` | l.220 – l.245 | Ouverture dialog + GET /api/products avec filtres combinés |
+| `loadCategories()` + `loadSuppliers()` + `loadBrands()` | l.247 – l.292 | 3 fetches référentiels indépendants |
+| `loadVariations()` + `getProductVariations()` | l.294 – l.343 | GET /api/variations/groups + résolution des variantes d'un produit |
+| `addProductFromCatalog()` | l.345 – l.383 | Logique d'ajout dans le panier — init quantités par variation selon type de mouvement |
+| `updateProductQuantity()` + `removeProduct()` + `clearAll()` | l.385 – l.408 | Gestion du panier (CRUD items) |
+| `validateMovement()` | l.410 – l.503 | Construction du payload + POST /api/movements/create |
+| `watch movementType` | l.506 – l.534 | Recalcul des quantités initialisées selon type (entry/adjustment/loss) |
+| `onMounted` + `watch selectedEstablishmentId` | l.536 – l.545 | Init + rechargement complet au changement d'établissement |
+
+### Composables à extraire
+
+#### `useMovementProductSearch(establishmentId: Ref<number | null>)` (~80 lignes)
+**Responsabilité** : Recherche de produits par texte avec debounce (suggestions) et sélection rapide
+```typescript
+// Expose :
+const searchQuery = ref('')
+const searchSuggestions = ref<Product[]>([])
+function handleSearchFocus(): void
+function selectFirstSuggestion(): void
+function selectProductFromSuggestion(product: Product): void
+async function searchProduct(): Promise<void>
+// onProductSelected: callback / emit vers useMovementCart
+```
+
+#### `useMovementCatalog(establishmentId: Ref<number | null>)` (~160 lignes)
+**Responsabilité** : Dialog catalogue produits avec filtres (catégorie, fournisseur, marque), chargement référentiels, et variations
+```typescript
+// Expose :
+const isProductSelectorOpen = ref(false)
+const catalogSearchQuery = ref('')
+const selectedCategoryFilter = ref<number | null>(null)
+const selectedSupplierFilter = ref<number | null>(null)
+const selectedBrandFilter = ref<number | null>(null)
+const catalogProducts = ref<Product[]>([])
+const loadingCatalog = ref(false)
+const categories = ref<Category[]>([])
+const suppliers = ref<Supplier[]>([])
+const brands = ref<Brand[]>([])
+const allVariations = ref<Variation[]>([])
+function openProductSelector(): void
+async function loadCatalogProducts(): Promise<void>
+// watches internes : catalogSearchQuery + filtres → reload
+```
+
+#### `useMovementCart(movementType: Ref<MovementType>, allVariations: Ref<Variation[]>)` (~140 lignes)
+**Responsabilité** : Panier du mouvement — ajout/suppression/mise à jour des produits, recalcul des quantités, validation et soumission
+```typescript
+// Expose :
+const selectedProducts = ref<SelectedProduct[]>([])
+const comment = ref('')
+function addProductFromCatalog(product: Product): void
+function updateProductQuantity(productId: number, variationId: string | null, quantity: number): void
+function removeProduct(productId: number): void
+function clearAll(): void
+async function validateMovement(): Promise<void>
+// watch interne : movementType → recalcul quantités
+// helpers internes : hasVariations, getTotalStock, getProductVariations
+```
+
+> Note : `useMovementCatalog` expose `allVariations` qui est passé en paramètre à `useMovementCart`. Les deux composables restent découplés — le câblage est fait dans la page.
+
+### Résultat réel
+
+| Métrique | Avant | Après | Gain |
+|---|---|---|---|
+| `mouvements/index.vue` | 569 lignes | **145 lignes** | -74% |
+| Composables extraits | — | 3 composables (useMovementCatalog, useMovementCart, useMovementProductSearch) | Testable |
+| Statut | — | ✅ 2026-03-16 | — |
+
+---
+
+## Récapitulatif global (toutes pages)
+
+| Page | Avant | Après | Composables |
+|---|---|---|---|
+| `synchronisation.vue` | 1050 | **614** | 5 composables (539 lignes) ✅ |
+| `etablissements/index.vue` | 831 | **484** | 2 composables (424 lignes) ✅ |
+| `produits/[id]/edit.vue` | 891 | **528** | 3 composables (518 lignes) ✅ |
+| `clients/[id]/edit.vue` | 697 | **484** | 3 composables (usePostalCodeLookup, useClientPurchaseHistory, useClientEditor) ✅ |
+| `mouvements/index.vue` | 569 | **145** | 3 composables (useMovementCatalog, useMovementCart, useMovementProductSearch) ✅ |
+| **Total** | **4038** | **2255** | **16 composables** |
+
+Réduction totale réelle : **-44%** sur les 5 pages monolithiques.
+
+---
+
+*Dernière mise à jour : 2026-03-16 — par Claude Code (audit session 3, BATCH 1-3 + extraction pages 4-5)*

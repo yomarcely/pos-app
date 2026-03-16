@@ -330,14 +330,14 @@ Si l'authentification Supabase est remplacée par un autre provider, **exactemen
 
 - [x] **Double système DB** → ✅ documenté dans `docs/architecture/supabase-vs-drizzle.md`
 - [x] **Scripts de migration ad-hoc** → ✅ archivés dans `docs/legacy-migrations/`
-- [~] **Pages monolithiques** → 🔄 EN COURS
-  - `etablissements/index.vue` : 831 → 484 lignes (cible ~380)
-  - `synchronisation.vue` : 1050 → 614 lignes (cible ~420)
-  - `produits/[id]/edit.vue` : 891 → 528 lignes (cible ~430)
-  - `clients/[id]/edit.vue` : 697 lignes (non traité)
-  - `mouvements/index.vue` : 569 lignes (non traité)
+- [x] **Pages monolithiques** → ✅ TERMINÉ — 5 pages refactorisées, 16 composables extraits
+  - `etablissements/index.vue` : 831 → 484 lignes (-42%) ✅
+  - `synchronisation.vue` : 1050 → 614 lignes (-41%) ✅
+  - `produits/[id]/edit.vue` : 891 → 528 lignes (-41%) ✅
+  - `clients/[id]/edit.vue` : 697 → 484 lignes (-31%) ✅ 2026-03-16
+  - `mouvements/index.vue` : 569 → 145 lignes (-74%) ✅ 2026-03-16
 - [ ] **Stores Pinia** — duplication de logique entre stores (seulement 7 stores pour tout le métier)
-- [x] **Composables** → ✅ passé de 3 à 13 composables (10 extraits le 2026-03-15)
+- [x] **Composables** → ✅ passé de 3 à 19 composables (10 extraits le 2026-03-15, 6 extraits le 2026-03-16)
 - [x] **Dead code** → ✅ traité (`docs/audit/04-dead-code.md`)
 - [x] **Types TypeScript** → ✅ 0 erreur TS sources (`docs/audit/02-typescript-strict.md`)
 - [x] **Calculs financiers** → ✅ audité et corrigé (`docs/audit/07-calculs-financiers.md`) — P1 validation totaux serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash NF525 aligné — 16 tests unitaires dans `tests/unit/financialValidation.test.ts`
@@ -432,5 +432,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 | 2026-03-16 | NF525 couverture tests | 42 tests unitaires écrits dans `tests/unit/nf525/` (6 fichiers) — toutes fonctions exportées couvertes sans mock — déterminisme, unicité, cas fraude, ordre inversé documenté | ✅ |
 
 | 2026-03-16 | Audit 03 clôture | M4 traité (N/A — pas de types DB générés), audit 03 clôturé — tous items ✅ | ✅ |
+| 2026-03-16 | Pages monolithiques (pages 4-5) | 6 composables extraits en 10 commits atomiques : usePostalCodeLookup, useClientPurchaseHistory, useClientEditor, useMovementCatalog, useMovementCart, useMovementProductSearch — pages : 697→484 / 569→145 lignes — 12 tests de caractérisation ajoutés — 383 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-16 — par Claude Code (session audit 03 clôture)*
+*Dernière mise à jour : 2026-03-16 — par Claude Code (session pages 4-5 extraction)*
