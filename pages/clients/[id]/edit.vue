@@ -431,7 +431,7 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { ref, onMounted, computed, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import { Loader2, Star, TrendingUp, ShoppingBag } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -450,20 +450,17 @@ import {
 import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { useToast } from '@/composables/useToast'
+import { useClientEditor } from '@/composables/useClientEditor'
+import { useClientPurchaseHistory } from '@/composables/useClientPurchaseHistory'
+import { usePostalCodeLookup } from '@/composables/usePostalCodeLookup'
 
 const route = useRoute()
-const toast = useToast()
-const loading = ref(false)
-const loadingClient = ref(true)
-const loadingPostalCode = ref(false)
-const postalCodeError = ref('')
-const availableCities = ref<Array<{ nom: string; code: string }>>([])
-const showPurchaseHistory = ref(false)
-const loadingPurchases = ref(false)
-const purchases = ref<any[]>([])
+const clientId = computed(() => parseInt(route.params.id as string))
 
-// Fonction pour formater les prix
+const { form, loading, loadingClient, clientStats, clientName, loadClient, handleSubmit } = useClientEditor(clientId)
+const { purchases, loadingPurchases, showPurchaseHistory } = useClientPurchaseHistory(clientId)
+const { loadingPostalCode, postalCodeError, availableCities, handlePostalCodeChange, selectCity } = usePostalCodeLookup(form)
+
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
@@ -471,7 +468,6 @@ function formatPrice(price: number): string {
   }).format(price)
 }
 
-// Fonction pour formater les dates
 function formatDateTime(date: string): string {
   return new Date(date).toLocaleDateString('fr-FR', {
     day: '2-digit',
@@ -482,215 +478,6 @@ function formatDateTime(date: string): string {
   })
 }
 
-// ID du client depuis l'URL
-const clientId = computed(() => parseInt(route.params.id as string))
-
-// Formulaire
-const form = ref<any>(null)
-
-// Statistiques du client
-const clientStats = ref({
-  totalRevenue: 0,
-  loyaltyPoints: 0,
-  purchaseCount: 0,
-})
-
-// Watcher pour charger l'historique quand la modale s'ouvre
-watch(showPurchaseHistory, (isOpen) => {
-  if (isOpen && purchases.value.length === 0) {
-    loadPurchaseHistory()
-  }
-})
-
-// Debounce timer for postal code lookup
-let postalCodeTimeout: NodeJS.Timeout
-
-// Sélectionner une ville depuis le dropdown
-function selectCity(cityName: string) {
-  if (!form.value) return
-  form.value.city = cityName
-  // Fermer le dropdown après sélection
-  availableCities.value = []
-}
-
-// Recherche automatique de la ville via code postal
-async function handlePostalCodeChange() {
-  if (!form.value) return
-
-  const postalCode = form.value.postalCode.trim()
-
-  // Reset error et villes disponibles
-  postalCodeError.value = ''
-  availableCities.value = []
-
-  // Clear previous timeout
-  clearTimeout(postalCodeTimeout)
-
-  // Si code postal vide ou trop court, on ne fait rien
-  if (!postalCode || postalCode.length < 4) {
-    return
-  }
-
-  // Debounce de 500ms
-  postalCodeTimeout = setTimeout(async () => {
-    try {
-      loadingPostalCode.value = true
-
-      // API française des codes postaux
-      const response = await fetch(`https://geo.api.gouv.fr/communes?codePostal=${postalCode}&fields=nom,code,codesPostaux,centre&format=json&geometry=centre`)
-
-      if (!response.ok) {
-        throw new Error('Code postal non trouvé')
-      }
-
-      const data = await response.json()
-
-      if (data && data.length > 0) {
-        // Stocker toutes les villes disponibles
-        availableCities.value = data
-
-        // Sélectionner automatiquement la première ville
-        form.value.city = data[0].nom
-
-        // Si une seule ville, pas besoin d'afficher le menu
-        if (data.length === 1) {
-          availableCities.value = []
-        }
-      } else {
-        postalCodeError.value = 'Code postal non trouvé'
-      }
-    } catch (error) {
-      console.error('Erreur lors de la recherche du code postal:', error)
-      postalCodeError.value = 'Impossible de trouver la ville'
-    } finally {
-      loadingPostalCode.value = false
-    }
-  }, 500)
-}
-
-// Nom du client pour le titre
-const clientName = computed(() => {
-  if (!form.value) return 'Client'
-  const parts = []
-  if (form.value.firstName) parts.push(form.value.firstName)
-  if (form.value.lastName) parts.push(form.value.lastName)
-  return parts.length > 0 ? parts.join(' ') : 'Client'
-})
-
-// Charger le client
-async function loadClient() {
-  try {
-    loadingClient.value = true
-
-    const response = await $fetch(`/api/clients/${clientId.value}`)
-    const client = response.client
-
-    const metadata = client.metadata as any || {}
-
-    // Pré-remplir le formulaire
-    form.value = {
-      firstName: client.firstName || '',
-      lastName: client.lastName || '',
-      email: client.email || '',
-      phone: client.phone || '',
-      address: client.address || '',
-      postalCode: metadata.postalCode || '',
-      city: metadata.city || '',
-      country: metadata.country || 'France',
-      loyaltyProgram: client.loyaltyProgram || false,
-      discount: parseFloat(client.discount || '0'),
-      gdprConsent: client.gdprConsent || false,
-      marketingConsent: client.marketingConsent || false,
-      authorizeSms: metadata.authorizeSms || false,
-      notes: client.notes || '',
-      alerts: client.alerts || '',
-    }
-
-    // Charger les statistiques du client
-    await loadClientStats()
-  } catch (error: unknown) {
-    console.error('Erreur lors du chargement du client:', error)
-    toast.error(extractFetchError(error, 'Erreur lors du chargement du client'))
-    navigateTo('/clients')
-  } finally {
-    loadingClient.value = false
-  }
-}
-
-// Charger les statistiques du client
-async function loadClientStats() {
-  try {
-    const response = await $fetch(`/api/clients/${clientId.value}/stats`)
-    clientStats.value = {
-      totalRevenue: response.totalRevenue || 0,
-      loyaltyPoints: response.loyaltyPoints || 0,
-      purchaseCount: response.purchaseCount || 0,
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement des statistiques:', error)
-    // Ne pas bloquer le chargement de la page si les stats échouent
-  }
-}
-
-// Charger l'historique des achats
-async function loadPurchaseHistory() {
-  try {
-    loadingPurchases.value = true
-    const response = await $fetch(`/api/clients/${clientId.value}/purchases`)
-    purchases.value = response.purchases || []
-  } catch (error) {
-    console.error('Erreur lors du chargement de l\'historique:', error)
-    toast.error('Impossible de charger l\'historique des achats')
-  } finally {
-    loadingPurchases.value = false
-  }
-}
-
-// Soumission du formulaire
-async function handleSubmit() {
-  // Validation
-  if (!form.value.gdprConsent) {
-    toast.error('Le consentement RGPD est obligatoire')
-    return
-  }
-
-  try {
-    loading.value = true
-
-    await $fetch(`/api/clients/${clientId.value}`, {
-      method: 'PUT',
-      body: {
-        firstName: form.value.firstName || null,
-        lastName: form.value.lastName || null,
-        email: form.value.email || null,
-        phone: form.value.phone || null,
-        address: form.value.address || null,
-      metadata: {
-        postalCode: form.value.postalCode || null,
-        city: form.value.city || null,
-        country: form.value.country || 'France',
-        authorizeSms: form.value.authorizeSms,
-      },
-      gdprConsent: !!form.value.gdprConsent,
-      marketingConsent: !!form.value.marketingConsent,
-      loyaltyProgram: !!form.value.loyaltyProgram,
-        discount: form.value.discount || 0,
-        notes: form.value.notes || null,
-        alerts: form.value.alerts || null,
-      },
-    })
-
-    toast.success('Client modifié avec succès')
-    navigateTo('/clients')
-  } catch (error: unknown) {
-    console.error('Erreur lors de la modification du client:', error)
-    toast.error(extractFetchError(error, 'Erreur lors de la modification du client'))
-  } finally {
-    loading.value = false
-  }
-}
-
-// Charger au montage
 onMounted(() => {
   loadClient()
 })
