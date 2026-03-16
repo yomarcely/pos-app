@@ -87,7 +87,6 @@ pos-app/
 │   ├── customer.ts
 │   ├── products.ts
 │   ├── sellers.ts
-│   ├── tickets.ts
 │   └── variationGroups.ts
 ├── pages/
 │   ├── caisse/index.vue        # ⚠️ CRITIQUE
@@ -142,15 +141,15 @@ pos-app/
 | # | Fichier | Lignes | Zone de risque |
 |---|---|---|---|
 | 1 | `server/database/schema.ts` | 1100 | Schéma Drizzle central — toutes les tables |
-| 2 | `pages/etablissements/synchronisation.vue` | 1050 | Page Vue monolithique, logique de sync complexe |
-| 3 | `pages/produits/[id]/edit.vue` | 891 | Formulaire produit monolithique |
-| 4 | `pages/etablissements/index.vue` | 831 | Logique métier dans la page |
-| 5 | `server/utils/sync.ts` | 787 | Sync inter-établissements, état partagé |
-| 6 | `pages/clients/[id]/edit.vue` | 697 | Formulaire client monolithique |
-| 7 | `tests/api/products.test.ts` | 626 | (fichier de test, normal) |
-| 8 | `server/database/seed.ts` | 573 | Données de seed (dev uniquement) |
-| 9 | `pages/mouvements/index.vue` | 569 | Logique métier dans la page |
-| 10 | `server/api/sales/create.post.ts` | 554 | **CRITIQUE** — endpoint de création de vente |
+| 2 | `server/utils/sync.ts` | 787 | Sync inter-établissements, état partagé |
+| 3 | `tests/api/products.test.ts` | 626 | (fichier de test, normal) |
+| 4 | `server/database/seed.ts` | 573 | Données de seed (dev uniquement) |
+| 5 | `server/api/sales/create.post.ts` | 554 | **CRITIQUE** — endpoint de création de vente |
+| 6 | `pages/etablissements/synchronisation.vue` | 614 | Refactorisée (était 1050 lignes) |
+| 7 | `pages/produits/[id]/edit.vue` | 528 | Refactorisée (était 891 lignes) |
+| 8 | `pages/etablissements/index.vue` | 484 | Refactorisée (était 831 lignes) |
+| 9 | `pages/clients/[id]/edit.vue` | 484 | Refactorisée (était 697 lignes) |
+| 10 | `pages/mouvements/index.vue` | 145 | Refactorisée (était 569 lignes) |
 
 ---
 
@@ -336,8 +335,8 @@ Si l'authentification Supabase est remplacée par un autre provider, **exactemen
   - `produits/[id]/edit.vue` : 891 → 528 lignes (-41%) ✅
   - `clients/[id]/edit.vue` : 697 → 484 lignes (-31%) ✅ 2026-03-16
   - `mouvements/index.vue` : 569 → 145 lignes (-74%) ✅ 2026-03-16
-- [ ] **Stores Pinia** — duplication de logique entre stores (seulement 7 stores pour tout le métier)
-- [x] **Composables** → ✅ passé de 3 à 19 composables (10 extraits le 2026-03-15, 6 extraits le 2026-03-16)
+- [x] **Stores Pinia** → ✅ audité et corrigé (`docs/audit/09-stores-pinia.md`)
+- [x] **Composables** → ✅ passé de 3 à 19 composables (10 extraits le 2026-03-15, 6 extraits le 2026-03-16) — 19 composables au total
 - [x] **Dead code** → ✅ traité (`docs/audit/04-dead-code.md`)
 - [x] **Types TypeScript** → ✅ 0 erreur TS sources (`docs/audit/02-typescript-strict.md`)
 - [x] **Calculs financiers** → ✅ audité et corrigé (`docs/audit/07-calculs-financiers.md`) — P1 validation totaux serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash NF525 aligné — 16 tests unitaires dans `tests/unit/financialValidation.test.ts`
@@ -380,6 +379,7 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 - [Composables à extraire](docs/audit/06-composables-a-extraire.md) — mars 2026 🔄 EN COURS
 - [Calculs financiers](docs/audit/07-calculs-financiers.md) — mars 2026 ✅ (4 risques identifiés)
 - [NF525 tests](docs/audit/08-nf525-tests.md) — mars 2026 ✅ (0 test réel, 38 à écrire)
+- [Stores Pinia](docs/audit/09-stores-pinia.md) — mars 2026 ✅
 
 ## 🏗️ Architecture documentée
 - [Supabase vs Drizzle](docs/architecture/supabase-vs-drizzle.md) — frontière Auth / DB
