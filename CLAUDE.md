@@ -434,4 +434,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 | 2026-03-16 | Audit 03 clôture | M4 traité (N/A — pas de types DB générés), audit 03 clôturé — tous items ✅ | ✅ |
 | 2026-03-16 | Pages monolithiques (pages 4-5) | 6 composables extraits en 10 commits atomiques : usePostalCodeLookup, useClientPurchaseHistory, useClientEditor, useMovementCatalog, useMovementCart, useMovementProductSearch — pages : 697→484 / 569→145 lignes — 12 tests de caractérisation ajoutés — 383 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-16 — par Claude Code (session pages 4-5 extraction)*
+| 2026-03-16 | Stores Pinia (audit 09) | R1 : `as any` → `toCartItem` typé. R2 : `extractFetchError` dans 3 stores. R3 : `loading`+`error` dans variationGroups. R4 : analysé (reporter). R5 : déjà correct (méthodes internes hors return). R6 : `lowStockProducts` DEPRECATED supprimé. R7 : CLAUDE.md mis à jour (tickets.ts, top-10). R8 : Tenant/AuthError → types/auth.ts — 383 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-03-16 — par Claude Code (session stores Pinia audit 09)*
