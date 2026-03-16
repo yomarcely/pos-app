@@ -3,16 +3,7 @@ import { computed, ref } from 'vue'
 import type { Session, User } from '@supabase/supabase-js'
 import { useSupabaseClient } from '@/composables/useSupabaseClient'
 import { useSellersStore } from '@/stores/sellers'
-
-type Tenant = {
-  id: string
-  name?: string
-  slug?: string
-}
-
-type AuthError = {
-  message: string
-}
+import type { Tenant, AuthError } from '@/types'
 
 const extractTenants = (user: User | null, fallbackTenant?: string) => {
   const meta = (user?.app_metadata || user?.user_metadata || {}) as Record<string, any>
