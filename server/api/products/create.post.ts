@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
         establishmentId,
         stock: validatedData.stock || 0,
         stockByVariation: validatedData.stockByVariation || [],
-        minStock: validatedData.minStock || 0,
+        minStock: validatedData.minStock ?? 0,
       })
       logger.info({ productId: newProduct.id, establishmentId }, 'Stock créé pour le produit')
     }

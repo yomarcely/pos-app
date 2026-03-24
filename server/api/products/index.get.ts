@@ -281,7 +281,7 @@ export default defineEventHandler(async (event) => {
         : product.stock || 0,
       minStock: establishmentId
         ? product.establishmentMinStock ?? 5
-        : product.minStock || 5,
+        : product.minStock ?? 5,
       stockByVariation: establishmentId
         ? normalizeEstablishmentStockByVariation(product.establishmentStockByVariation)
         : product.stockByVariation as Record<string, number> | undefined,
