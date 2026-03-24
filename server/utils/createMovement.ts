@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { movements } from '~/server/database/schema'
-import { sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 /**
  * Crée un mouvement de stock avec son numéro unique
@@ -19,24 +19,33 @@ export async function createMovement(
   if (!tenantId) {
     throw new Error('Tenant ID manquant pour la création du mouvement')
   }
-  // Générer le numéro de mouvement via la fonction SQL
-  const result = await db.execute(sql`SELECT generate_movement_number(${type}::varchar) as movement_number`)
-  const movementNumber = result[0]?.movement_number as string
 
-  if (!movementNumber) {
-    throw new Error('Impossible de générer le numéro de mouvement')
-  }
-
-  // Créer le mouvement
-  const [movement] = await db
+  // Insérer le mouvement avec un numéro temporaire unique (timestamp)
+  const tempNumber = `TEMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const [tempMovement] = await db
     .insert(movements)
     .values({
       tenantId,
-      movementNumber,
+      movementNumber: tempNumber,
       type,
       comment: comment || null,
       userId: userId || null,
     })
+    .returning()
+
+  if (!tempMovement) {
+    throw new Error('Échec de la création du mouvement en base de données')
+  }
+
+  // Générer le numéro définitif à partir de l'ID auto-incrémenté
+  const prefix = type.toUpperCase()
+  const movementNumber = `${prefix}-${String(tempMovement.id).padStart(6, '0')}`
+
+  // Mettre à jour avec le numéro définitif
+  const [movement] = await db
+    .update(movements)
+    .set({ movementNumber })
+    .where(eq(movements.id, tempMovement.id))
     .returning()
 
   if (!movement) {
