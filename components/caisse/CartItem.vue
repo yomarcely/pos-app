@@ -148,6 +148,25 @@ function getVariationIdByName(variationName: string): string | number | null {
     }
     return null
 }
+
+// Quand les groupes chargent après que le produit a été ajouté au panier,
+// résoudre le nom de variation si la valeur stockée est vide ou un fallback.
+watch(variationGroups, (newGroups) => {
+    if (!newGroups.length) return
+    if (!props.product.variationGroupIds?.length) return
+
+    const current = props.product.variation
+    const isUnresolved = !current || /^Variation \d+$/.test(current)
+    if (!isUnresolved) return
+
+    const firstId = props.product.variationGroupIds[0]
+    if (firstId === undefined) return
+
+    const resolved = getVariationNameById(firstId)
+    if (resolved && !/^Variation \d+$/.test(resolved)) {
+        cartStore.updateVariation(props.product.id, current, resolved)
+    }
+}, { immediate: true })
 </script>
 
 <template>
