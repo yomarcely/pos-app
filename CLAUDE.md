@@ -436,4 +436,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-16 | Stores Pinia (audit 09) | R1 : `as any` → `toCartItem` typé. R2 : `extractFetchError` dans 3 stores. R3 : `loading`+`error` dans variationGroups. R4 : analysé (reporter). R5 : déjà correct (méthodes internes hors return). R6 : `lowStockProducts` DEPRECATED supprimé. R7 : CLAUDE.md mis à jour (tickets.ts, top-10). R8 : Tenant/AuthError → types/auth.ts — 383 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-16 — par Claude Code (session stores Pinia audit 09)*
+| 2026-03-24 | Bugs B1-B4 | B1 : `generate_movement_number` remplacé par TypeScript (migration 0002a non trackée). B2 : lookup variation nom→ID dans `hasEnoughStock`/`getAvailableStock` + stock non bloquant (peut passer en négatif). B3 : `CartItem.vue` utilise `computed()` pour réactivité des noms de variation. B4 : filtrage `ne(isArchived, true)` pour suppression groupe après soft-delete des variations — 383 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-03-24 — par Claude Code (session bugs B1-B4)*
