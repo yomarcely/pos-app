@@ -179,6 +179,14 @@ export function useEstablishmentRegister() {
     }
   })
 
+  // Réinitialise le composable pour forcer un rechargement (ex: après changement d'utilisateur)
+  function reset() {
+    initialized.value = false
+    establishments.value = []
+    allRegisters.value = []
+    selectedEstablishmentDetail.value = null
+  }
+
   return {
     // State
     establishments,
@@ -198,5 +206,6 @@ export function useEstablishmentRegister() {
     loadEstablishments,
     loadRegisters,
     fetchCurrentEstablishmentDetail,
+    reset,
   }
 }
