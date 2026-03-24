@@ -80,7 +80,7 @@ export default defineNuxtConfig({
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://geo.api.gouv.fr",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
