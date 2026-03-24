@@ -448,4 +448,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 - `middleware/auth.global.ts` : `if (process.server) return` — skip SSR (pas de cookie auth à vérifier). Côté client, le middleware utilise l'état déjà positionné par le plugin pour décider redirect ou non.
 - `sessionRestored` dans auth store : indicateur que `restoreSession()` a été appelé au moins une fois. Exposé pour usage futur si besoin d'afficher un état de chargement dans des composants spécifiques.
 
-*Dernière mise à jour : 2026-03-24 — par Claude Code (session bugs B5-B11 + fix redirect)*
+| 2026-03-24 | Bugs C1-C5 | C1 : numérotation ticket isolée par establishmentId (advisory lock, séquence dans transaction). C2 : stock atomique `stock = stock + delta` (movements + product-stocks). C3 : `useProductStockMovement` envoie `establishmentId` + invalidation store products. C4 : `stockByVariation` format array [{variationId, stock}] corrigé dans sales/create.post.ts. C5 : `minStock || 5` → `?? 5` dans GET endpoints (0 traité comme falsy). 384 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-03-24 — par Claude Code (bugs C1-C5)*
