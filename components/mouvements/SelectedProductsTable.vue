@@ -172,7 +172,7 @@ function getProductVariations(product: any): Variation[] {
   return uniqueIds.map((id) => {
     const numericId = typeof id === 'number' ? id : Number(id)
     const found = Number.isFinite(numericId)
-      ? props.allVariations.find((v) => v.id === numericId)
+      ? props.allVariations.find((v) => Number(v.id) === numericId)
       : undefined
 
     return found || { id: id as string | number, name: `Variation ${id}` }

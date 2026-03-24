@@ -29,15 +29,19 @@ onMounted(() => {
   variationGroupsStore.loadGroups()
 })
 
-// Fonction pour obtenir le nom d'une variation par son ID
-function getVariationNameById(variationId: number): string {
+// Map computed pour résoudre les noms de variation (réactif au chargement des groupes)
+const variationNameMap = computed(() => {
+  const map = new Map<number, string>()
   for (const group of variationGroupsStore.groups) {
-    const variation = group.variations.find(v => v.id === variationId)
-    if (variation) {
-      return variation.name
+    for (const v of group.variations) {
+      map.set(Number(v.id), v.name)
     }
   }
-  return `Variation ${variationId}`
+  return map
+})
+
+function getVariationNameById(variationId: number): string {
+  return variationNameMap.value.get(variationId) ?? `Variation ${variationId}`
 }
 
 // Filtres

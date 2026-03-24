@@ -65,13 +65,14 @@ function scrollToBottom() {
 
 // Fonction pour obtenir le nom d'une variation par son ID
 function getVariationNameById(variationId: string | number): string {
+  const targetNum = Number(variationId)
   for (const group of variationGroups.value) {
-    const variation = group.variations.find(v => v.id === variationId)
+    const variation = group.variations.find(v => Number(v.id) === targetNum)
     if (variation) {
       return variation.name
     }
   }
-  return `Variation ${variationId}`
+  return ''
 }
 
 function isProduct(v: unknown): v is Product {

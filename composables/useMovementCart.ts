@@ -45,7 +45,7 @@ export function useMovementCart(
     return uniqueIds.map((id) => {
       const numericId = typeof id === 'number' ? id : Number(id)
       const found = Number.isFinite(numericId)
-        ? allVariations.value.find((v) => v.id === numericId)
+        ? allVariations.value.find((v) => Number(v.id) === numericId)
         : undefined
       return found || { id, name: `Variation ${id}` }
     })
