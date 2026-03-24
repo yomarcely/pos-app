@@ -14,7 +14,8 @@ import type { ProductInCart } from '@/types'
 
 const cartStore = useCartStore()
 const variationStore = useVariationGroupsStore()
-const variationGroups = variationStore.groups
+// Computed réactif pour que le template se re-rende quand les groupes chargent
+const variationGroups = computed(() => variationStore.groups)
 
 const props = defineProps<{
     product: ProductInCart;
@@ -128,10 +129,8 @@ const isBelowPurchasePrice = computed(() => {
 
 // Fonction pour obtenir le nom d'une variation par son ID
 function getVariationNameById(variationId: string | number): string {
-    // Parcourir tous les groupes de variations
-    for (const group of variationGroups) {
-        // Chercher la variation dans ce groupe
-        const variation = group.variations.find((v) => v.id === variationId)
+    for (const group of variationGroups.value) {
+        const variation = group.variations.find((v) => Number(v.id) === Number(variationId))
         if (variation) {
             return variation.name
         }
@@ -141,15 +140,13 @@ function getVariationNameById(variationId: string | number): string {
 
 // Fonction pour obtenir l'ID d'une variation par son nom
 function getVariationIdByName(variationName: string): string | number | null {
-    // Parcourir tous les groupes de variations
-    for (const group of variationGroups) {
-        // Chercher la variation dans ce groupe
+    for (const group of variationGroups.value) {
         const variation = group.variations.find((v) => v.name === variationName)
         if (variation) {
             return variation.id
         }
     }
-    return null // Retourner null si non trouvée
+    return null
 }
 </script>
 
