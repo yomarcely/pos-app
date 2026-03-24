@@ -172,7 +172,11 @@ export const useCartStore = defineStore('cart', () => {
       p => p.id === productId && p.variation === variation
     )
     if (item) {
-      item.discount = discount
+      // Cap : remise % ≤ 100, remise € ≤ prix unitaire TTC de la ligne
+      const clampedDiscount = type === '%'
+        ? Math.min(discount, 100)
+        : Math.min(discount, item.price)
+      item.discount = clampedDiscount
       item.discountType = type
     }
   }

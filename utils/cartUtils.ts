@@ -18,10 +18,15 @@ export function lineKey(it: ProductInCart) {
 // Prix TTC unitaire après remise de ligne (%, €)
 export function unitTtcAfterLineDiscount(it: ProductInCart): number {
   const dType = it.discountType ?? '%'
+  const rawDiscount = it.discount || 0
+  // Cap : remise % ≤ 100, remise € ≤ prix unitaire
+  const clampedDiscount = dType === '%'
+    ? Math.min(rawDiscount, 100)
+    : Math.min(rawDiscount, it.price)
   const priceAfter =
     dType === '%'
-      ? it.price * (1 - (it.discount || 0) / 100)
-      : it.price - (it.discount || 0)
+      ? it.price * (1 - clampedDiscount / 100)
+      : it.price - clampedDiscount
 
   return Math.max(0, round2(priceAfter))
 }
