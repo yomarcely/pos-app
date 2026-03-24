@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
+import { useProductsStore } from '@/stores/products'
 
 interface StockHistoryItem {
   id: number
@@ -24,7 +25,8 @@ export function useProductStockMovement(
   form: Ref<{ hasVariations: boolean }>,
   selectedVariationsList: Ref<any[]>,
   originalProduct: Ref<any>,
-  loadProduct: () => Promise<void>
+  loadProduct: () => Promise<void>,
+  establishmentId?: Ref<number | null | undefined>
 ) {
   const toast = useToast()
 
@@ -105,10 +107,14 @@ export function useProductStockMovement(
         body: {
           type: movementType.value,
           items,
+          establishmentId: establishmentId?.value ?? undefined,
         },
       })
       toast.success('Mouvement enregistré')
       stockDialogOpen.value = false
+      // Recharger le produit en cours ET invalider le store pour rafraîchir partout
+      const productsStore = useProductsStore()
+      productsStore.loaded = false
       await loadProduct()
     } catch (error: unknown) {
       console.error('Erreur lors du mouvement de stock:', error)

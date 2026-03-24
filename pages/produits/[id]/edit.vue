@@ -504,7 +504,7 @@ const {
   formatDate,
   reasonLabel,
   openHistory,
-} = useProductStockMovement(productId, form, selectedVariationsList, originalProduct, loadProduct)
+} = useProductStockMovement(productId, form, selectedVariationsList, originalProduct, loadProduct, selectedEstablishmentId)
 
 async function saveProduct() {
   await saveProductEditor(originalProduct)
