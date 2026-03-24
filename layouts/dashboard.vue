@@ -5,6 +5,7 @@ export const iframeHeight = '800px'
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppSidebar from '~/components/dashboard/AppSidebar.vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,6 +23,7 @@ import {
 import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
 import SellerSelect from '@/components/shared/SellerSelect.vue'
 
+const auth = useAuthStore()
 const route = useRoute()
 
 // Mapping des routes vers des labels lisibles
@@ -70,7 +72,10 @@ const breadcrumbs = computed(() => {
 })
 </script>
 <template>
-  <SidebarProvider>
+  <div v-if="!auth.sessionRestored" class="flex items-center justify-center min-h-screen">
+    <div class="text-muted-foreground text-sm">Chargement...</div>
+  </div>
+  <SidebarProvider v-else>
     <AppSidebar />
     <SidebarInset>
       <header class="flex h-16 shrink-0 items-center justify-between gap-3 px-4">

@@ -172,6 +172,7 @@ pos-app/
 - **Double système DB** : Drizzle ORM (server) + Supabase client (frontend) — risque de désynchronisation des types
 - **Supabase legacy** : `supabase/migrations/` + `server/utils/supabase.ts` coexistent avec Drizzle — clarifier le rôle de chacun
 - **Scripts de migration ad-hoc** dans `server/database/` (`add-register-to-closures-migration.ts`, etc.) — migrations manuelles non Drizzle
+- **Hydration mismatches liés à DarkReader** (extension navigateur) : faux positifs — disparaissent en désactivant l'extension. Ne pas tenter de corriger dans le code source.
 
 ---
 
@@ -437,5 +438,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 | 2026-03-16 | Stores Pinia (audit 09) | R1 : `as any` → `toCartItem` typé. R2 : `extractFetchError` dans 3 stores. R3 : `loading`+`error` dans variationGroups. R4 : analysé (reporter). R5 : déjà correct (méthodes internes hors return). R6 : `lowStockProducts` DEPRECATED supprimé. R7 : CLAUDE.md mis à jour (tickets.ts, top-10). R8 : Tenant/AuthError → types/auth.ts — 383 tests / 66 fichiers — 0 échec | ✅ |
 
 | 2026-03-24 | Bugs B1-B4 | B1 : `generate_movement_number` remplacé par TypeScript (migration 0002a non trackée). B2 : lookup variation nom→ID dans `hasEnoughStock`/`getAvailableStock` + stock non bloquant (peut passer en négatif). B3 : `CartItem.vue` utilise `computed()` pour réactivité des noms de variation. B4 : filtrage `ne(isArchived, true)` pour suppression groupe après soft-delete des variations — 383 tests / 66 fichiers — 0 échec | ✅ |
+| 2026-03-24 | Bugs mouvements/variations (suite) | B3 suite : `pages/variations/index.vue` appelait `variationGroupsStore.invalidate()` après chaque mutation pour forcer le rechargement. B4 suite : API variation delete + group delete bloquent la suppression si variation assignée à un produit (JSONB `@>` / `&&`). Tests `variations.test.ts` mis à jour (mock schema + `products`, helper `createSelectAndUpdateChain` séquentiel). B1 suite : `useMovementCart` passe `establishmentId` au body → `movements/create.post.ts` met à jour `productStocks` (format array `[{variationId, stock}]`). Bug format `stockByVariation` : `productStocks` utilise format array, `products` utilise format objet — `index.get.ts` et `[id].get.ts` convertiront désormais via `normalizeEstablishmentStockByVariation()` — 383 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-24 — par Claude Code (session bugs B1-B4)*
+*Dernière mise à jour : 2026-03-24 — par Claude Code (session bugs mouvements/variations suite)*

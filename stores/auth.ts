@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Session, User } from '@supabase/supabase-js'
 import { useSupabaseClient } from '@/composables/useSupabaseClient'
 import { useSellersStore } from '@/stores/sellers'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import type { Tenant, AuthError } from '@/types'
 
 const extractTenants = (user: User | null, fallbackTenant?: string) => {
@@ -56,6 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
   const tenants = ref<Tenant[]>([])
   const loading = ref(false)
   const error = ref<AuthError | null>(null)
+  // Devient true après le premier appel à restoreSession — évite le flash du dashboard avant redirect
+  const sessionRestored = ref(false)
 
   const isAuthenticated = computed(() => Boolean(session.value?.access_token))
   const accessToken = computed(() => session.value?.access_token || null)
@@ -138,21 +141,27 @@ export const useAuthStore = defineStore('auth', () => {
       tenants.value = []
       loading.value = false
       useSellersStore().clearSeller()
+      // Réinitialiser les données d'établissements pour le prochain utilisateur
+      useEstablishmentRegister().reset()
     }
   }
 
   const restoreSession = async () => {
-    const { data, error: sessionError } = await requireSupabase().auth.getSession()
-    if (sessionError) {
-      // Distingue "erreur réseau / Supabase indisponible" de "pas de session"
-      console.error('[Auth] restoreSession: network/Supabase error', sessionError)
-      error.value = { message: sessionError.message }
-      // On throw pour que le middleware puisse différencier les deux cas
-      throw sessionError
+    try {
+      const { data, error: sessionError } = await requireSupabase().auth.getSession()
+      if (sessionError) {
+        // Distingue "erreur réseau / Supabase indisponible" de "pas de session"
+        console.error('[Auth] restoreSession: network/Supabase error', sessionError)
+        error.value = { message: sessionError.message }
+        // On throw pour que le middleware puisse différencier les deux cas
+        throw sessionError
+      }
+      session.value = data.session
+      setUserContext(data.session?.user || null)
+      return data.session // null = pas de session active (cas normal)
+    } finally {
+      sessionRestored.value = true
     }
-    session.value = data.session
-    setUserContext(data.session?.user || null)
-    return data.session // null = pas de session active (cas normal)
   }
 
   const selectTenant = (id: string) => {
@@ -184,6 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     accessToken,
+    sessionRestored,
     signUp,
     signIn,
     signOut,
