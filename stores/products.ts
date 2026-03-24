@@ -72,7 +72,7 @@ export const useProductsStore = defineStore('products', () => {
     let availableStock = 0
 
     if (variation && product.stockByVariation) {
-      availableStock = product.stockByVariation[variation] ?? 0
+      availableStock = lookupStockByVariation(product.stockByVariation, variation)
     } else {
       availableStock = product.stock ?? 0
     }
@@ -91,9 +91,30 @@ export const useProductsStore = defineStore('products', () => {
     if (!product) return 0
 
     if (variation && product.stockByVariation) {
-      return product.stockByVariation[variation] ?? 0
+      return lookupStockByVariation(product.stockByVariation, variation)
     }
     return product.stock ?? 0
+  }
+
+  /**
+   * Résout le stock pour une variation en cherchant d'abord par clé directe (nom),
+   * puis par ID de variation si la clé directe n'existe pas.
+   */
+  function lookupStockByVariation(stockByVariation: Record<string, number>, variation: string): number {
+    // Lookup direct (clé = nom de variation, cas des seeds/tests)
+    if (variation in stockByVariation) {
+      return stockByVariation[variation] ?? 0
+    }
+    // Lookup par ID de variation (cas production : stockByVariation keyed by ID)
+    const variationStore = useVariationGroupsStore()
+    for (const group of variationStore.groups) {
+      const found = group.variations.find(v => v.name === variation)
+      if (found) {
+        const idKey = String(found.id)
+        return stockByVariation[idKey] ?? 0
+      }
+    }
+    return 0
   }
 
   // Getters

@@ -154,12 +154,10 @@ async function validerVente() {
     return
   }
 
-  // 2bis. Vérifier le stock disponible (protection UX avant appel API)
+  // 2bis. Vérifier le stock disponible (avertissement uniquement, le stock peut passer en négatif)
   const stockCheck = cartStore.validateStock()
   if (!stockCheck.valid) {
-    toast.error(stockCheck.errors.join('\n'))
-    isSubmitting.value = false
-    return
+    toast.warning(`Stock insuffisant pour certains articles — la vente continue`)
   }
 
   // 3. Confirmation automatique (pas de dialog bloquant)
