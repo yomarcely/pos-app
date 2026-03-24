@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { productStocks, stockMovements, movements, products } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { updateProductStockSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
@@ -103,10 +103,11 @@ export default defineEventHandler(async (event) => {
       }
 
       if (currentStock) {
+        const quantityDelta = adjustmentType === 'add' ? quantity : quantity - oldStock
         await db
           .update(productStocks)
           .set({
-            stock: newStock,
+            stock: sql`COALESCE(${productStocks.stock}, 0) + ${quantityDelta}`,
             updatedAt: new Date(),
           })
           .where(eq(productStocks.id, currentStock.id))

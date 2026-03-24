@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { products, stockMovements, productStocks } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
@@ -114,20 +114,19 @@ export default defineEventHandler(async (event) => {
         let newStock = 0
         let quantityDelta = 0
 
-        // Calculer le nouveau stock
+        // Calculer le delta de stock (toujours additif)
         if (item.variation && product.stockByVariation) {
           const stockByVar = product.stockByVariation as Record<string, number>
           oldStock = stockByVar[item.variation] || 0
 
           if (item.adjustmentType === 'add') {
-            newStock = oldStock + item.quantity
             quantityDelta = item.quantity
           } else {
-            newStock = item.quantity
             quantityDelta = item.quantity - oldStock
           }
+          newStock = oldStock + quantityDelta
 
-          // Mettre à jour le stock de la variation
+          // Mettre à jour le stock de la variation (JSONB : read-modify-write)
           stockByVar[item.variation] = newStock
 
           await tx
@@ -141,17 +140,17 @@ export default defineEventHandler(async (event) => {
           oldStock = product.stock || 0
 
           if (item.adjustmentType === 'add') {
-            newStock = oldStock + item.quantity
             quantityDelta = item.quantity
           } else {
-            newStock = item.quantity
             quantityDelta = item.quantity - oldStock
           }
+          newStock = oldStock + quantityDelta
 
+          // Mise à jour atomique : stock = stock + delta (jamais d'écrasement)
           await tx
             .update(products)
             .set({
-              stock: newStock,
+              stock: sql`COALESCE(${products.stock}, 0) + ${quantityDelta}`,
               updatedAt: new Date(),
             })
             .where(eq(products.id, item.productId))
@@ -178,22 +177,40 @@ export default defineEventHandler(async (event) => {
                 ? (stockRecord.stockByVariation as VarStock[])
                 : []
               const estOldStock = varStocks.find(v => v.variationId === item.variation)?.stock || 0
-              const estNewStock = item.adjustmentType === 'add'
-                ? estOldStock + item.quantity
-                : item.quantity
+              const estNewStock = estOldStock + quantityDelta
               const updated = varStocks.filter(v => v.variationId !== item.variation)
               updated.push({ variationId: item.variation, stock: estNewStock })
               await tx.update(productStocks)
                 .set({ stockByVariation: updated, updatedAt: new Date() })
                 .where(eq(productStocks.id, stockRecord.id))
             } else {
-              const estOldStock = stockRecord.stock || 0
-              const estNewStock = item.adjustmentType === 'add'
-                ? estOldStock + item.quantity
-                : item.quantity
+              // Mise à jour atomique du stock établissement
               await tx.update(productStocks)
-                .set({ stock: estNewStock, updatedAt: new Date() })
+                .set({
+                  stock: sql`COALESCE(${productStocks.stock}, 0) + ${quantityDelta}`,
+                  updatedAt: new Date(),
+                })
                 .where(eq(productStocks.id, stockRecord.id))
+            }
+          } else {
+            // Créer le record productStocks s'il n'existe pas encore
+            const initStock = item.adjustmentType === 'add' ? item.quantity : item.quantity
+            if (item.variation) {
+              await tx.insert(productStocks).values({
+                tenantId,
+                productId: item.productId,
+                establishmentId: body.establishmentId,
+                stock: 0,
+                stockByVariation: [{ variationId: item.variation, stock: initStock }],
+              })
+            } else {
+              await tx.insert(productStocks).values({
+                tenantId,
+                productId: item.productId,
+                establishmentId: body.establishmentId,
+                stock: initStock,
+                stockByVariation: [],
+              })
             }
           }
         }
