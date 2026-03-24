@@ -24,11 +24,16 @@ export const useVariationGroupsStore = defineStore('variationGroups', () => {
     }
   }
 
+  function invalidate() {
+    loaded.value = false
+  }
+
   return {
     groups,
     loaded,
     loading,
     error,
     loadGroups,
+    invalidate,
   }
 })

@@ -12,6 +12,13 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => toastMock
 }))
 
+const variationGroupsStoreMock = {
+  invalidate: vi.fn()
+}
+vi.mock('@/stores/variationGroups', () => ({
+  useVariationGroupsStore: () => variationGroupsStoreMock
+}))
+
 // Mock du composable useEstablishmentRegister
 vi.mock('@/composables/useEstablishmentRegister', () => ({
   useEstablishmentRegister: () => ({

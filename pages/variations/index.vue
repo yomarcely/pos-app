@@ -117,8 +117,10 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import VariationGroupCard from '@/components/variations/VariationGroupCard.vue'
 import { useToast } from '@/composables/useToast'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 
 const toast = useToast()
+const variationGroupsStore = useVariationGroupsStore()
 
 interface Variation {
   id: number
@@ -198,7 +200,7 @@ async function createGroup() {
     })
 
     toast.success('Groupe de variation créé avec succès')
-
+    variationGroupsStore.invalidate()
     createGroupDialogOpen.value = false
     await loadVariations()
   } catch (error) {
@@ -217,7 +219,7 @@ async function updateGroup() {
     })
 
     toast.success('Groupe modifié avec succès')
-
+    variationGroupsStore.invalidate()
     editGroupDialogOpen.value = false
     await loadVariations()
   } catch (error) {
@@ -235,7 +237,7 @@ async function deleteGroup() {
     })
 
     toast.success('Groupe supprimé avec succès')
-
+    variationGroupsStore.invalidate()
     deleteGroupDialogOpen.value = false
     await loadVariations()
   } catch (error: unknown) {
@@ -276,7 +278,7 @@ async function createVariation() {
     })
 
     toast.success('Variation ajoutée avec succès')
-
+    variationGroupsStore.invalidate()
     addVariationDialogOpen.value = false
     await loadVariations()
   } catch (error) {
@@ -295,7 +297,7 @@ async function updateVariation() {
     })
 
     toast.success('Variation modifiée avec succès')
-
+    variationGroupsStore.invalidate()
     editVariationDialogOpen.value = false
     await loadVariations()
   } catch (error) {
@@ -313,7 +315,7 @@ async function deleteVariation() {
     })
 
     toast.success('Variation supprimée avec succès')
-
+    variationGroupsStore.invalidate()
     deleteVariationDialogOpen.value = false
     await loadVariations()
   } catch (error) {
