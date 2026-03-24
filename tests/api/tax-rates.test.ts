@@ -61,7 +61,10 @@ vi.mock('~/server/database/schema', () => ({
     isDefault: 'taxRates.isDefault', isArchived: 'taxRates.isArchived',
     archivedAt: 'taxRates.archivedAt', tenantId: 'taxRates.tenantId',
     updatedAt: 'taxRates.updatedAt', createdAt: 'taxRates.createdAt',
-  }
+  },
+  products: {
+    id: 'products.id', tvaId: 'products.tvaId',
+  },
 }))
 
 // ===========================================
@@ -108,6 +111,27 @@ function createUpdateReturningChain(result: unknown[]) {
           returning: vi.fn(() => Promise.resolve(result)),
           then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
             Promise.resolve(undefined).then(resolve, reject)
+        }))
+      }))
+    })),
+  }
+}
+
+// Helper pour l'endpoint DELETE TVA : select (vérif produits) + update (archive)
+function createDeleteTvaChain(productsUsingTva: unknown[], archivedResult: unknown[]) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selectChain: any = {
+    select: vi.fn(() => selectChain),
+    from: vi.fn(() => selectChain),
+    where: vi.fn(() => selectChain),
+    limit: vi.fn(() => Promise.resolve(productsUsingTva)),
+  }
+  return {
+    ...selectChain,
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => Promise.resolve(archivedResult)),
         }))
       }))
     })),
@@ -198,7 +222,7 @@ describe('API /api/tax-rates', () => {
   describe('DELETE /api/tax-rates/:id', () => {
     it('archive le taux de TVA (soft delete)', async () => {
       const archived = { id: 1, name: 'TVA 20%', isArchived: true }
-      currentDb = createUpdateReturningChain([archived])
+      currentDb = createDeleteTvaChain([], [archived])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/tax-rates/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '1' } })
@@ -209,7 +233,7 @@ describe('API /api/tax-rates', () => {
     })
 
     it('throw 400 si ID invalide', async () => {
-      currentDb = createUpdateReturningChain([])
+      currentDb = createDeleteTvaChain([], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/tax-rates/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
@@ -220,8 +244,20 @@ describe('API /api/tax-rates', () => {
       })
     })
 
+    it('throw 409 si le taux est utilisé par des produits', async () => {
+      currentDb = createDeleteTvaChain([{ id: 42 }], [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/tax-rates/[id]/delete.delete')).default as any
+      const event = createMockEvent({ params: { id: '1' } })
+
+      await expect(handler(event)).rejects.toMatchObject({
+        statusCode: 409,
+        message: 'Ce taux de TVA est utilisé par des produits et ne peut pas être supprimé'
+      })
+    })
+
     it('throw 404 si taux introuvable', async () => {
-      currentDb = createUpdateReturningChain([])
+      currentDb = createDeleteTvaChain([], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/tax-rates/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })

@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
-import { taxRates } from '~/server/database/schema'
+import { taxRates, products } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 
 /**
@@ -16,6 +16,20 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 400,
       statusMessage: 'ID manquant',
+    })
+  }
+
+  // Vérifier qu'aucun produit n'utilise ce taux de TVA
+  const productsUsingTva = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.tvaId, id))
+    .limit(1)
+
+  if (productsUsingTva.length > 0) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Ce taux de TVA est utilisé par des produits et ne peut pas être supprimé',
     })
   }
 
