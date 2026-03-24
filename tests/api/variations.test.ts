@@ -71,6 +71,10 @@ vi.mock('~/server/database/schema', () => ({
     isArchived: 'variations.isArchived', archivedAt: 'variations.archivedAt',
     updatedAt: 'variations.updatedAt',
   },
+  products: {
+    id: 'products.id', tenantId: 'products.tenantId',
+    isArchived: 'products.isArchived', variationGroupIds: 'products.variationGroupIds',
+  },
   syncGroupEstablishments: {
     id: 'sge.id', syncGroupId: 'sge.syncGroupId',
     establishmentId: 'sge.establishmentId', tenantId: 'sge.tenantId',
@@ -150,14 +154,15 @@ function createVariationCreateChain(group: unknown | null, newVariation: unknown
 }
 
 function createSelectAndUpdateChain(existingRows: unknown[]) {
+  let selectIdx = 0
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chain: any = {
-    select: vi.fn(() => chain),
+    select: vi.fn(() => { selectIdx++; return chain }),
     from: vi.fn(() => chain),
     where: vi.fn(() => chain),
     limit: vi.fn(() => chain),
     then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-      Promise.resolve(existingRows).then(resolve, reject),
+      Promise.resolve(selectIdx === 1 ? existingRows : []).then(resolve, reject),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({

@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { products, stockMovements } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { products, stockMovements, productStocks } from '~/server/database/schema'
+import { eq, and } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
@@ -18,6 +18,7 @@ const createMovementSchema = z.object({
   type: z.enum(['reception', 'adjustment', 'loss', 'transfer']),
   comment: z.string().max(1000).optional(),
   items: z.array(movementItemSchema).min(1, 'Aucun article dans le mouvement'),
+  establishmentId: z.number().int().positive().optional(),
 })
 
 /**
@@ -52,6 +53,7 @@ interface CreateMovementRequest {
   type: 'reception' | 'adjustment' | 'loss' | 'transfer'
   comment?: string
   items: MovementItem[]
+  establishmentId?: number
 }
 
 export default defineEventHandler(async (event) => {
@@ -153,6 +155,47 @@ export default defineEventHandler(async (event) => {
               updatedAt: new Date(),
             })
             .where(eq(products.id, item.productId))
+        }
+
+        // Mettre à jour le stock par établissement si fourni
+        if (body.establishmentId) {
+          const [stockRecord] = await tx
+            .select()
+            .from(productStocks)
+            .where(
+              and(
+                eq(productStocks.productId, item.productId),
+                eq(productStocks.establishmentId, body.establishmentId),
+                eq(productStocks.tenantId, tenantId)
+              )
+            )
+            .limit(1)
+
+          if (stockRecord) {
+            if (item.variation) {
+              type VarStock = { variationId: string; stock: number }
+              const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
+                ? (stockRecord.stockByVariation as VarStock[])
+                : []
+              const estOldStock = varStocks.find(v => v.variationId === item.variation)?.stock || 0
+              const estNewStock = item.adjustmentType === 'add'
+                ? estOldStock + item.quantity
+                : item.quantity
+              const updated = varStocks.filter(v => v.variationId !== item.variation)
+              updated.push({ variationId: item.variation, stock: estNewStock })
+              await tx.update(productStocks)
+                .set({ stockByVariation: updated, updatedAt: new Date() })
+                .where(eq(productStocks.id, stockRecord.id))
+            } else {
+              const estOldStock = stockRecord.stock || 0
+              const estNewStock = item.adjustmentType === 'add'
+                ? estOldStock + item.quantity
+                : item.quantity
+              await tx.update(productStocks)
+                .set({ stock: estNewStock, updatedAt: new Date() })
+                .where(eq(productStocks.id, stockRecord.id))
+            }
+          }
         }
 
         // Créer la ligne de mouvement de stock

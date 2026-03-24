@@ -115,7 +115,7 @@ const {
   validateMovement,
 } = useMovementCart(movementType, allVariations, () => {
   isProductSelectorOpen.value = false
-})
+}, selectedEstablishmentId)
 
 const {
   searchQuery,

@@ -43,6 +43,7 @@ vi.mock('~/server/database/connection', () => ({
 vi.mock('drizzle-orm', () => ({
   sql: (...args: unknown[]) => args,
   eq: (...args: unknown[]) => ({ type: 'eq', args }),
+  and: (...args: unknown[]) => ({ type: 'and', args }),
 }))
 
 vi.mock('~/server/database/schema', () => ({
@@ -54,6 +55,11 @@ vi.mock('~/server/database/schema', () => ({
     tenantId: 'sm.tenantId', movementId: 'sm.movementId', productId: 'sm.productId',
     variation: 'sm.variation', quantity: 'sm.quantity', oldStock: 'sm.oldStock',
     newStock: 'sm.newStock', reason: 'sm.reason', userId: 'sm.userId',
+  },
+  productStocks: {
+    id: 'ps.id', tenantId: 'ps.tenantId', productId: 'ps.productId',
+    establishmentId: 'ps.establishmentId', stock: 'ps.stock',
+    stockByVariation: 'ps.stockByVariation', updatedAt: 'ps.updatedAt',
   },
 }))
 

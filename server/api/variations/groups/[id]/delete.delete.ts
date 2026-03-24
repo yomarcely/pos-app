@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { variationGroups, variations } from '~/server/database/schema'
-import { eq, and, ne } from 'drizzle-orm'
+import { variationGroups, variations, products } from '~/server/database/schema'
+import { eq, and, ne, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -55,6 +55,39 @@ export default defineEventHandler(async (event) => {
         statusCode: 400,
         message: `Impossible de supprimer un groupe contenant ${variationsInGroup.length} variation(s)`,
       })
+    }
+
+    // Bloquer si des produits actifs utilisent des variations de ce groupe
+    const allVariationsInGroup = await db
+      .select({ id: variations.id })
+      .from(variations)
+      .where(
+        and(
+          eq(variations.groupId, id),
+          eq(variations.tenantId, tenantId),
+        )
+      )
+
+    if (allVariationsInGroup.length > 0) {
+      const variationIds = allVariationsInGroup.map(v => v.id)
+      const [productUsingGroup] = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(
+          and(
+            eq(products.tenantId, tenantId),
+            sql`(${products.isArchived} = false OR ${products.isArchived} IS NULL)`,
+            sql`${products.variationGroupIds} && ${JSON.stringify(variationIds)}::jsonb`
+          )
+        )
+        .limit(1)
+
+      if (productUsingGroup) {
+        throw createError({
+          statusCode: 400,
+          message: 'Impossible de supprimer ce groupe car ses variations sont assignées à un ou plusieurs produits',
+        })
+      }
     }
 
     // Soft delete

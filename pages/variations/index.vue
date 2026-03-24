@@ -318,9 +318,9 @@ async function deleteVariation() {
     variationGroupsStore.invalidate()
     deleteVariationDialogOpen.value = false
     await loadVariations()
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la suppression de la variation:', error)
-    toast.error('Impossible de supprimer la variation')
+    toast.error(extractFetchError(error, 'Impossible de supprimer la variation'))
   }
 }
 

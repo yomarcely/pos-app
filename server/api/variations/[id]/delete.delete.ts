@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { variations } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { variations, products } from '~/server/database/schema'
+import { eq, and, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -38,6 +38,26 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 404,
         message: 'Variation introuvable',
+      })
+    }
+
+    // Bloquer si des produits actifs utilisent cette variation
+    const [productUsingVariation] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(
+        and(
+          eq(products.tenantId, tenantId),
+          sql`(${products.isArchived} = false OR ${products.isArchived} IS NULL)`,
+          sql`${products.variationGroupIds} @> ${JSON.stringify([id])}::jsonb`
+        )
+      )
+      .limit(1)
+
+    if (productUsingVariation) {
+      throw createError({
+        statusCode: 400,
+        message: 'Impossible de supprimer cette variation car elle est assignée à un ou plusieurs produits',
       })
     }
 

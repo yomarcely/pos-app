@@ -4,6 +4,20 @@ import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
+function normalizeEstablishmentStockByVariation(raw: unknown): Record<string, number> | undefined {
+  if (!raw) return undefined
+  if (Array.isArray(raw)) {
+    const result: Record<string, number> = {}
+    for (const entry of raw as Array<{ variationId: string | number; stock: number }>) {
+      if (entry && entry.variationId !== undefined) {
+        result[String(entry.variationId)] = Number(entry.stock) || 0
+      }
+    }
+    return Object.keys(result).length > 0 ? result : undefined
+  }
+  return raw as Record<string, number>
+}
+
 /**
  * ==========================================
  * API: Récupérer un produit par ID
@@ -147,7 +161,7 @@ export default defineEventHandler(async (event) => {
           ? product.establishmentMinStock
           : product.minStock || 5,
         stockByVariation: establishmentId && product.establishmentStockByVariation !== undefined
-          ? product.establishmentStockByVariation as Record<string, number> | undefined
+          ? normalizeEstablishmentStockByVariation(product.establishmentStockByVariation)
           : product.stockByVariation as Record<string, number> | undefined,
         minStockByVariation: establishmentId && product.establishmentMinStockByVariation !== undefined
           ? product.establishmentMinStockByVariation as Record<string, number> | undefined

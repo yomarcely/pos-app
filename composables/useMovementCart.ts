@@ -7,7 +7,8 @@ import { useToast } from '@/composables/useToast'
 export function useMovementCart(
   movementType: Ref<MovementType>,
   allVariations: Ref<Variation[]>,
-  onProductAdded?: () => void
+  onProductAdded?: () => void,
+  establishmentId?: Ref<number | null>
 ) {
   const toast = useToast()
   const selectedProducts = ref<SelectedProduct[]>([])
@@ -143,7 +144,12 @@ export function useMovementCart(
       }
       const response = await $fetch<{ success: boolean; movement: { id: number; movementNumber: string } }>('/api/movements/create', {
         method: 'POST',
-        body: { type, comment: comment.value || undefined, items },
+        body: {
+          type,
+          comment: comment.value || undefined,
+          items,
+          establishmentId: establishmentId?.value ?? undefined,
+        },
       })
       toast.success(`Mouvement ${response.movement.movementNumber} créé avec succès`)
       clearAll()
