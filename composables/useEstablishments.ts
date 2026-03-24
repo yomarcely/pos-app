@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 export interface Establishment {
   id: number
@@ -21,6 +22,7 @@ type ApiEstablishment = Omit<Establishment, 'isActive'> & { isActive: boolean | 
 
 export function useEstablishments() {
   const toast = useToast()
+  const { loadEstablishments: reloadHeaderEstablishments } = useEstablishmentRegister()
 
   const loading = ref(true)
   const establishments = ref<Establishment[]>([])
@@ -63,7 +65,9 @@ export function useEstablishments() {
   async function loadEstablishments() {
     try {
       loading.value = true
-      const response = await $fetch<{ establishments: ApiEstablishment[] }>('/api/establishments')
+      const response = await $fetch<{ establishments: ApiEstablishment[] }>('/api/establishments', {
+        query: { includeInactive: 'true' },
+      })
       establishments.value = response.establishments.map(
         (establishment): Establishment => ({
           ...establishment,
@@ -122,6 +126,7 @@ export function useEstablishments() {
       toast.success('Établissement créé avec succès')
       createDialogOpen.value = false
       await loadEstablishments()
+      await reloadHeaderEstablishments()
     } catch (error: unknown) {
       console.error('Erreur lors de la création de l\'établissement:', error)
       toast.error(extractFetchError(error, 'Impossible de créer l\'établissement'))
@@ -173,6 +178,7 @@ export function useEstablishments() {
       toast.success('Établissement modifié avec succès')
       editDialogOpen.value = false
       await loadEstablishments()
+      await reloadHeaderEstablishments()
     } catch (error: unknown) {
       console.error('Erreur lors de la modification de l\'établissement:', error)
       toast.error(extractFetchError(error, 'Impossible de modifier l\'établissement'))
@@ -190,6 +196,7 @@ export function useEstablishments() {
 
       toast.success(establishment.isActive ? 'Établissement désactivé' : 'Établissement activé')
       await loadEstablishments()
+      await reloadHeaderEstablishments()
     } catch (error) {
       console.error('Erreur lors du changement de statut:', error)
       toast.error('Impossible de changer le statut')
@@ -212,6 +219,7 @@ export function useEstablishments() {
       toast.success('Établissement désactivé avec succès')
       deleteDialogOpen.value = false
       await loadEstablishments()
+      await reloadHeaderEstablishments()
     } catch (error) {
       console.error('Erreur lors de la suppression de l\'établissement:', error)
       toast.error('Impossible de supprimer l\'établissement')
