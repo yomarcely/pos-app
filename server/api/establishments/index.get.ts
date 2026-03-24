@@ -10,23 +10,30 @@ import { logger } from '~/server/utils/logger'
  * ==========================================
  *
  * GET /api/establishments
+ * GET /api/establishments?includeInactive=true
  *
- * Retourne la liste de tous les établissements actifs pour le tenant
+ * Retourne la liste des établissements pour le tenant.
+ * Par défaut, seuls les établissements actifs sont retournés.
+ * Passer includeInactive=true pour inclure les inactifs (page de gestion).
  */
 
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    const query = getQuery(event)
+    const includeInactive = query.includeInactive === 'true'
 
-    // Récupérer tous les établissements actifs
+    // Récupérer les établissements (actifs uniquement par défaut)
     const allEstablishments = await db
       .select()
       .from(establishments)
       .where(
-        and(
-          eq(establishments.tenantId, tenantId),
-          eq(establishments.isActive, true)
-        )
+        includeInactive
+          ? eq(establishments.tenantId, tenantId)
+          : and(
+              eq(establishments.tenantId, tenantId),
+              eq(establishments.isActive, true)
+            )
       )
       .orderBy(establishments.name)
 

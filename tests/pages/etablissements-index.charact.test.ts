@@ -19,7 +19,7 @@ describe('useEstablishments', () => {
     fetchMock.mockResolvedValue({ establishments: [] })
     const { loadEstablishments } = useEstablishments()
     await loadEstablishments()
-    expect(fetchMock).toHaveBeenCalledWith('/api/establishments')
+    expect(fetchMock).toHaveBeenCalledWith('/api/establishments', { query: { includeInactive: 'true' } })
   })
 
   it('createEstablishment() appelle POST /api/establishments/create', async () => {
