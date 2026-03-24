@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks } from '~/server/database/schema'
-import { desc, gte, lt, and, eq, like, sql, inArray } from 'drizzle-orm'
+import { desc, and, eq, sql, inArray } from 'drizzle-orm'
 import {
   generateTicketNumber,
   generateTicketHash,
@@ -224,63 +224,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
-    // 1. RÉCUPÉRER LE DERNIER TICKET (CHAÎNAGE)
-    // ==========================================
-
-    const lastSale = await db
-      .select({
-        ticketNumber: sales.ticketNumber,
-        currentHash: sales.currentHash,
-      })
-      .from(sales)
-      .where(
-        and(
-          eq(sales.tenantId, tenantId),
-          eq(sales.registerId, register.id)
-        )
-      )
-      .orderBy(desc(sales.id))
-      .limit(1)
-
-    const previousHash = lastSale.length > 0 ? (lastSale[0]?.currentHash ?? null) : null
-
-    // ==========================================
-    // 2. GÉNÉRER LE NUMÉRO DE TICKET
-    // ==========================================
-
-    // Compter les tickets du jour pour la séquence (par caisse + date)
-    const now = new Date()
-    const prefixDate = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-    ].join('')
-
-    const ticketPrefix = `${prefixDate}-E${String(establishmentNumber).padStart(2, '0')}-R${String(registerNumber).padStart(2, '0')}-`
-
-    // Récupérer la séquence max existante sur ce préfixe (tous tenants confondus, car contrainte unique globale)
-    const [lastTicket] = await db
-      .select({ ticketNumber: sales.ticketNumber })
-      .from(sales)
-      .where(like(sales.ticketNumber, `${ticketPrefix}%`))
-      .orderBy(desc(sales.ticketNumber))
-      .limit(1)
-
-    const extractSeq = (num?: string | null) => {
-      if (!num) return 0
-      const parts = num.split('-')
-      const seqPart = parts[parts.length - 1]
-      const parsed = Number(seqPart)
-      return Number.isFinite(parsed) ? parsed : 0
-    }
-
-    const lastSeq = extractSeq(lastTicket?.ticketNumber)
-
-    const sequenceNumber = lastSeq + 1
-    const ticketNumber = generateTicketNumber(sequenceNumber, establishmentNumber, registerNumber)
-
-    // ==========================================
-    // 3. GÉNÉRER LE HASH NF525
+    // PRÉPARER LES ITEMS ET VALIDER LES TOTAUX
     // ==========================================
 
     const parsedItems = body.items.map(item => {
@@ -309,45 +253,83 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Préparer les données pour le hash NF525 (avec TOUTES les données fiscales)
-    const ticketData: TicketData = {
-      ticketNumber,
-      saleDate: new Date(),
-      totalTTC: Number(body.totals.totalTTC),
-      totalHT: Number(body.totals.totalHT),
-      totalTVA: Number(body.totals.totalTVA),
-      sellerId: body.seller.id,
-      establishmentNumber,
-      registerNumber,
-      globalDiscount: Number(body.globalDiscount?.value || 0),
-      globalDiscountType: body.globalDiscount?.type || '€',
-      items: parsedItems.map(item => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalTTC: item.quantity * item.unitPrice,
-        tva: item.tva,
-        discount: item.discount,
-        discountType: item.discountType,
-      })),
-      payments: body.payments,
-    }
-
-    const currentHash = generateTicketHash(ticketData, previousHash)
-
     // ==========================================
-    // 4. GÉNÉRER LA SIGNATURE INFOCERT
+    // TRANSACTION: NUMÉROTATION + HASH + VENTE + STOCK
     // ==========================================
 
-    // TODO: Utiliser la vraie clé INFOCERT en production
-    const privateKey = process.env.INFOCERT_PRIVATE_KEY
-    const signature = generateTicketSignature(currentHash, privateKey)
+    const { newSale, stockUpdateLogs } = await db.transaction(async (tx) => {
+      // Advisory lock par établissement pour éviter les doublons de séquence
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${establishment.id})`)
 
-    // ==========================================
-    // 5. TRANSACTION: ENREGISTRER LA VENTE + OPÉRATIONS LIÉES
-    // ==========================================
+      // 1. RÉCUPÉRER LE DERNIER TICKET (CHAÎNAGE par registre)
+      const lastSale = await tx
+        .select({
+          ticketNumber: sales.ticketNumber,
+          currentHash: sales.currentHash,
+        })
+        .from(sales)
+        .where(
+          and(
+            eq(sales.tenantId, tenantId),
+            eq(sales.registerId, register.id)
+          )
+        )
+        .orderBy(desc(sales.id))
+        .limit(1)
 
-    const { newSale, saleItemsData, stockUpdateLogs } = await db.transaction(async (tx) => {
+      const previousHash = lastSale.length > 0 ? (lastSale[0]?.currentHash ?? null) : null
+
+      // 2. GÉNÉRER LE NUMÉRO DE TICKET (séquence isolée par establishmentId)
+      const [lastTicket] = await tx
+        .select({ ticketNumber: sales.ticketNumber })
+        .from(sales)
+        .where(eq(sales.establishmentId, establishment.id))
+        .orderBy(desc(sales.id))
+        .limit(1)
+
+      const extractSeq = (num?: string | null) => {
+        if (!num) return 0
+        const parts = num.split('-')
+        const seqPart = parts[parts.length - 1]
+        const parsed = Number(seqPart)
+        return Number.isFinite(parsed) ? parsed : 0
+      }
+
+      const lastSeq = extractSeq(lastTicket?.ticketNumber)
+      // Séquence continue par établissement : 1→999999 puis repart à 1
+      const sequenceNumber = (lastSeq >= 999999 ? 0 : lastSeq) + 1
+      const ticketNumber = generateTicketNumber(sequenceNumber, establishmentNumber, registerNumber)
+
+      // 3. GÉNÉRER LE HASH NF525
+      const ticketData: TicketData = {
+        ticketNumber,
+        saleDate: new Date(),
+        totalTTC: Number(body.totals.totalTTC),
+        totalHT: Number(body.totals.totalHT),
+        totalTVA: Number(body.totals.totalTVA),
+        sellerId: body.seller.id,
+        establishmentNumber,
+        registerNumber,
+        globalDiscount: Number(body.globalDiscount?.value || 0),
+        globalDiscountType: body.globalDiscount?.type || '€',
+        items: parsedItems.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalTTC: item.quantity * item.unitPrice,
+          tva: item.tva,
+          discount: item.discount,
+          discountType: item.discountType,
+        })),
+        payments: body.payments,
+      }
+
+      const currentHash = generateTicketHash(ticketData, previousHash)
+
+      // 4. GÉNÉRER LA SIGNATURE INFOCERT
+      // TODO: Utiliser la vraie clé INFOCERT en production
+      const privateKey = process.env.INFOCERT_PRIVATE_KEY
+      const signature = generateTicketSignature(currentHash, privateKey)
       // 5.1 Enregistrer la vente
       const [createdSale] = await tx
         .insert(sales)
