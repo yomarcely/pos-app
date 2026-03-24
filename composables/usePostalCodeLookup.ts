@@ -13,9 +13,13 @@ export function usePostalCodeLookup(form: Ref<any>) {
     availableCities.value = []
   }
 
-  async function handlePostalCodeChange() {
+  async function handlePostalCodeChange(e?: Event) {
     if (!form.value) return
-    const postalCode = form.value.postalCode.trim()
+    // Lire depuis l'événement natif plutôt que form.postalCode : useVModel (passive: true)
+    // met à jour le parent de façon asynchrone, donc form.postalCode a un chiffre de retard.
+    const postalCode = e
+      ? (e.target as HTMLInputElement).value.trim()
+      : form.value.postalCode.trim()
     postalCodeError.value = ''
     availableCities.value = []
     clearTimeout(postalCodeTimeout)

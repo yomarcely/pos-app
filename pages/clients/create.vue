@@ -334,8 +334,12 @@ function selectCity(cityName: string) {
 }
 
 // Recherche automatique de la ville via code postal
-async function handlePostalCodeChange() {
-  const postalCode = form.value.postalCode.trim()
+async function handlePostalCodeChange(e?: Event) {
+  // Lire depuis l'événement natif : useVModel (passive: true) met à jour le parent de façon
+  // asynchrone, donc form.postalCode a un chiffre de retard au moment où @input se déclenche.
+  const postalCode = e
+    ? (e.target as HTMLInputElement).value.trim()
+    : form.value.postalCode.trim()
 
   // Reset error et villes disponibles
   postalCodeError.value = ''
