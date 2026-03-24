@@ -435,19 +435,25 @@ export default defineEventHandler(async (event) => {
         let newStock = 0
 
         // Mise à jour du stock selon le type (avec ou sans variation)
-        const stockByVar = productStock.stockByVariation as Record<string, number> | null
+        // productStocks.stockByVariation est au format array [{variationId, stock}]
+        type VarStock = { variationId: string; stock: number }
+        const rawStockByVar = productStock.stockByVariation
+        const varStocks: VarStock[] = Array.isArray(rawStockByVar) ? (rawStockByVar as VarStock[]) : []
         let variationKey: string | null = item.variation || null
 
-        // Normaliser la clé de variation : préférer l'ID si on part d'un nom
-        if (variationKey && stockByVar) {
-          if (!(variationKey in stockByVar)) {
+        // Normaliser la clé de variation : résoudre le nom en ID si nécessaire
+        if (variationKey && varStocks.length > 0) {
+          // Vérifier si la clé correspond directement à un variationId dans le tableau
+          const directMatch = varStocks.some(v => v.variationId === variationKey)
+          if (!directMatch) {
+            // Essayer comme clé numérique
             const numericKey = Number(variationKey)
-            if (Number.isFinite(numericKey) && String(numericKey) in stockByVar) {
+            if (Number.isFinite(numericKey) && varStocks.some(v => v.variationId === String(numericKey))) {
               variationKey = String(numericKey)
             } else {
-              // Lookup mémoire au lieu d'un SELECT par item
+              // Lookup par nom de variation → ID
               const foundVarId = variationNameMap.get(variationKey)
-              if (foundVarId !== undefined && String(foundVarId) in stockByVar) {
+              if (foundVarId !== undefined && varStocks.some(v => v.variationId === String(foundVarId))) {
                 variationKey = String(foundVarId)
               } else {
                 logger.warn({ variation: variationKey, productId: item.productId }, 'Variation inconnue, stock non mis à jour pour cette ligne')
@@ -457,16 +463,20 @@ export default defineEventHandler(async (event) => {
           }
         }
 
-        if (variationKey && stockByVar) {
-          oldStock = stockByVar[variationKey] || 0
+        if (variationKey && varStocks.length > 0) {
+          const varEntry = varStocks.find(v => v.variationId === variationKey)
+          oldStock = varEntry?.stock || 0
           newStock = oldStock - item.quantity
-          stockByVar[variationKey] = newStock
+
+          // Mettre à jour le stock de la variation dans le tableau
+          const updatedVarStocks = varStocks.filter(v => v.variationId !== variationKey)
+          updatedVarStocks.push({ variationId: variationKey, stock: newStock })
 
           // Mettre à jour le stock par variation de l'établissement
           await tx
             .update(productStocks)
             .set({
-              stockByVariation: stockByVar,
+              stockByVariation: updatedVarStocks,
               updatedAt: new Date(),
             })
             .where(
