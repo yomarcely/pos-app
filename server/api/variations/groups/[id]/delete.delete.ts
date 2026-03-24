@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { variationGroups, variations } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ne } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -41,11 +41,12 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier s'il y a des variations dans ce groupe
+    // Vérifier s'il y a des variations actives (non archivées) dans ce groupe
     const variationsInGroup = await db.select().from(variations).where(
       and(
         eq(variations.groupId, id),
         eq(variations.tenantId, tenantId),
+        ne(variations.isArchived, true),
       )
     )
 

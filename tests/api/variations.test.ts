@@ -54,7 +54,8 @@ vi.mock('drizzle-orm', () => ({
   desc: (...args: unknown[]) => ({ type: 'desc', args }),
   asc: (...args: unknown[]) => ({ type: 'asc', args }),
   isNull: (...args: unknown[]) => ({ type: 'isNull', args }),
-  inArray: (...args: unknown[]) => ({ type: 'inArray', args })
+  inArray: (...args: unknown[]) => ({ type: 'inArray', args }),
+  ne: (...args: unknown[]) => ({ type: 'ne', args })
 }))
 
 vi.mock('~/server/database/schema', () => ({
