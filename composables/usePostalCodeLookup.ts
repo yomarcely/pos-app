@@ -19,7 +19,7 @@ export function usePostalCodeLookup(form: Ref<any>) {
     postalCodeError.value = ''
     availableCities.value = []
     clearTimeout(postalCodeTimeout)
-    if (!postalCode || postalCode.length < 4) return
+    if (!/^\d{5}$/.test(postalCode)) return
 
     postalCodeTimeout = setTimeout(async () => {
       try {

@@ -344,8 +344,8 @@ async function handlePostalCodeChange() {
   // Clear previous timeout
   clearTimeout(postalCodeTimeout)
 
-  // Si code postal vide ou trop court, on ne fait rien
-  if (!postalCode || postalCode.length < 4) {
+  // N'appeler l'API que pour un code postal complet (exactement 5 chiffres)
+  if (!/^\d{5}$/.test(postalCode)) {
     return
   }
 
