@@ -452,4 +452,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-25 | Produits P1-P5 | P1 : archivage produit (soft delete + 409 si ventes). P2 : duplication produit. P3 : création catégorie inline depuis fiche produit. P4 : filtres marque/fournisseur dans liste produits. P5 : couvert par P1. UI : ProductsSearchBar étendu (marque, fournisseur, archivés, reset), boutons archive/unarchive/duplicate dans TableView et GridView. 385 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-25 — par Claude Code (produits P1-P5)*
+| 2026-03-25 | Marques + Fournisseurs | Pages CRUD complètes `/marques` et `/fournisseurs` avec protection suppression (409 si produits liés). Endpoints update/delete créés. Composables `useBrands`/`useSuppliers`. Navigation sidebar mise à jour. Type `Supplier` étendu (email, phone, contact, address). 385 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-03-25 — par Claude Code (marques + fournisseurs)*

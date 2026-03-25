@@ -21,6 +21,10 @@ export interface Category {
 export interface Supplier {
   id: number
   name: string
+  email?: string | null
+  phone?: string | null
+  contact?: string | null
+  address?: string | null
 }
 
 export interface Brand {

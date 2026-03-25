@@ -92,6 +92,14 @@ const data = {
           url: '/variations',
         },
         {
+          title: 'Marques',
+          url: '/marques',
+        },
+        {
+          title: 'Fournisseurs',
+          url: '/fournisseurs',
+        },
+        {
           title: 'Promotions',
           url: '#',
           disabled: true,
