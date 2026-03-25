@@ -454,4 +454,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-25 | Marques + Fournisseurs | Pages CRUD complètes `/marques` et `/fournisseurs` avec protection suppression (409 si produits liés). Endpoints update/delete créés. Composables `useBrands`/`useSuppliers`. Navigation sidebar mise à jour. Type `Supplier` étendu (email, phone, contact, address). 385 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-25 — par Claude Code (marques + fournisseurs)*
+| 2026-03-25 | Clients U1-U5 | Listing cliquable (eye icon supprimé, loyalty points), champs obligatoires (prénom/nom/CP), unicité email/tenant, anonymisation RGPD, remise permanente auto-appliquée en caisse | ✅ |
+
+*Dernière mise à jour : 2026-03-25 — par Claude Code (clients U1-U5)*
