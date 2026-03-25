@@ -18,7 +18,12 @@ describe('ProductsSearchBar', () => {
       props: {
         searchQuery: '',
         selectedCategoryId: null,
+        selectedBrandId: null,
+        selectedSupplierId: null,
+        showArchived: false,
         categories,
+        brands: [],
+        suppliers: [],
         viewMode: 'grid',
         ...propsOverride
       },
@@ -30,7 +35,9 @@ describe('ProductsSearchBar', () => {
           Input: stubInput,
           Search: { template: '<span />' },
           List: { template: '<span />' },
-          Grid: { template: '<span />' }
+          Grid: { template: '<span />' },
+          Archive: { template: '<span />' },
+          X: { template: '<span />' }
         }
       }
     })

@@ -450,4 +450,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-24 | Bugs C1-C5 | C1 : numérotation ticket isolée par establishmentId (advisory lock, séquence dans transaction). C2 : stock atomique `stock = stock + delta` (movements + product-stocks). C3 : `useProductStockMovement` envoie `establishmentId` + invalidation store products. C4 : `stockByVariation` format array [{variationId, stock}] corrigé dans sales/create.post.ts. C5 : `minStock || 5` → `?? 5` dans GET endpoints (0 traité comme falsy). 384 tests / 66 fichiers — 0 échec | ✅ |
 
-*Dernière mise à jour : 2026-03-24 — par Claude Code (bugs C1-C5)*
+| 2026-03-25 | Produits P1-P5 | P1 : archivage produit (soft delete + 409 si ventes). P2 : duplication produit. P3 : création catégorie inline depuis fiche produit. P4 : filtres marque/fournisseur dans liste produits. P5 : couvert par P1. UI : ProductsSearchBar étendu (marque, fournisseur, archivés, reset), boutons archive/unarchive/duplicate dans TableView et GridView. 385 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-03-25 — par Claude Code (produits P1-P5)*

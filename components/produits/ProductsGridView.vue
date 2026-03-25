@@ -35,11 +35,18 @@
               {{ product.categoryName }}
             </span>
           </div>
+
+          <!-- Badge archivé -->
+          <div v-if="product.isArchived" class="absolute bottom-1 left-1">
+            <span class="px-1.5 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
+              Archivé
+            </span>
+          </div>
         </div>
 
         <!-- Infos -->
         <div class="p-2">
-          <h3 class="font-medium text-sm mb-1 truncate">{{ product.name }}</h3>
+          <h3 class="font-medium text-sm mb-1 truncate" :class="{ 'text-muted-foreground line-through': product.isArchived }">{{ product.name }}</h3>
           <p v-if="product.barcode" class="text-xs text-muted-foreground mb-1 truncate">{{ product.barcode }}</p>
           <div class="flex items-center justify-between">
             <div class="text-sm font-bold">
@@ -58,6 +65,35 @@
                 variant="ghost"
                 size="icon"
                 class="h-6 w-6"
+                @click.stop="$emit('duplicate', product)"
+                title="Dupliquer"
+              >
+                <Copy class="w-3 h-3" />
+              </Button>
+              <Button
+                v-if="product.isArchived"
+                variant="ghost"
+                size="icon"
+                class="h-6 w-6"
+                @click.stop="$emit('unarchive', product)"
+                title="Désarchiver"
+              >
+                <ArchiveRestore class="w-3 h-3 text-green-600" />
+              </Button>
+              <Button
+                v-else
+                variant="ghost"
+                size="icon"
+                class="h-6 w-6"
+                @click.stop="$emit('archive', product)"
+                title="Archiver"
+              >
+                <Archive class="w-3 h-3 text-orange-500" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-6 w-6"
                 @click.stop="$emit('delete', product)"
               >
                 <Trash2 class="w-3 h-3 text-destructive" />
@@ -71,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { Package, Edit, Trash2 } from 'lucide-vue-next'
+import { Package, Edit, Trash2, Copy, Archive, ArchiveRestore } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type { Product } from '@/types'
@@ -83,6 +119,9 @@ defineProps<{
 defineEmits<{
   edit: [product: Product]
   delete: [product: Product]
+  duplicate: [product: Product]
+  archive: [product: Product]
+  unarchive: [product: Product]
 }>()
 
 function formatPrice(price: number): string {

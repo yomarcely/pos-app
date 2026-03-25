@@ -49,7 +49,7 @@ describe('useProductCatalogData', () => {
   it('saveNewSupplier() appelle POST /api/suppliers/create', async () => {
     fetchMock.mockResolvedValue({ id: 1, name: 'Mon fournisseur' })
     const selectedEstablishmentId = ref<number | null>(null)
-    const form = ref({ supplierId: null as string | null, brandId: null as string | null })
+    const form = ref({ supplierId: null as string | null, brandId: null as string | null, categoryId: null as string | null })
     const { saveNewSupplier } = useProductCatalogData(selectedEstablishmentId, form)
     await saveNewSupplier('Mon fournisseur')
     expect(fetchMock).toHaveBeenCalledWith(

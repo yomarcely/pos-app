@@ -31,7 +31,10 @@ describe('ProductsTableView', () => {
           Package: { template: '<span />' },
           Eye: { template: '<span />' },
           Edit: { template: '<span />' },
-          Trash2: { template: '<span />' }
+          Trash2: { template: '<span />' },
+          Copy: { template: '<span />' },
+          Archive: { template: '<span />' },
+          ArchiveRestore: { template: '<span />' }
         }
       }
     })
@@ -42,23 +45,28 @@ describe('ProductsTableView', () => {
     expect(wrapper.text()).toContain('3') // 1+2
   })
 
-  it('émet view/edit/delete', async () => {
+  it('émet view/edit/delete/duplicate/archive', async () => {
     const wrapper = mountComponent()
     const buttons = wrapper.findAll('button')
-    expect(buttons.length).toBeGreaterThanOrEqual(3)
-    const viewBtn = buttons.at(buttons.length - 3)!
-    const editBtn = buttons.at(buttons.length - 2)!
-    const delBtn = buttons.at(buttons.length - 1)!
+    // Buttons: view, edit, duplicate, archive, delete (5 action buttons per row)
+    expect(buttons.length).toBeGreaterThanOrEqual(5)
+    const actionButtons = buttons.slice(-5)
+    const viewBtn = actionButtons[0]!
+    const editBtn = actionButtons[1]!
+    const duplicateBtn = actionButtons[2]!
+    const archiveBtn = actionButtons[3]!
+    const delBtn = actionButtons[4]!
 
     await viewBtn.trigger('click')
     await editBtn.trigger('click')
+    await duplicateBtn.trigger('click')
+    await archiveBtn.trigger('click')
     await delBtn.trigger('click')
 
-    const viewEmit = wrapper.emitted().view as any[] | undefined
-    const editEmit = wrapper.emitted().edit as any[] | undefined
-    const deleteEmit = wrapper.emitted().delete as any[] | undefined
-    expect(viewEmit?.[0]?.[0].id).toBe(1)
-    expect(editEmit?.[0]?.[0].id).toBe(1)
-    expect(deleteEmit?.[0]?.[0].id).toBe(1)
+    expect((wrapper.emitted().view as any[])?.[0]?.[0].id).toBe(1)
+    expect((wrapper.emitted().edit as any[])?.[0]?.[0].id).toBe(1)
+    expect((wrapper.emitted().duplicate as any[])?.[0]?.[0].id).toBe(1)
+    expect((wrapper.emitted().archive as any[])?.[0]?.[0].id).toBe(1)
+    expect((wrapper.emitted().delete as any[])?.[0]?.[0].id).toBe(1)
   })
 })

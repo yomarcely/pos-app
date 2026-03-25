@@ -110,6 +110,7 @@ vi.mock('~/server/database/schema', () => ({
     id: 'movements.id', movementNumber: 'movements.movementNumber',
     comment: 'movements.comment',
   },
+  saleItems: { id: 'saleItems.id', productId: 'saleItems.productId' },
   sales: { id: 'sales.id', ticketNumber: 'sales.ticketNumber' },
   auditLogs: {
     tenantId: 'al.tenantId', userId: 'al.userId', userName: 'al.userName',
@@ -168,19 +169,21 @@ function createProductUpdateChain(updatedProduct: unknown | null) {
 }
 
 /**
- * For product delete: 1 select (existence check) + 1 delete
+ * For product delete: 2 selects (existence check + saleItems check) + 1 delete
  */
-function createProductDeleteChain(product: unknown | null) {
+function createProductDeleteChain(product: unknown | null, hasSales = false) {
+  let selectIdx = 0
+  const selectResults = [product ? [product] : [], hasSales ? [{ id: 1 }] : []]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectChain: any = {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     limit: vi.fn(() => selectChain),
     then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-      Promise.resolve(product ? [product] : []).then(resolve, reject),
+      Promise.resolve(selectResults[selectIdx - 1] || []).then(resolve, reject),
   }
   return {
-    select: vi.fn(() => selectChain),
+    select: vi.fn(() => { selectIdx++; return selectChain }),
     delete: vi.fn(() => ({
       where: vi.fn(() => ({
         then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
@@ -458,15 +461,27 @@ describe('API /api/products', () => {
       expect(res.product).toMatchObject({ id: 1, name: 'Produit A' })
     })
 
-    it('throw 404 si produit introuvable (remonte en 500)', async () => {
+    it('throw 404 si produit introuvable', async () => {
       currentDb = createProductDeleteChain(null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/products/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Produit non trouvé'
+      })
+    })
+
+    it('throw 409 si produit présent dans des ventes', async () => {
+      currentDb = createProductDeleteChain({ id: 1, name: 'Produit A' }, true)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/products/[id]/delete.delete')).default as any
+      const event = createMockEvent({ params: { id: '1' } })
+
+      await expect(handler(event)).rejects.toMatchObject({
+        statusCode: 409,
+        message: 'Ce produit est présent dans des ventes et ne peut pas être supprimé. Archivez-le à la place.'
       })
     })
   })

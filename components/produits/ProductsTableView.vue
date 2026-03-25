@@ -40,7 +40,12 @@
                   <div v-else class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                     <Package class="w-5 h-5 text-muted-foreground" />
                   </div>
-                  <div class="font-medium">{{ product.name }}</div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium" :class="{ 'text-muted-foreground line-through': product.isArchived }">{{ product.name }}</span>
+                    <span v-if="product.isArchived" class="px-1.5 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
+                      Archivé
+                    </span>
+                  </div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
@@ -71,7 +76,16 @@
                   <Button variant="ghost" size="sm" @click="$emit('edit', product)">
                     <Edit class="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" @click="$emit('delete', product)">
+                  <Button variant="ghost" size="sm" @click="$emit('duplicate', product)" title="Dupliquer">
+                    <Copy class="w-4 h-4" />
+                  </Button>
+                  <Button v-if="product.isArchived" variant="ghost" size="sm" @click="$emit('unarchive', product)" title="Désarchiver">
+                    <ArchiveRestore class="w-4 h-4 text-green-600" />
+                  </Button>
+                  <Button v-else variant="ghost" size="sm" @click="$emit('archive', product)" title="Archiver">
+                    <Archive class="w-4 h-4 text-orange-500" />
+                  </Button>
+                  <Button variant="ghost" size="sm" @click="$emit('delete', product)" title="Supprimer">
                     <Trash2 class="w-4 h-4 text-destructive" />
                   </Button>
                 </div>
@@ -85,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { Package, Eye, Edit, Trash2 } from 'lucide-vue-next'
+import { Package, Eye, Edit, Trash2, Copy, Archive, ArchiveRestore } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type { Product } from '@/types'
@@ -98,6 +112,9 @@ defineEmits<{
   view: [product: Product]
   edit: [product: Product]
   delete: [product: Product]
+  duplicate: [product: Product]
+  archive: [product: Product]
+  unarchive: [product: Product]
 }>()
 
 function formatPrice(price: number): string {

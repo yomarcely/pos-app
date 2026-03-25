@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { products } from '~/server/database/schema'
+import { products, saleItems } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
@@ -10,6 +10,9 @@ import { logger } from '~/server/utils/logger'
  * ==========================================
  *
  * DELETE /api/products/:id/delete
+ *
+ * Si le produit est présent dans des ventes, la suppression est refusée (409).
+ * Dans ce cas, il faut archiver le produit via POST /api/products/:id/archive.
  */
 
 export default defineEventHandler(async (event) => {
@@ -45,6 +48,20 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Vérifier si le produit est présent dans des ventes
+    const salesWithProduct = await db
+      .select({ id: saleItems.id })
+      .from(saleItems)
+      .where(eq(saleItems.productId, productId))
+      .limit(1)
+
+    if (salesWithProduct.length > 0) {
+      throw createError({
+        statusCode: 409,
+        message: 'Ce produit est présent dans des ventes et ne peut pas être supprimé. Archivez-le à la place.',
+      })
+    }
+
     // Supprimer le produit
     await db.delete(products).where(
       and(
@@ -68,6 +85,10 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la suppression du produit')
+
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
 
     throw createError({
       statusCode: 500,

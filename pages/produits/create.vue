@@ -47,11 +47,25 @@
           @add-brand="openAddBrandDialog"
         >
           <template #category>
-            <CategorySelector
-              :categories="categories"
-              :model-value="form.categoryId"
-              @update:model-value="form.categoryId = $event"
-            />
+            <div class="flex gap-2 items-end">
+              <div class="flex-1">
+                <CategorySelector
+                  :categories="categories"
+                  :model-value="form.categoryId"
+                  @update:model-value="form.categoryId = $event"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                class="shrink-0"
+                title="Ajouter une catégorie"
+                @click="showAddCategoryDialog = true"
+              >
+                <Plus class="w-4 h-4" />
+              </Button>
+            </div>
           </template>
         </ProductFormGeneral>
 
@@ -171,7 +185,7 @@ definePageMeta({
 })
 
 import { ref, computed } from 'vue'
-import { X, Save } from 'lucide-vue-next'
+import { X, Save, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -274,7 +288,7 @@ async function saveNewCategory() {
   if (!newCategoryName.value.trim()) return
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response = await $fetch('/api/categories/create', {
+    const response = await $fetch<{ success: boolean; category: { id: number } }>('/api/categories/create', {
       method: 'POST',
       body: { name: newCategoryName.value, parentId: null },
       params
@@ -282,6 +296,7 @@ async function saveNewCategory() {
     if (response.success) {
       toast.success('Catégorie créée avec succès')
       await loadCategories()
+      form.value.categoryId = String(response.category.id)
       showAddCategoryDialog.value = false
     }
   } catch (error: unknown) {

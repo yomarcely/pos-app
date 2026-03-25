@@ -7,7 +7,7 @@ type CategoryNode = { id: number; name: string; children?: CategoryNode[] }
 
 export function useProductCatalogData(
   selectedEstablishmentId: Ref<number | null>,
-  form: Ref<{ supplierId: string | null; brandId: string | null }>
+  form: Ref<{ supplierId: string | null; brandId: string | null; categoryId: string | null }>
 ) {
   const toast = useToast()
 
@@ -65,6 +65,11 @@ export function useProductCatalogData(
     }
   }
 
+  function openAddCategoryDialog() {
+    newCategoryName.value = ''
+    showAddCategoryDialog.value = true
+  }
+
   function openAddSupplierDialog() {
     newSupplierName.value = ''
     showAddSupplierDialog.value = true
@@ -88,6 +93,7 @@ export function useProductCatalogData(
       if (response?.success) {
         toast.success('Catégorie créée avec succès')
         await loadCategories()
+        form.value.categoryId = String(response.category.id)
         showAddCategoryDialog.value = false
       }
     } catch (error: unknown) {
@@ -150,6 +156,7 @@ export function useProductCatalogData(
     loadBrands,
     loadCategories,
     loadVariationGroups,
+    openAddCategoryDialog,
     openAddSupplierDialog,
     openAddBrandDialog,
     saveNewCategory,

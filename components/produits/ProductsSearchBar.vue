@@ -47,29 +47,106 @@
           </Button>
         </div>
       </div>
+
+      <!-- Ligne 2 : filtres avancés -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+        <!-- Filtre marque -->
+        <div>
+          <select
+            :value="selectedBrandId"
+            class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+            @change="$emit('update:selectedBrandId', ($event.target as HTMLSelectElement).value ? parseInt(($event.target as HTMLSelectElement).value) : null); $emit('filterChange')"
+          >
+            <option :value="null">Toutes les marques</option>
+            <option v-for="brand in brands" :key="brand.id" :value="brand.id">
+              {{ brand.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Filtre fournisseur -->
+        <div>
+          <select
+            :value="selectedSupplierId"
+            class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+            @change="$emit('update:selectedSupplierId', ($event.target as HTMLSelectElement).value ? parseInt(($event.target as HTMLSelectElement).value) : null); $emit('filterChange')"
+          >
+            <option :value="null">Tous les fournisseurs</option>
+            <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
+              {{ supplier.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Toggle archivés -->
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="showArchived"
+              class="rounded border-input"
+              @change="$emit('update:showArchived', ($event.target as HTMLInputElement).checked); $emit('filterChange')"
+            />
+            <Archive class="w-4 h-4 text-muted-foreground" />
+            Afficher les archivés
+          </label>
+        </div>
+
+        <!-- Bouton réinitialiser -->
+        <div class="flex items-center">
+          <Button
+            v-if="hasActiveFilters"
+            variant="ghost"
+            size="sm"
+            @click="$emit('resetFilters')"
+          >
+            <X class="w-4 h-4 mr-1" />
+            Réinitialiser les filtres
+          </Button>
+        </div>
+      </div>
     </CardContent>
   </Card>
 </template>
 
 <script setup lang="ts">
-import { Search, List, Grid } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Search, List, Grid, Archive, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import type { Category } from '@/types'
+import type { Category, Brand, Supplier } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   searchQuery: string
   selectedCategoryId: number | null
+  selectedBrandId: number | null
+  selectedSupplierId: number | null
+  showArchived: boolean
   categories: Category[]
+  brands: Brand[]
+  suppliers: Supplier[]
   viewMode: 'list' | 'grid'
 }>()
 
 defineEmits<{
   'update:searchQuery': [value: string]
   'update:selectedCategoryId': [value: number | null]
+  'update:selectedBrandId': [value: number | null]
+  'update:selectedSupplierId': [value: number | null]
+  'update:showArchived': [value: boolean]
   'update:viewMode': [value: 'list' | 'grid']
   'search': []
   'categoryChange': []
+  'filterChange': []
+  'resetFilters': []
 }>()
+
+const hasActiveFilters = computed(() =>
+  props.searchQuery !== '' ||
+  props.selectedCategoryId !== null ||
+  props.selectedBrandId !== null ||
+  props.selectedSupplierId !== null ||
+  props.showArchived
+)
 </script>

@@ -55,11 +55,25 @@
           @add-brand="openAddBrandDialog"
         >
           <template #category>
-            <CategorySelector
-              :categories="categories"
-              :model-value="form.categoryId"
-              @update:model-value="form.categoryId = $event"
-            />
+            <div class="flex gap-2 items-end">
+              <div class="flex-1">
+                <CategorySelector
+                  :categories="categories"
+                  :model-value="form.categoryId"
+                  @update:model-value="form.categoryId = $event"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                class="shrink-0"
+                title="Ajouter une catégorie"
+                @click="showAddCategoryDialog = true"
+              >
+                <Plus class="w-4 h-4" />
+              </Button>
+            </div>
           </template>
         </ProductFormGeneral>
 
@@ -389,7 +403,7 @@ definePageMeta({
 })
 
 import { ref, computed, watch } from 'vue'
-import { ArrowLeft, X, Save, Info } from 'lucide-vue-next'
+import { ArrowLeft, X, Save, Info, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
