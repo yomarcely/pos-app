@@ -17,21 +17,23 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Prénom -->
               <div class="space-y-2">
-                <Label for="firstName">Prénom</Label>
+                <Label for="firstName">Prénom <span class="text-destructive">*</span></Label>
                 <Input
                   id="firstName"
                   v-model="form.firstName"
                   placeholder="Jean"
+                  required
                 />
               </div>
 
               <!-- Nom -->
               <div class="space-y-2">
-                <Label for="lastName">Nom</Label>
+                <Label for="lastName">Nom <span class="text-destructive">*</span></Label>
                 <Input
                   id="lastName"
                   v-model="form.lastName"
                   placeholder="Dupont"
+                  required
                 />
               </div>
 
@@ -77,7 +79,7 @@
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Code postal -->
                 <div class="space-y-2">
-                  <Label for="postalCode">Code postal</Label>
+                  <Label for="postalCode">Code postal <span class="text-destructive">*</span></Label>
                   <div class="relative">
                     <Input
                       id="postalCode"
@@ -267,7 +269,7 @@
             >
               Annuler
             </Button>
-            <Button type="submit" :disabled="loading || !form.gdprConsent">
+            <Button type="submit" :disabled="loading || !form.gdprConsent || !form.firstName.trim() || !form.lastName.trim() || form.postalCode.trim().length !== 5">
               <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
               Créer le client
             </Button>
@@ -387,6 +389,14 @@ async function handlePostalCodeChange(e?: Event) {
 // Soumission du formulaire
 async function handleSubmit() {
   // Validation
+  if (!form.value.firstName.trim() || !form.value.lastName.trim()) {
+    toast.error('Le prénom et le nom sont obligatoires')
+    return
+  }
+  if (form.value.postalCode.trim().length !== 5) {
+    toast.error('Le code postal doit contenir 5 chiffres')
+    return
+  }
   if (!form.value.gdprConsent) {
     toast.error('Le consentement RGPD est obligatoire')
     return
@@ -399,20 +409,21 @@ async function handleSubmit() {
       method: 'POST',
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       body: {
-        firstName: form.value.firstName || null,
-        lastName: form.value.lastName || null,
+        firstName: form.value.firstName.trim(),
+        lastName: form.value.lastName.trim(),
         email: form.value.email || null,
         phone: form.value.phone || null,
         address: form.value.address || null,
-      metadata: {
-        postalCode: form.value.postalCode || null,
-        city: form.value.city || null,
-        country: form.value.country || 'France',
-        authorizeSms: form.value.authorizeSms,
-      },
-      gdprConsent: !!form.value.gdprConsent,
-      marketingConsent: !!form.value.marketingConsent,
-      loyaltyProgram: !!form.value.loyaltyProgram,
+        postalCode: form.value.postalCode.trim(),
+        metadata: {
+          postalCode: form.value.postalCode.trim(),
+          city: form.value.city || null,
+          country: form.value.country || 'France',
+          authorizeSms: form.value.authorizeSms,
+        },
+        gdprConsent: !!form.value.gdprConsent,
+        marketingConsent: !!form.value.marketingConsent,
+        loyaltyProgram: !!form.value.loyaltyProgram,
         discount: form.value.discount || 0,
         notes: form.value.notes || null,
         alerts: form.value.alerts || null,

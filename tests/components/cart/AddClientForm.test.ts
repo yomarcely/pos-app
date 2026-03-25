@@ -101,8 +101,10 @@ describe('AddClientForm', () => {
     // Remplir les champs
     const firstNameInput = wrapper.find('input#firstName')
     const lastNameInput = wrapper.find('input#lastName')
+    const postalCodeInput = wrapper.find('input#postalCode')
     if (firstNameInput.exists()) await firstNameInput.setValue('John')
     if (lastNameInput.exists()) await lastNameInput.setValue('Doe')
+    if (postalCodeInput.exists()) await postalCodeInput.setValue('75001')
 
     // Cocher gdprConsent (requis pour soumettre)
     const vm = wrapper.vm as any

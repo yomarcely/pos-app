@@ -1,11 +1,12 @@
 import { z } from 'zod'
 
 export const createClientSchema = z.object({
-  firstName: z.string().optional().nullable(),
-  lastName: z.string().optional().nullable(),
+  firstName: z.string().min(1, 'Le prénom est obligatoire'),
+  lastName: z.string().min(1, 'Le nom est obligatoire'),
   email: z.string().email('Email invalide').optional().nullable(),
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
+  postalCode: z.string().length(5, 'Le code postal doit contenir 5 chiffres'),
   gdprConsent: z.boolean(),
   marketingConsent: z.boolean().optional(),
   loyaltyProgram: z.boolean().optional(),

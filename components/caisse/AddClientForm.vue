@@ -105,6 +105,14 @@ async function handlePostalCodeChange() {
 
 async function submitClient() {
   // Validation
+  if (!form.value.firstName.trim() || !form.value.lastName.trim()) {
+    showError('Erreur', 'Le prénom et le nom sont obligatoires')
+    return
+  }
+  if (form.value.postalCode.trim().length !== 5) {
+    showError('Erreur', 'Le code postal doit contenir 5 chiffres')
+    return
+  }
   if (!form.value.gdprConsent) {
     showError('Erreur', 'Le consentement RGPD est obligatoire')
     return
@@ -117,13 +125,14 @@ async function submitClient() {
       method: 'POST',
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       body: {
-        firstName: form.value.firstName || null,
-        lastName: form.value.lastName || null,
+        firstName: form.value.firstName.trim(),
+        lastName: form.value.lastName.trim(),
         email: form.value.email || null,
         phone: form.value.phone || null,
         address: form.value.address || null,
+        postalCode: form.value.postalCode.trim(),
         metadata: {
-          postalCode: form.value.postalCode || null,
+          postalCode: form.value.postalCode.trim(),
           city: form.value.city || null,
           country: form.value.country || 'France',
           authorizeSms: form.value.authorizeSms,
@@ -186,21 +195,23 @@ async function submitClient() {
         <div class="grid grid-cols-2 gap-4">
           <!-- Prénom -->
           <div class="space-y-2">
-            <Label for="firstName">Prénom</Label>
+            <Label for="firstName">Prénom <span class="text-destructive">*</span></Label>
             <Input
               id="firstName"
               v-model="form.firstName"
               placeholder="Jean"
+              required
             />
           </div>
 
           <!-- Nom -->
           <div class="space-y-2">
-            <Label for="lastName">Nom</Label>
+            <Label for="lastName">Nom <span class="text-destructive">*</span></Label>
             <Input
               id="lastName"
               v-model="form.lastName"
               placeholder="Dupont"
+              required
             />
           </div>
 
@@ -246,7 +257,7 @@ async function submitClient() {
           <div class="grid grid-cols-3 gap-4">
             <!-- Code postal -->
             <div class="space-y-2">
-              <Label for="postalCode">Code postal</Label>
+              <Label for="postalCode">Code postal <span class="text-destructive">*</span></Label>
               <div class="relative">
                 <Input
                   id="postalCode"
@@ -429,7 +440,7 @@ async function submitClient() {
       <!-- Bouton -->
       <div class="flex justify-end pt-4 border-t">
         <DialogFooter>
-          <Button type="submit" :disabled="loading || !form.gdprConsent">
+          <Button type="submit" :disabled="loading || !form.gdprConsent || !form.firstName.trim() || !form.lastName.trim() || form.postalCode.trim().length !== 5">
             <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
             Enregistrer
           </Button>
