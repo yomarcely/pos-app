@@ -8,6 +8,7 @@ export function useClientEditor(clientId: Ref<number>) {
   const form = ref<any>(null)
   const loading = ref(false)
   const loadingClient = ref(true)
+  const isAnonymized = ref(false)
   const clientStats = ref({ totalRevenue: 0, loyaltyPoints: 0, purchaseCount: 0 })
 
   const clientName = computed(() => {
@@ -37,6 +38,7 @@ export function useClientEditor(clientId: Ref<number>) {
       const response = await $fetch<{ client: any }>(`/api/clients/${clientId.value}`)
       const client = response.client
       const metadata = (client.metadata as any) || {}
+      isAnonymized.value = !!client.isAnonymized
       form.value = {
         firstName: client.firstName || '',
         lastName: client.lastName || '',
@@ -74,11 +76,12 @@ export function useClientEditor(clientId: Ref<number>) {
       await $fetch(`/api/clients/${clientId.value}`, {
         method: 'PUT',
         body: {
-          firstName: form.value.firstName || null,
-          lastName: form.value.lastName || null,
+          firstName: form.value.firstName?.trim() || null,
+          lastName: form.value.lastName?.trim() || null,
           email: form.value.email || null,
           phone: form.value.phone || null,
           address: form.value.address || null,
+          postalCode: form.value.postalCode?.trim() || '',
           metadata: {
             postalCode: form.value.postalCode || null,
             city: form.value.city || null,
@@ -103,5 +106,19 @@ export function useClientEditor(clientId: Ref<number>) {
     }
   }
 
-  return { form, loading, loadingClient, clientStats, clientName, loadClient, handleSubmit }
+  async function anonymizeClient() {
+    try {
+      loading.value = true
+      await $fetch(`/api/clients/${clientId.value}/anonymize`, { method: 'POST' })
+      toast.success('Client anonymisé avec succès')
+      await loadClient()
+    } catch (error: unknown) {
+      console.error('Erreur lors de l\'anonymisation:', error)
+      toast.error(extractFetchError(error, 'Erreur lors de l\'anonymisation du client'))
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { form, loading, loadingClient, isAnonymized, clientStats, clientName, loadClient, handleSubmit, anonymizeClient }
 }

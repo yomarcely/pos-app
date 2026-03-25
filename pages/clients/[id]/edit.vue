@@ -322,19 +322,33 @@
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center justify-end gap-3 pt-4 border-t">
+          <div class="flex items-center justify-between pt-4 border-t">
             <Button
+              v-if="!isAnonymized"
               type="button"
-              variant="outline"
-              @click="navigateTo('/clients')"
+              variant="destructive"
+              @click="showAnonymizeDialog = true"
               :disabled="loading"
             >
-              Annuler
+              <UserX class="w-4 h-4 mr-2" />
+              Anonymiser (RGPD)
             </Button>
-            <Button type="submit" :disabled="loading || !form.gdprConsent">
-              <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
-              Enregistrer
-            </Button>
+            <span v-else class="text-sm text-muted-foreground italic">Client anonymisé</span>
+
+            <div class="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                @click="navigateTo('/clients')"
+                :disabled="loading"
+              >
+                Annuler
+              </Button>
+              <Button type="submit" :disabled="loading || !form.gdprConsent">
+                <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
+                Enregistrer
+              </Button>
+            </div>
           </div>
         </form>
       </CardContent>
@@ -423,6 +437,28 @@
         />
       </DialogContent>
     </Dialog>
+
+    <!-- Modale Confirmation anonymisation -->
+    <Dialog v-model:open="showAnonymizeDialog">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Anonymiser ce client ?</DialogTitle>
+          <DialogDescription>
+            Cette action est irréversible. Toutes les données personnelles seront effacées
+            (nom, email, téléphone, adresse...). Les données de vente et statistiques seront conservées.
+          </DialogDescription>
+        </DialogHeader>
+        <div class="flex justify-end gap-3 pt-4">
+          <Button variant="outline" @click="showAnonymizeDialog = false">
+            Annuler
+          </Button>
+          <Button variant="destructive" @click="confirmAnonymize" :disabled="loading">
+            <Loader2 v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
+            Confirmer l'anonymisation
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -431,8 +467,8 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-import { computed, onMounted } from 'vue'
-import { Loader2, Star, TrendingUp, ShoppingBag } from 'lucide-vue-next'
+import { computed, ref, onMounted } from 'vue'
+import { Loader2, Star, TrendingUp, ShoppingBag, UserX } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -457,7 +493,13 @@ import { usePostalCodeLookup } from '@/composables/usePostalCodeLookup'
 const route = useRoute()
 const clientId = computed(() => parseInt(route.params.id as string))
 
-const { form, loading, loadingClient, clientStats, clientName, loadClient, handleSubmit } = useClientEditor(clientId)
+const { form, loading, loadingClient, isAnonymized, clientStats, clientName, loadClient, handleSubmit, anonymizeClient } = useClientEditor(clientId)
+const showAnonymizeDialog = ref(false)
+
+async function confirmAnonymize() {
+  showAnonymizeDialog.value = false
+  await anonymizeClient()
+}
 const { purchases, loadingPurchases, showPurchaseHistory } = useClientPurchaseHistory(clientId)
 const { loadingPostalCode, postalCodeError, availableCities, handlePostalCodeChange, selectCity } = usePostalCodeLookup(form)
 
