@@ -51,7 +51,9 @@ export default defineEventHandler(async (event) => {
         createdAt: customers.createdAt,
         updatedAt: customers.updatedAt,
         // Calculer le CA total directement avec LEFT JOIN
-        totalRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'completed' THEN CAST(${sales.totalTTC} AS NUMERIC) ELSE 0 END), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(DISTINCT CASE WHEN ${sales.status} = 'completed' THEN CAST(${sales.totalTTC} AS NUMERIC) ELSE 0 END), 0)`,
+        // Sommer les points de fidélité depuis customerEstablishments
+        loyaltyPoints: sql<number>`COALESCE(SUM(DISTINCT ${customerEstablishments.localLoyaltyPoints}), 0)`,
       })
       .from(customers)
       .leftJoin(sales, and(
@@ -59,10 +61,9 @@ export default defineEventHandler(async (event) => {
         eq(sales.tenantId, tenantId)
       ))
 
-    // INNER JOIN pour ne retourner QUE les clients liés à cet établissement
-    // Cela permet :
-    // - Nouvel établissement = aucun client (pas de liaison)
-    // - Établissement désynchro = garde ses clients (a toujours la liaison)
+    // JOIN customerEstablishments pour récupérer les points de fidélité
+    // - Avec establishmentId: INNER JOIN (ne retourne que les clients liés)
+    // - Sans establishmentId: LEFT JOIN (retourne tous les clients avec somme des points)
     if (establishmentId) {
       queryBuilder = queryBuilder
         .innerJoin(
@@ -75,6 +76,15 @@ export default defineEventHandler(async (event) => {
         )
       baseConditions.push(eq(customerEstablishments.establishmentId, establishmentId))
       baseConditions.push(eq(customerEstablishments.tenantId, tenantId))
+    } else {
+      queryBuilder = queryBuilder
+        .leftJoin(
+          customerEstablishments,
+          and(
+            eq(customerEstablishments.customerId, customers.id),
+            eq(customerEstablishments.tenantId, tenantId)
+          )
+        )
     }
 
     // Appliquer les conditions avant le groupBy
@@ -118,7 +128,6 @@ export default defineEventHandler(async (event) => {
     type ClientMetadata = { city?: string }
     const clientsWithCA = allClients.map((client) => {
       const metadata = (client.metadata || {}) as ClientMetadata
-
       return {
         id: client.id,
         firstName: client.firstName,
@@ -131,13 +140,13 @@ export default defineEventHandler(async (event) => {
         gdprConsentDate: client.gdprConsentDate,
         marketingConsent: client.marketingConsent,
         loyaltyProgram: client.loyaltyProgram,
+        loyaltyPoints: client.loyaltyPoints ?? 0,
         discount: client.discount,
         notes: client.notes,
+        city: metadata.city || null,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
-        city: metadata.city || null,
         totalRevenue: parseFloat(client.totalRevenue as string) || 0,
-        loyaltyPoints: 0, // TODO: implémenter le système de points
       }
     })
 

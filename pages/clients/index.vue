@@ -58,7 +58,8 @@
               <tr
                 v-for="client in clients"
                 :key="client.id"
-                class="hover:bg-muted/50 transition-colors"
+                class="hover:bg-muted/50 transition-colors cursor-pointer"
+                @click="navigateTo(`/clients/${client.id}/edit`)"
               >
                 <!-- Nom -->
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -107,13 +108,10 @@
                 <!-- Actions -->
                 <td class="px-6 py-4 whitespace-nowrap text-right">
                   <div class="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" @click="viewClient(client)">
-                      <Eye class="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" @click="editClient(client)">
+                    <Button variant="ghost" size="sm" @click.stop="editClient(client)">
                       <Edit class="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" @click="deleteClient(client)">
+                    <Button variant="ghost" size="sm" @click.stop="deleteClient(client)">
                       <Trash2 class="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
@@ -141,7 +139,7 @@ definePageMeta({
 })
 
 import { ref, onMounted, watch } from 'vue'
-import { Plus, User, Phone, Star, Eye, Edit, Trash2, Users } from 'lucide-vue-next'
+import { Plus, User, Phone, Star, Edit, Trash2, Users } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -230,10 +228,6 @@ function getFullName(client: Customer): string {
 }
 
 // Actions
-function viewClient(client: Customer) {
-  navigateTo(`/clients/${client.id}`)
-}
-
 function editClient(client: Customer) {
   navigateTo(`/clients/${client.id}/edit`)
 }
