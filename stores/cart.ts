@@ -83,6 +83,33 @@ export const useCartStore = defineStore('cart', () => {
     items.value.reduce((sum, item) => sum + item.quantity, 0)
   )
 
+  // --- REMISE CLIENT PERMANENTE ---
+  function getClientDiscountPercent(): number {
+    const customerStore = useCustomerStore()
+    const discount = customerStore.client?.discount
+    if (!discount) return 0
+    const parsed = typeof discount === 'string' ? parseFloat(discount) : discount
+    return parsed > 0 ? parsed : 0
+  }
+
+  // Appliquer la remise client sur les lignes existantes quand un client est sélectionné
+  watch(() => useCustomerStore().client, (newClient) => {
+    if (!newClient) return
+    const clientDiscount = getClientDiscountPercent()
+    if (clientDiscount <= 0) return
+
+    items.value.forEach(item => {
+      if (item.discountType === '%') {
+        // Prendre la plus forte des deux remises
+        item.discount = Math.max(item.discount, clientDiscount)
+      } else if (item.discount === 0) {
+        // Pas de remise existante : appliquer la remise client
+        item.discount = clientDiscount
+        item.discountType = '%'
+      }
+    })
+  })
+
   // --- RÉACTIONS ---
   watch(selectedProduct, (product) => {
     if (product) {
@@ -121,7 +148,14 @@ export const useCartStore = defineStore('cart', () => {
     if (existing) {
       existing.quantity++
     } else {
-      items.value.push(toCartItem(product, variation))
+      const cartItem = toCartItem(product, variation)
+      // Appliquer la remise client permanente si plus forte
+      const clientDiscount = getClientDiscountPercent()
+      if (clientDiscount > 0 && cartItem.discount < clientDiscount) {
+        cartItem.discount = clientDiscount
+        cartItem.discountType = '%'
+      }
+      items.value.push(cartItem)
     }
 
     return true
