@@ -30,6 +30,24 @@ export default defineEventHandler(async (event) => {
 
     const body = await validateBody<CreateClientInput>(event, createClientSchema)
 
+    // Vérifier l'unicité de l'email pour ce tenant (exclure le client en cours)
+    if (body.email) {
+      const duplicateEmail = await db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(
+          eq(customers.email, body.email),
+          eq(customers.tenantId, tenantId)
+        ))
+        .limit(1)
+      if (duplicateEmail.length > 0 && duplicateEmail[0]!.id !== id) {
+        throw createError({
+          statusCode: 409,
+          message: 'Un client avec cet email existe déjà'
+        })
+      }
+    }
+
     // Vérifier si le client existe
     const [existingClient] = await db
       .select()

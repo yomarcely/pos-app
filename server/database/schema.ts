@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, decimal, boolean, jsonb, index, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, serial, text, timestamp, integer, decimal, boolean, jsonb, index, uniqueIndex, varchar } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 /**
@@ -398,6 +398,7 @@ export const customers = pgTable('customers', {
   tenantIdIdx: index('customers_tenant_id_idx').on(table.tenantId),
   emailIdx: index('customers_email_idx').on(table.email),
   phoneIdx: index('customers_phone_idx').on(table.phone),
+  emailTenantUnique: uniqueIndex('customers_email_tenant_unique').on(table.email, table.tenantId),
 }))
 
 // ==========================================
