@@ -80,24 +80,17 @@ function isSelected(id: number): boolean {
 }
 
 function toggleEstablishment(id: number, checked: boolean | 'indeterminate') {
-  console.log('toggleEstablishment called with id:', id, 'checked:', checked, 'current:', props.modelValue)
-
   if (checked === 'indeterminate') return
 
   const currentValue = [...props.modelValue]
   const index = currentValue.indexOf(id)
 
   if (checked && index === -1) {
-    // Ajouter si coché et pas déjà présent
     currentValue.push(id)
-    console.log('Added:', id, 'New array:', currentValue)
   } else if (!checked && index > -1) {
-    // Retirer si décoché et présent
     currentValue.splice(index, 1)
-    console.log('Removed:', id, 'New array:', currentValue)
   }
 
-  console.log('Emitting update:modelValue with:', currentValue)
   emit('update:modelValue', currentValue)
 }
 

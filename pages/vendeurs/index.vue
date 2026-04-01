@@ -239,13 +239,6 @@ async function createSeller() {
     return
   }
 
-  console.log('Creating seller with data:', {
-    name: newSeller.value.name,
-    code: newSeller.value.code,
-    isActive: newSeller.value.isActive,
-    establishmentIds: newSeller.value.establishmentIds,
-  })
-
   try {
     const response = await $fetch('/api/sellers/create', {
       method: 'POST',
@@ -257,7 +250,6 @@ async function createSeller() {
       },
     })
 
-    console.log('Server response:', response)
     toast.success('Vendeur créé avec succès')
     createDialogOpen.value = false
     await loadSellers()

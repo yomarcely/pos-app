@@ -229,8 +229,6 @@ async function validerVente() {
     productsStore.loaded = false
     await productsStore.loadProducts()
 
-    console.log('✅ Vente NF525 enregistrée :', response.sale)
-
     // 7. Afficher le récapitulatif
     const receipt = `
 ╔════════════════════════════════════╗
@@ -289,8 +287,7 @@ ${establishment.tvaNumber ? `TVA: ${establishment.tvaNumber}` : ''}
 Merci de votre visite !
     `
 
-    console.log(receipt)
-    toast.success('Vente enregistrée avec succès !', 'Consultez la console pour le ticket')
+    toast.success('Vente enregistrée avec succès !')
 
     // 8. Nettoyer
     cartStore.clearCart()

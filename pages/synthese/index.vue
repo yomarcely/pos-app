@@ -124,7 +124,6 @@ async function cancelSale() {
     })
 
     if (response.success) {
-      console.log('✅ Vente annulée:', response.sale)
       isCancelDialogOpen.value = false
       saleToCancel.value = null
       cancellationReason.value = ''
@@ -156,7 +155,6 @@ async function closeDay() {
     })
 
     if (response.success) {
-      console.log('🔒 Journée clôturée:', response.closure)
       isCloseDialogOpen.value = false
 
       // Recharger les données

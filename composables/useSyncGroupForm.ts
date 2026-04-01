@@ -60,8 +60,6 @@ export function useSyncGroupForm(loadSyncGroups: () => Promise<void>) {
   }
 
   function toggleEstablishmentSelection(id: number, checked: boolean | 'indeterminate') {
-    console.log('toggleEstablishmentSelection appelé avec:', { id, checked })
-
     if (checked === 'indeterminate') {
       return
     }
@@ -74,19 +72,15 @@ export function useSyncGroupForm(loadSyncGroups: () => Promise<void>) {
       newGroup.establishmentIds.splice(index, 1)
     }
 
-    console.log('Établissements sélectionnés:', newGroup.establishmentIds)
   }
 
   async function createGroup() {
-    console.log('Création du groupe avec:', newGroup)
-
     if (!newGroup.name.trim()) {
       toast.error('Le nom du groupe est obligatoire')
       return
     }
 
     if (newGroup.establishmentIds.length < 2) {
-      console.log('Nombre d\'établissements:', newGroup.establishmentIds.length)
       toast.error('Sélectionnez au moins 2 établissements')
       return
     }
