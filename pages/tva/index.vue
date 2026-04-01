@@ -81,16 +81,6 @@
             />
           </div>
           <div class="space-y-2">
-            <Label for="code">Code NF525 *</Label>
-            <Input
-              id="code"
-              v-model="form.code"
-              placeholder="Ex: T1"
-              maxlength="10"
-            />
-            <p class="text-xs text-muted-foreground">Lettres majuscules et chiffres uniquement</p>
-          </div>
-          <div class="space-y-2">
             <Label for="rate">Taux (%) *</Label>
             <Input
               id="rate"
@@ -189,7 +179,6 @@ const saving = ref(false)
 
 const form = reactive({
   name: '',
-  code: '',
   rate: '',
   description: '',
   isDefault: false,
@@ -201,7 +190,6 @@ const { data: taxRates, pending, refresh } = await useFetch<TaxRate[]>('/api/tax
 function openCreateDialog() {
   editingRate.value = null
   form.name = ''
-  form.code = ''
   form.rate = ''
   form.description = ''
   form.isDefault = false
@@ -211,7 +199,6 @@ function openCreateDialog() {
 function openEditDialog(rate: TaxRate) {
   editingRate.value = rate
   form.name = rate.name
-  form.code = rate.code
   form.rate = rate.rate
   form.description = rate.description || ''
   form.isDefault = rate.isDefault
@@ -225,14 +212,8 @@ function openDeleteDialog(rate: TaxRate) {
 
 async function saveTaxRate() {
   // Validation basique
-  if (!form.name || !form.code || !form.rate) {
+  if (!form.name || !form.rate) {
     toast.error('Veuillez remplir tous les champs obligatoires')
-    return
-  }
-
-  // Valider le format du code (lettres majuscules et chiffres uniquement)
-  if (!/^[A-Z0-9]+$/.test(form.code)) {
-    toast.error('Le code doit contenir uniquement des lettres majuscules et des chiffres')
     return
   }
 

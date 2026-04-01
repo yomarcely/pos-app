@@ -10,7 +10,6 @@ import { z } from 'zod'
 export const createTaxRateSchema = z.object({
   name: z.string().min(1, 'Le nom du taux de TVA est requis').max(100),
   rate: z.string().or(z.number()).transform(val => String(val)),
-  code: z.string().min(1, 'Le code TVA est requis').max(10).regex(/^[A-Z0-9]+$/, 'Le code doit contenir uniquement des lettres majuscules et des chiffres'),
   description: z.string().max(500).optional().nullable(),
   isDefault: z.boolean().default(false),
 })

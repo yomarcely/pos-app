@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, count } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { taxRates } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -14,6 +14,14 @@ export default defineEventHandler(async (event) => {
 
   // Valider les données
   const validatedData = await validateBody(event, createTaxRateSchema)
+
+  // Générer automatiquement le code NF525 (TVA_1, TVA_2, TVA_3…)
+  const existingCount = await db
+    .select({ count: count() })
+    .from(taxRates)
+    .where(eq(taxRates.tenantId, tenantId))
+  const nextIndex = (existingCount[0]?.count ?? 0) + 1
+  const generatedCode = `TVA_${nextIndex}`
 
   // Si isDefault est true, désactiver les autres taux par défaut
   if (validatedData.isDefault) {
@@ -35,7 +43,7 @@ export default defineEventHandler(async (event) => {
       tenantId,
       name: validatedData.name,
       rate: validatedData.rate,
-      code: validatedData.code,
+      code: generatedCode,
       description: validatedData.description || null,
       isDefault: validatedData.isDefault,
     })

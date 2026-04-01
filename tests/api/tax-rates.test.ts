@@ -51,7 +51,8 @@ vi.mock('drizzle-orm', () => ({
   desc: (...args: unknown[]) => ({ type: 'desc', args }),
   asc: (...args: unknown[]) => ({ type: 'asc', args }),
   isNull: (...args: unknown[]) => ({ type: 'isNull', args }),
-  inArray: (...args: unknown[]) => ({ type: 'inArray', args })
+  inArray: (...args: unknown[]) => ({ type: 'inArray', args }),
+  count: () => ({ type: 'count' }),
 }))
 
 vi.mock('~/server/database/schema', () => ({
@@ -84,8 +85,14 @@ function createReadChain(rows: unknown[]) {
   return chain
 }
 
-function createWriteChain(newItem: unknown) {
+function createWriteChain(newItem: unknown, existingCount = 0) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selectChain: any = {
+    from: vi.fn(() => selectChain),
+    where: vi.fn(() => Promise.resolve([{ count: existingCount }])),
+  }
   return {
+    select: vi.fn(() => selectChain),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -183,29 +190,30 @@ describe('API /api/tax-rates', () => {
   // POST /api/tax-rates/create
   // -----------------------------------------
   describe('POST /api/tax-rates/create', () => {
-    it('crée un taux de TVA', async () => {
-      const newRate = { id: 1, name: 'TVA 20%', rate: '20', code: 'N', isDefault: false }
-      currentDb = createWriteChain(newRate)
+    it('crée un taux de TVA avec code auto-généré', async () => {
+      const newRate = { id: 1, name: 'TVA 20%', rate: '20', code: 'TVA_1', isDefault: false }
+      currentDb = createWriteChain(newRate, 0)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/tax-rates/create.post')).default as any
       const event = createMockEvent({
-        body: { name: 'TVA 20%', rate: '20', code: 'N', isDefault: false }
+        body: { name: 'TVA 20%', rate: '20', isDefault: false }
       })
 
       const res = await handler(event)
 
       expect(res).toMatchObject({ id: 1, name: 'TVA 20%' })
       expect(currentDb.insert).toHaveBeenCalled()
+      expect(currentDb.select).toHaveBeenCalled()
       expect(currentDb.update).not.toHaveBeenCalled()
     })
 
     it('reset les autres taux par défaut si isDefault=true', async () => {
-      const newRate = { id: 1, name: 'TVA 20%', rate: '20', code: 'N', isDefault: true }
-      currentDb = createWriteChain(newRate)
+      const newRate = { id: 1, name: 'TVA 20%', rate: '20', code: 'TVA_3', isDefault: true }
+      currentDb = createWriteChain(newRate, 2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/tax-rates/create.post')).default as any
       const event = createMockEvent({
-        body: { name: 'TVA 20%', rate: '20', code: 'N', isDefault: true }
+        body: { name: 'TVA 20%', rate: '20', isDefault: true }
       })
 
       const res = await handler(event)
