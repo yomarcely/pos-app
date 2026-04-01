@@ -456,4 +456,6 @@ pnpm drizzle-kit studio      # explorer le schéma visuellement
 
 | 2026-03-25 | Clients U1-U5 | Listing cliquable (eye icon supprimé, loyalty points), champs obligatoires (prénom/nom/CP), unicité email/tenant, anonymisation RGPD, remise permanente auto-appliquée en caisse | ✅ |
 
-*Dernière mise à jour : 2026-03-25 — par Claude Code (clients U1-U5)*
+| 2026-04-01 | TVA + Catégories + Nettoyage | T1 : code TVA NF525 auto-généré (plus de saisie utilisateur). T2 : déjà fonctionnel (refresh+dialog+toast). T3 : isDefault déjà implémenté, ajout pré-sélection TVA par défaut dans fiche produit. C1 : protection suppression catégorie 409 (produits + sous-catégories), fix catch qui masquait les codes erreur. C2 : déjà implémenté (P3). N1 : console.log debug supprimés (5 fichiers). N2 : toast doublon supprimé au login/signup, messages traduits en français. 385 tests / 66 fichiers — 0 échec | ✅ |
+
+*Dernière mise à jour : 2026-04-01 — par Claude Code (TVA + Catégories + Nettoyage)*
