@@ -28,6 +28,17 @@ const authStore = useAuthStore()
 const toast = useToast()
 const router = useRouter()
 
+function translateAuthError(message: string): string {
+  const translations: Record<string, string> = {
+    'User already registered': 'Un compte existe déjà avec cet email',
+    'Email rate limit exceeded': 'Trop de tentatives, réessayez dans quelques minutes',
+    'Password should be at least 6 characters': 'Le mot de passe doit contenir au moins 6 caractères',
+    'Signup requires a valid password': 'Veuillez saisir un mot de passe valide',
+    'Network request failed': 'Erreur réseau, vérifiez votre connexion',
+  }
+  return translations[message] ?? 'Une erreur est survenue lors de la création du compte'
+}
+
 const form = reactive({
   name: '',
   email: '',
@@ -53,13 +64,11 @@ const handleSubmit = async () => {
   // Validation
   if (!passwordValid.value) {
     error.value = 'Le mot de passe doit contenir au moins 8 caractères'
-    toast.error(error.value)
     return
   }
 
   if (!passwordsMatch.value) {
     error.value = 'Les mots de passe ne correspondent pas'
-    toast.error(error.value)
     return
   }
 
@@ -71,8 +80,7 @@ const handleSubmit = async () => {
     await router.push('/dashboard')
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur lors de la création du compte'
-    error.value = message
-    toast.error(message)
+    error.value = translateAuthError(message)
   } finally {
     loading.value = false
   }

@@ -6,14 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
   class?: string
 }>()
 
 const auth = useAuthStore()
-const toast = useToast()
 const route = useRoute()
 
 const form = reactive({
@@ -23,6 +21,18 @@ const form = reactive({
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+function translateAuthError(message: string): string {
+  const translations: Record<string, string> = {
+    'Invalid login credentials': 'Email ou mot de passe incorrect',
+    'Email not confirmed': 'Veuillez confirmer votre email',
+    'Too many requests': 'Trop de tentatives, réessayez dans quelques minutes',
+    'User not found': 'Aucun compte trouvé avec cet email',
+    'Email rate limit exceeded': 'Trop de tentatives, réessayez dans quelques minutes',
+    'Network request failed': 'Erreur réseau, vérifiez votre connexion',
+  }
+  return translations[message] ?? 'Une erreur est survenue lors de la connexion'
+}
 
 const handleSubmit = async () => {
   loading.value = true
@@ -34,8 +44,7 @@ const handleSubmit = async () => {
     await navigateTo(redirect)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Échec de connexion'
-    error.value = message
-    toast.error(message)
+    error.value = translateAuthError(message)
   } finally {
     loading.value = false
   }
