@@ -278,49 +278,50 @@ describe('API /api/categories', () => {
       expect(res.message).toBe('Catégorie supprimée avec succès')
     })
 
-    it('throw 400 si sous-catégories existent (remonte en 500)', async () => {
+    it('throw 409 si sous-catégories existent', async () => {
       currentDb = createDeleteChain([{ id: 2, parentId: 1 }], [], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '1' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
-        message: 'Impossible de supprimer une catégorie contenant des sous-catégories'
+        statusCode: 409,
+        message: 'Cette catégorie contient des sous-catégories. Supprimez-les d\'abord.'
       })
     })
 
-    it('throw 400 si produits liés existent (remonte en 500)', async () => {
+    it('throw 409 si produits liés existent', async () => {
       currentDb = createDeleteChain([], [{ id: 5, categoryId: 1 }], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '1' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500
+        statusCode: 409,
+        message: 'Cette catégorie est utilisée par des produits et ne peut pas être supprimée'
       })
     })
 
-    it('throw 404 si catégorie introuvable (remonte en 500)', async () => {
+    it('throw 404 si catégorie introuvable', async () => {
       currentDb = createDeleteChain([], [], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Catégorie introuvable'
       })
     })
 
-    it('throw 400 si ID invalide (remonte en 500)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createDeleteChain([], [], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID de catégorie invalide'
       })
     })

@@ -27,32 +27,32 @@ export default defineEventHandler(async (event) => {
     }
 
     // Vérifier s'il y a des sous-catégories - SÉCURITÉ: filtre par tenantId
-    const subcategories = await db.select().from(categories).where(
+    const subcategories = await db.select({ id: categories.id }).from(categories).where(
       and(
         eq(categories.parentId, id),
         eq(categories.tenantId, tenantId)
       )
-    )
+    ).limit(1)
 
     if (subcategories.length > 0) {
       throw createError({
-        statusCode: 400,
-        message: 'Impossible de supprimer une catégorie contenant des sous-catégories',
+        statusCode: 409,
+        message: 'Cette catégorie contient des sous-catégories. Supprimez-les d\'abord.',
       })
     }
 
     // Vérifier s'il y a des produits dans cette catégorie - SÉCURITÉ: filtre par tenantId
-    const productsInCategory = await db.select().from(products).where(
+    const productsInCategory = await db.select({ id: products.id }).from(products).where(
       and(
         eq(products.categoryId, id),
         eq(products.tenantId, tenantId)
       )
-    )
+    ).limit(1)
 
     if (productsInCategory.length > 0) {
       throw createError({
-        statusCode: 400,
-        message: `Impossible de supprimer une catégorie contenant ${productsInCategory.length} produit(s)`,
+        statusCode: 409,
+        message: 'Cette catégorie est utilisée par des produits et ne peut pas être supprimée',
       })
     }
 
@@ -87,6 +87,10 @@ export default defineEventHandler(async (event) => {
       category: archived,
     }
   } catch (error) {
+    // Re-throw H3 errors (409, 400, 404) as-is
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error
+    }
     logger.error({ err: error }, 'Erreur lors de la suppression de la catégorie')
 
     throw createError({
