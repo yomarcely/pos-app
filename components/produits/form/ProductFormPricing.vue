@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -147,6 +147,18 @@ const emit = defineEmits<{
 
 // Récupérer les taux de TVA
 const { data: taxRates, pending: taxRatesLoading } = await useFetch<TaxRate[]>('/api/tax-rates')
+
+// Pré-sélectionner la TVA par défaut si aucune TVA n'est définie
+watch(taxRates, (rates) => {
+  if (!rates || props.form.tvaId) return
+  const defaultRate = rates.find(r => r.isDefault)
+  if (defaultRate) {
+    emitUpdate({
+      tva: normalizeRate(defaultRate.rate),
+      tvaId: defaultRate.id,
+    })
+  }
+}, { immediate: true })
 
 // Normaliser le taux (convertir "20.00" en "20" pour la comparaison)
 function normalizeRate(rate: string | number): string {
