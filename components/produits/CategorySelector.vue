@@ -1,6 +1,6 @@
 <template>
-  <div class="space-y-2">
-    <Label>Catégorie</Label>
+  <div :class="showLabel ? 'space-y-2' : ''">
+    <Label v-if="showLabel">Catégorie</Label>
     <Button
       variant="outline"
       type="button"
@@ -18,7 +18,7 @@
             {{ name }}
           </Badge>
         </template>
-        <span v-else class="text-sm text-muted-foreground">Sélectionner une catégorie</span>
+        <span v-else class="text-sm text-muted-foreground">{{ placeholder }}</span>
       </div>
       <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
     </Button>
@@ -29,6 +29,17 @@
           <DialogTitle>Sélectionner une catégorie</DialogTitle>
         </DialogHeader>
         <div class="max-h-[400px] overflow-y-auto pr-2">
+          <div
+            v-if="clearable"
+            class="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent cursor-pointer"
+            @click="handleClear"
+          >
+            <div class="w-5 flex-shrink-0" />
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <Checkbox :model-value="!modelValue" @update:model-value="handleClear" />
+              <span class="text-sm">Toutes les catégories</span>
+            </div>
+          </div>
           <div v-if="categories.length === 0" class="p-4 text-center text-sm text-muted-foreground">
             Aucune catégorie disponible
           </div>
@@ -54,6 +65,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronsUpDown } from 'lucide-vue-next'
 import CategorySelectorItem from '@/components/produits/CategorySelectorItem.vue'
 
@@ -64,10 +76,17 @@ interface Category {
   children?: Category[]
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   categories: Category[]
   modelValue: string | null
-}>()
+  showLabel?: boolean
+  clearable?: boolean
+  placeholder?: string
+}>(), {
+  showLabel: true,
+  clearable: false,
+  placeholder: 'Sélectionner une catégorie',
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
@@ -131,6 +150,11 @@ function expandParentCategories(categoryId: number) {
 
 function handleSelect(categoryId: number) {
   emit('update:modelValue', String(categoryId))
+  open.value = false
+}
+
+function handleClear() {
+  emit('update:modelValue', null)
   open.value = false
 }
 

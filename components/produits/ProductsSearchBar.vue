@@ -14,18 +14,14 @@
         </div>
 
         <!-- Filtre catégorie -->
-        <div>
-          <select
-            :value="selectedCategoryId"
-            class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-            @change="$emit('update:selectedCategoryId', ($event.target as HTMLSelectElement).value ? parseInt(($event.target as HTMLSelectElement).value) : null); $emit('categoryChange')"
-          >
-            <option :value="null">Toutes les catégories</option>
-            <option v-for="category in categories" :key="category.id" :value="category.id">
-              {{ category.name }}
-            </option>
-          </select>
-        </div>
+        <CategorySelector
+          :categories="categories"
+          :model-value="selectedCategoryId !== null ? String(selectedCategoryId) : null"
+          :show-label="false"
+          :clearable="true"
+          placeholder="Toutes les catégories"
+          @update:model-value="(value: string | null) => { $emit('update:selectedCategoryId', value ? parseInt(value) : null); $emit('categoryChange') }"
+        />
 
         <!-- Toggle vue -->
         <div class="flex items-center gap-2">
@@ -51,44 +47,46 @@
       <!-- Ligne 2 : filtres avancés -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <!-- Filtre marque -->
-        <div>
-          <select
-            :value="selectedBrandId"
-            class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-            @change="$emit('update:selectedBrandId', ($event.target as HTMLSelectElement).value ? parseInt(($event.target as HTMLSelectElement).value) : null); $emit('filterChange')"
-          >
-            <option :value="null">Toutes les marques</option>
-            <option v-for="brand in brands" :key="brand.id" :value="brand.id">
+        <Select
+          :model-value="selectedBrandId !== null ? String(selectedBrandId) : 'all'"
+          @update:model-value="(value) => { $emit('update:selectedBrandId', String(value) !== 'all' ? parseInt(String(value)) : null); $emit('filterChange') }"
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Toutes les marques" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les marques</SelectItem>
+            <SelectItem v-for="brand in brands" :key="brand.id" :value="String(brand.id)">
               {{ brand.name }}
-            </option>
-          </select>
-        </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
 
         <!-- Filtre fournisseur -->
-        <div>
-          <select
-            :value="selectedSupplierId"
-            class="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-            @change="$emit('update:selectedSupplierId', ($event.target as HTMLSelectElement).value ? parseInt(($event.target as HTMLSelectElement).value) : null); $emit('filterChange')"
-          >
-            <option :value="null">Tous les fournisseurs</option>
-            <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
+        <Select
+          :model-value="selectedSupplierId !== null ? String(selectedSupplierId) : 'all'"
+          @update:model-value="(value) => { $emit('update:selectedSupplierId', String(value) !== 'all' ? parseInt(String(value)) : null); $emit('filterChange') }"
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Tous les fournisseurs" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les fournisseurs</SelectItem>
+            <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">
               {{ supplier.name }}
-            </option>
-          </select>
-        </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
 
         <!-- Toggle archivés -->
         <div class="flex items-center gap-2">
           <label class="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              :checked="showArchived"
-              class="rounded border-input"
-              @change="$emit('update:showArchived', ($event.target as HTMLInputElement).checked); $emit('filterChange')"
+            <Checkbox
+              :model-value="showArchived"
+              @update:model-value="(value) => { $emit('update:showArchived', !!value); $emit('filterChange') }"
             />
             <Archive class="w-4 h-4 text-muted-foreground" />
-            Afficher les archivés
+            Voir uniquement les archivés
           </label>
         </div>
 
@@ -115,7 +113,23 @@ import { Search, List, Grid, Archive, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import type { Category, Brand, Supplier } from '@/types'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import CategorySelector from '@/components/produits/CategorySelector.vue'
+import type { Brand, Supplier } from '@/types'
+
+interface CategoryTree {
+  id: number
+  name: string
+  parentId: number | null
+  children?: CategoryTree[]
+}
 
 const props = defineProps<{
   searchQuery: string
@@ -123,7 +137,7 @@ const props = defineProps<{
   selectedBrandId: number | null
   selectedSupplierId: number | null
   showArchived: boolean
-  categories: Category[]
+  categories: CategoryTree[]
   brands: Brand[]
   suppliers: Supplier[]
   viewMode: 'list' | 'grid'

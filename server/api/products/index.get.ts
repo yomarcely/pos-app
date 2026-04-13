@@ -101,6 +101,7 @@ export default defineEventHandler(async (event) => {
     const search = query.search as string | undefined
     const categoryId = query.categoryId ? Number(query.categoryId) : undefined
     const includeArchived = query.includeArchived === 'true'
+    const onlyArchived = query.onlyArchived === 'true'
     const supplierId = query.supplierId ? Number(query.supplierId) : undefined
     const brandId = query.brandId ? Number(query.brandId) : undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
@@ -111,8 +112,10 @@ export default defineEventHandler(async (event) => {
     // IMPORTANT: Filtrer par tenant_id pour le multi-tenancy
     conditions.push(eq(products.tenantId, tenantId))
 
-    // Filtrer les produits non archivés par défaut
-    if (!includeArchived) {
+    // Filtrer par statut d'archivage
+    if (onlyArchived) {
+      conditions.push(sql`${products.isArchived} = true`)
+    } else if (!includeArchived) {
       conditions.push(sql`(${products.isArchived} = false OR ${products.isArchived} IS NULL)`)
     }
 

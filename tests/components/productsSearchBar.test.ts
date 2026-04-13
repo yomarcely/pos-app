@@ -6,11 +6,22 @@ const stubButton = { template: '<button><slot /></button>' }
 const stubInput = {
   template: `<input @input="$emit('update:modelValue', $event.target.value)" />`
 }
+const stubCategorySelector = {
+  template: '<div class="category-selector" />',
+  props: ['categories', 'modelValue', 'showLabel', 'clearable', 'placeholder'],
+  emits: ['update:modelValue'],
+}
+const stubSelect = { template: '<div><slot /></div>' }
+const stubSelectTrigger = { template: '<div><slot /></div>' }
+const stubSelectValue = { template: '<span />' }
+const stubSelectContent = { template: '<div><slot /></div>' }
+const stubSelectItem = { template: '<div><slot /></div>' }
+const stubCheckbox = { template: '<input type="checkbox" />' }
 
 describe('ProductsSearchBar', () => {
   const categories = [
-    { id: 1, name: 'Cat 1' },
-    { id: 2, name: 'Cat 2' }
+    { id: 1, name: 'Cat 1', parentId: null },
+    { id: 2, name: 'Cat 2', parentId: null }
   ]
 
   function mountComponent(propsOverride = {}) {
@@ -33,6 +44,13 @@ describe('ProductsSearchBar', () => {
           CardContent: { template: '<div><slot /></div>' },
           Button: stubButton,
           Input: stubInput,
+          CategorySelector: stubCategorySelector,
+          Select: stubSelect,
+          SelectTrigger: stubSelectTrigger,
+          SelectValue: stubSelectValue,
+          SelectContent: stubSelectContent,
+          SelectItem: stubSelectItem,
+          Checkbox: stubCheckbox,
           Search: { template: '<span />' },
           List: { template: '<span />' },
           Grid: { template: '<span />' },
@@ -55,8 +73,8 @@ describe('ProductsSearchBar', () => {
 
   it('émet update:selectedCategoryId et categoryChange au changement de catégorie', async () => {
     const wrapper = mountComponent()
-    const select = wrapper.find('select')
-    await select.setValue('1')
+    const categorySelector = wrapper.findComponent(stubCategorySelector)
+    await categorySelector.vm.$emit('update:modelValue', '1')
 
     const categoryEmit = (wrapper.emitted()['update:selectedCategoryId'] as any[]) || []
     expect(categoryEmit[0]).toEqual([1])

@@ -78,7 +78,7 @@ import ProductsTableView from '@/components/produits/ProductsTableView.vue'
 import ProductsGridView from '@/components/produits/ProductsGridView.vue'
 import ProductsEmptyState from '@/components/produits/ProductsEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import type { Product, Category, Brand, Supplier } from '@/types'
+import type { Product, Brand, Supplier } from '@/types'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
@@ -87,7 +87,14 @@ type ProductsResponse = { products: Product[]; count: number }
 // State
 const loading = ref(true)
 const products = ref<Product[]>([])
-const categories = ref<Category[]>([])
+interface CategoryTree {
+  id: number
+  name: string
+  parentId: number | null
+  children?: CategoryTree[]
+}
+
+const categories = ref<CategoryTree[]>([])
 const brands = ref<Brand[]>([])
 const suppliers = ref<Supplier[]>([])
 const searchQuery = ref('')
@@ -120,7 +127,7 @@ async function loadProducts() {
     if (selectedCategoryId.value) params.categoryId = selectedCategoryId.value
     if (selectedBrandId.value) params.brandId = selectedBrandId.value
     if (selectedSupplierId.value) params.supplierId = selectedSupplierId.value
-    if (showArchived.value) params.includeArchived = 'true'
+    if (showArchived.value) params.onlyArchived = 'true'
     if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
     const response = await $fetch<ProductsResponse>('/api/products', { params })
@@ -141,22 +148,7 @@ async function loadCategories() {
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
     })
 
-    // Aplatir l'arbre des catégories
-    const flattenCategories = (cats: any[], level = 0): Category[] => {
-      let result: Category[] = []
-      for (const cat of cats) {
-        result.push({
-          id: cat.id,
-          name: '  '.repeat(level) + cat.name,
-        })
-        if (cat.children && cat.children.length > 0) {
-          result = result.concat(flattenCategories(cat.children, level + 1))
-        }
-      }
-      return result
-    }
-
-    categories.value = flattenCategories(response.categories)
+    categories.value = response.categories
   } catch (error) {
     console.error('Erreur lors du chargement des catégories:', error)
   }
