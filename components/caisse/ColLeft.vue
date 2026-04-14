@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
@@ -9,12 +8,8 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, Dr
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserRoundPlus, X, User, List, ShoppingBag } from 'lucide-vue-next'
-import { Input } from '@/components/ui/input'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
-import { useSellersStore } from '@/stores/sellers'
-import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const isPendingDialogOpen = ref(false)
 const isAddClientDialogOpen = ref(false)
@@ -24,8 +19,6 @@ const purchases = ref<any[]>([])
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
-const sellersStore = useSellersStore()
-const { selectedEstablishmentId } = useEstablishmentRegister()
 
 const Clients = computed(() => customerStore.clients)
 const selectedClient = computed({
@@ -202,25 +195,8 @@ async function handleClientCreated(response: any) {
 
     </div>
 
-    <!-- Grille de raccourcis -->
-    <div class="flex-1 min-h-0 flex flex-col">
-      <label class="text-sm font-semibold mb-2 block flex-shrink-0">Raccourcis</label>
-      <div class="grid grid-cols-3 gap-2 overflow-auto flex-1 content-start">
-        <ContextMenu v-for="n in 21" :key="n">
-          <ContextMenuTrigger>
-            <Button class="h-12 rounded text-sm w-full" variant="secondary">
-              Vide
-            </Button>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem>Créer un raccourci produit</ContextMenuItem>
-            <ContextMenuItem>Créer un raccourci client</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem>Autre action</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      </div>
-    </div>
+    <!-- Raccourcis -->
+    <CaisseShortcutBoard />
 
     <!-- Drawer historique client -->
     <Drawer v-model:open="isHistoryDrawerOpen">
