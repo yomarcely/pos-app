@@ -1,5 +1,21 @@
 import { ref, computed, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import type { EstablishmentDetail } from '@/types/pos'
+
+const ESTABLISHMENT_KEY_PREFIX = 'pos_selected_establishment'
+const REGISTER_KEY_PREFIX = 'pos_selected_register'
+
+function scopedKey(prefix: string, tenantId: string | null): string | null {
+  return tenantId ? `${prefix}_${tenantId}` : null
+}
+
+// Supprime les anciennes clés non-scopées — un user A / user B sur le même navigateur
+// se voyait hériter de la sélection de l'autre. Migration one-shot au premier init.
+function cleanupLegacyKeys() {
+  if (!process.client) return
+  localStorage.removeItem(ESTABLISHMENT_KEY_PREFIX)
+  localStorage.removeItem(REGISTER_KEY_PREFIX)
+}
 
 export interface Establishment {
   id: number
@@ -87,22 +103,34 @@ export function useEstablishmentRegister() {
     }
   }
 
-  // Sauvegarder les sélections dans localStorage
+  // Sauvegarder les sélections dans localStorage (scopé par tenantId)
   function saveSelections() {
     if (!process.client) return
+    const tenantId = useAuthStore().tenantId
+    const estKey = scopedKey(ESTABLISHMENT_KEY_PREFIX, tenantId)
+    const regKey = scopedKey(REGISTER_KEY_PREFIX, tenantId)
+    if (!estKey || !regKey) return // pas de tenant → ne rien écrire (évite fuite cross-tenant)
+
     if (selectedEstablishmentId.value) {
-      localStorage.setItem('pos_selected_establishment', String(selectedEstablishmentId.value))
+      localStorage.setItem(estKey, String(selectedEstablishmentId.value))
     }
     if (selectedRegisterId.value) {
-      localStorage.setItem('pos_selected_register', String(selectedRegisterId.value))
+      localStorage.setItem(regKey, String(selectedRegisterId.value))
     }
   }
 
-  // Hydrate rapidement depuis le storage (avant le fetch) pour afficher l'info dès le chargement
+  // Hydrate rapidement depuis le storage (avant le fetch) pour afficher l'info dès le chargement.
+  // Appelé depuis initialize() — à ce moment plugins/02.session-restore.client.ts a déjà
+  // restauré la session, donc useAuthStore().tenantId est défini pour un user authentifié.
   function hydrateSelectionsFromStorage() {
     if (!process.client) return
-    const savedEstablishmentId = localStorage.getItem('pos_selected_establishment')
-    const savedRegisterId = localStorage.getItem('pos_selected_register')
+    const tenantId = useAuthStore().tenantId
+    const estKey = scopedKey(ESTABLISHMENT_KEY_PREFIX, tenantId)
+    const regKey = scopedKey(REGISTER_KEY_PREFIX, tenantId)
+    if (!estKey || !regKey) return
+
+    const savedEstablishmentId = localStorage.getItem(estKey)
+    const savedRegisterId = localStorage.getItem(regKey)
 
     if (savedEstablishmentId) {
       selectedEstablishmentId.value = Number(savedEstablishmentId)
@@ -132,6 +160,7 @@ export function useEstablishmentRegister() {
     if (initialized.value) return
 
     loading.value = true
+    cleanupLegacyKeys()
     // Pré-hydrate depuis le storage pour un affichage instantané
     hydrateSelectionsFromStorage()
     await Promise.all([
