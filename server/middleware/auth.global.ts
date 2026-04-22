@@ -3,6 +3,17 @@ import { logger } from '~/server/utils/logger'
 
 const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth']
 
+// Fail-closed au boot : refuse de démarrer si ALLOW_AUTH_BYPASS=true hors dev.
+// Évite qu'une variable oubliée dans un .env staging/prod désactive l'auth silencieusement.
+if (process.env.ALLOW_AUTH_BYPASS === 'true') {
+  if (process.env.NODE_ENV !== 'development') {
+    throw new Error(
+      '[auth.global] Configuration invalide : ALLOW_AUTH_BYPASS=true est interdit hors NODE_ENV=development.'
+    )
+  }
+  logger.warn('[auth.global] ALLOW_AUTH_BYPASS=true détecté (dev uniquement) — auth désactivable par requête')
+}
+
 export default defineEventHandler(async (event) => {
   const path = event.path || ''
   if (!path.startsWith('/api')) return
