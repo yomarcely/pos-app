@@ -1,7 +1,7 @@
 import { assertAuth, getAccessTokenFromEvent, getTenantFromUser, supabaseServerClient } from '~/server/utils/supabase'
 import { logger } from '~/server/utils/logger'
 
-const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth', '/api/database/seed']
+const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth']
 
 export default defineEventHandler(async (event) => {
   const path = event.path || ''

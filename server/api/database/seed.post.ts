@@ -13,6 +13,10 @@ import { logger } from '~/server/utils/logger'
  */
 
 export default defineEventHandler(async () => {
+  if (process.env.NODE_ENV !== 'development') {
+    throw createError({ statusCode: 403, message: 'Seed réservé au dev' })
+  }
+
   try {
     logger.info('Démarrage du seed de la base de données (API)')
     const result = await seedDatabase({ reset: false })

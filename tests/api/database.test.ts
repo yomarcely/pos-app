@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Override createError
 ;(globalThis as Record<string, unknown>).createError = (data: Record<string, unknown>) => {
@@ -31,10 +31,17 @@ vi.mock('~/server/database/seed', () => ({
 // ===========================================
 
 describe('API /api/database', () => {
+  const originalNodeEnv = process.env.NODE_ENV
+
   beforeEach(() => {
     vi.resetModules()
     seedResult = {}
     seedShouldThrow = false
+    process.env.NODE_ENV = 'development'
+  })
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv
   })
 
   describe('POST /api/database/seed', () => {
@@ -58,6 +65,17 @@ describe('API /api/database', () => {
       await expect(handler({})).rejects.toMatchObject({
         statusCode: 500,
         message: 'DB connection failed'
+      })
+    })
+
+    it('throw 403 si NODE_ENV !== development', async () => {
+      process.env.NODE_ENV = 'production'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/database/seed.post')).default as any
+
+      await expect(handler({})).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Seed réservé au dev'
       })
     })
   })
