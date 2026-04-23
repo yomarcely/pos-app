@@ -49,7 +49,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ✅ Fix 2026-04-23 (7 tests) |
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ⏳ Ouvert |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
-| Q11 | Basse | CSP `unsafe-eval` actif en production | ⏳ Ouvert |
+| Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
 | Q12 | Basse | Audit logs absents sur CRUD non-vente | ⏳ Ouvert |
 
 ---
@@ -125,13 +125,13 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q11 — CSP `unsafe-eval` actif en production
+### Q11 — CSP `unsafe-eval` actif en production ✅
 
 - **Sévérité** : Basse
-- **Fichier** : `nuxt.config.ts:79`
-- **Preuve** : `"script-src 'self' 'unsafe-inline' 'unsafe-eval'"` sans condition `NODE_ENV`.
-- **Risque** : `unsafe-eval` permet `eval()`, `Function()`, `setTimeout(string)`. Affaiblit fortement la défense XSS en prod.
-- **Fix** : conditionner par `NODE_ENV === 'production'` → retirer `unsafe-eval`. Tester en preview que Vue/Nuxt fonctionne sans (devrait — `unsafe-eval` n'est nécessaire qu'en dev pour le HMR).
+- **Fichier fixé** : `nuxt.config.ts` (CSP conditionnée par `NODE_ENV`)
+- **Mécanisme** : ternaire dans le tableau CSP — en prod `script-src 'self' 'unsafe-inline'` (sans `'unsafe-eval'`), en dev les 3 sont conservés pour le HMR Vue/Nuxt.
+- **À faire (validation manuelle)** : déployer en preview/staging et vérifier que la console navigateur ne reporte aucune violation `script-src` (Vue/Nuxt en mode prod build n'utilise normalement pas `eval` mais certaines libs tierces le peuvent — typiquement Vue I18n compilé avec template runtime).
+- **Note** : `unsafe-inline` reste actif (inévitable sans nonces sur scripts/styles inline générés par Vue). Durcir davantage = chantier `nonce-based CSP` (hors scope).
 
 ---
 

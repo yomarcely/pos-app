@@ -74,9 +74,13 @@ export default defineNuxtConfig({
       '/**': {
         headers: {
           // Content Security Policy - Prévient XSS et injection de contenu
+          // Q11 — 'unsafe-eval' n'est requis qu'en dev (HMR Vue/Nuxt) ; retiré en prod
+          // pour durcir la défense XSS (sinon eval/Function/setTimeout(string) restent ouverts).
           'Content-Security-Policy': [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Note: 'unsafe-eval' requis pour Vue/Nuxt en dev
+            process.env.NODE_ENV === 'production'
+              ? "script-src 'self' 'unsafe-inline'"
+              : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: https: blob:",
