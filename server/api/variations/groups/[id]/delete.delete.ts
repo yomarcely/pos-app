@@ -3,6 +3,7 @@ import { variationGroups, variations, products } from '~/server/database/schema'
 import { eq, and, ne, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeactivation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -105,6 +106,18 @@ export default defineEventHandler(async (event) => {
       )
 
     logger.info(`Groupe de variation archivé: ${existing.name}`)
+
+    // Q12 — Audit log (soft delete)
+    const auth = event.context.auth
+    await logEntityDeactivation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'variation_group',
+      entityId: id,
+      snapshot: { name: existing.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

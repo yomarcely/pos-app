@@ -1,9 +1,9 @@
 import { db } from '~/server/database/connection'
-import { stockMovements, products, auditLogs } from '~/server/database/schema'
+import { stockMovements, products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
-import { getRequestIP } from 'h3'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeletion } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -131,23 +131,21 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    // Enregistrer la suppression dans l'audit log (NF525)
-    await db.insert(auditLogs).values({
+    // Q12 — Audit log centralisé (refactor : avant utilisait db.insert inline)
+    const auth = event.context.auth
+    await logEntityDeletion({
       tenantId,
       userId: movement.userId,
-      userName: 'System', // TODO: Récupérer le nom de l'utilisateur connecté
+      userName: auth?.user?.email || 'Utilisateur',
       entityType: 'stock_movement',
       entityId: movement.id,
-      action: 'delete',
-      changes: {
+      snapshot: {
         productId: movement.productId,
         productName: product.name,
         variation: movement.variation,
         quantity: movement.quantity,
         reason: movement.reason,
         stockRestored: true,
-      },
-      metadata: {
         oldStockBeforeMovement: movement.oldStock,
         newStockAfterMovement: movement.newStock,
         currentStockBeforeDeletion,

@@ -3,6 +3,7 @@ import { categories, products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeactivation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -80,6 +81,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info(`Catégorie archivée: ${archived.name}`)
+
+    // Q12 — Audit log (soft delete)
+    const auth = event.context.auth
+    await logEntityDeactivation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'category',
+      entityId: id,
+      snapshot: { name: archived.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

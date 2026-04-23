@@ -3,6 +3,7 @@ import { brands, products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeletion } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -50,6 +51,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info({ brandId: deleted.id, brandName: deleted.name, tenantId }, 'Brand deleted')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityDeletion({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'brand',
+      entityId: deleted.id,
+      snapshot: { name: deleted.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return { success: true, message: 'Marque supprimée avec succès' }
   } catch (error) {

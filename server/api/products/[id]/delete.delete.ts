@@ -3,6 +3,7 @@ import { products, saleItems } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeletion } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -74,6 +75,18 @@ export default defineEventHandler(async (event) => {
       productId,
       productName: product.name,
     }, 'Produit supprimé')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityDeletion({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'product',
+      entityId: productId,
+      snapshot: { name: product.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

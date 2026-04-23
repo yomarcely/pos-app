@@ -44,13 +44,13 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q3 | Haute | Validation Zod absente sur 3 endpoints POST/PATCH | ✅ Fix 2026-04-23 (24 tests) |
 | Q4 | Moyenne | 2 migrations SQL orphelines exécutables fortuitement | ✅ Commit `0ea2871` (2026-04-22) |
 | Q5 | Haute | `localStorage pos_selected_seller` non scopé tenant | ✅ Fix 2026-04-23 (5 tests) |
-| Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | 🟡 Partiel 2026-04-23 (5/13 — reste ⊂ Q12) |
+| Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | ✅ Fix 2026-04-23 (13/13) |
 | Q7 | Haute | `localStorage` établissement/caisse cross-tenant | ✅ Commit `07b2d14` (2026-04-22) |
 | Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ✅ Fix 2026-04-23 (7 tests) |
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ✅ Fix 2026-04-23 (8 tests) |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
-| Q12 | Basse | Audit logs absents sur CRUD non-vente | ⏳ Ouvert |
+| Q12 | Basse | Audit logs absents sur CRUD non-vente | 🟡 Partiel 2026-04-23 (DELETE ✅, CREATE/UPDATE à faire) |
 
 ---
 
@@ -79,18 +79,14 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q6 — Endpoints DELETE sans `logAuditEvent` 🟡 Partiel
+### Q6 — Endpoints DELETE sans `logAuditEvent` ✅
 
 - **Sévérité** : Moyenne
-- **Infra créée** : `server/utils/audit.ts` — helpers `logEntityDeletion` (vraies suppressions) et `logEntityDeactivation` (soft-deletes via `isActive=false`). 2 nouveaux `AuditEventType` : `ENTITY_DELETE`, `ENTITY_DEACTIVATE`.
-- **Endpoints couverts (5/13)** :
-  - `clients/[id].delete.ts` → `logEntityDeletion`
-  - `sync-groups/[id]/delete.delete.ts` → `logEntityDeletion`
-  - `establishments/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
-  - `registers/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
-  - `sellers/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
-- **Restants (8/13)** : `products`, `brands`, `suppliers`, `categories`, `tax-rates`, `variations`, `variations/groups`, `products/stock-movements` (déjà audit inline non-helper). Refactor à faire dans **Q12** (audit logs CRUD non-vente, même infra).
-- **Découverte** : establishments/registers/sellers font du **soft-delete** (`isActive=false`) ; helper `logEntityDeactivation` distinct pour préserver la sémantique.
+- **Infra** : `server/utils/audit.ts` — helpers `logEntityDeletion` (vraies suppressions) et `logEntityDeactivation` (soft-deletes via `isActive=false` ou `isArchived=true`). 2 nouveaux `AuditEventType` : `ENTITY_DELETE`, `ENTITY_DEACTIVATE`.
+- **13/13 endpoints couverts** :
+  - **Hard delete → `logEntityDeletion`** : `clients/[id].delete.ts`, `sync-groups/[id]/delete.delete.ts`, `products/[id]/delete.delete.ts`, `brands/[id]/delete.delete.ts`, `suppliers/[id]/delete.delete.ts`, `products/stock-movements/[id].delete.ts` (refactor — avant audit inline)
+  - **Soft delete → `logEntityDeactivation`** : `establishments/[id]/delete.delete.ts`, `registers/[id]/delete.delete.ts`, `sellers/[id]/delete.delete.ts` (`isActive=false`), `categories/[id]/delete.delete.ts`, `tax-rates/[id]/delete.delete.ts`, `variations/[id]/delete.delete.ts`, `variations/groups/[id]/delete.delete.ts` (`isArchived=true`)
+- **Découverte** : 2 conventions de soft-delete coexistent dans la codebase — `isActive=false` (entités opérationnelles : establishments/registers/sellers) et `isArchived=true` (refdata : categories/tax-rates/variations/variation-groups). Sémantiquement identique côté audit (`ENTITY_DEACTIVATE`).
 
 ---
 
@@ -144,12 +140,20 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q12 — Audit logs absents sur CRUD non-vente
+### Q12 — Audit logs absents sur CRUD non-vente 🟡 Partiel
 
 - **Sévérité** : Basse
-- **Périmètre** : tous les endpoints CRUD hors `sales/` (products, establishments, registers, sellers, suppliers, brands, categories, tax-rates, variations)
-- **Risque** : modifications de configuration non tracées. Difficile d'auditer un changement de TVA, désactivation d'établissement, modif de catégorie, etc.
-- **Fix** : helpers `logEntityCreation`, `logEntityUpdate`, `logEntityDelete` avec diff avant/après. Couplé à Q6 (même infra). Roll-out progressif : commencer par les entités touchant la conformité (TVA, établissements, caisses).
+- **Périmètre** : tous les endpoints CRUD hors `sales/`
+- **DELETE** : ✅ couvert par Q6 (13/13)
+- **CREATE / UPDATE** : ⏳ à faire. Helpers à ajouter dans `server/utils/audit.ts` :
+  - `logEntityCreation({ tenantId, userId, userName, entityType, entityId, snapshot })`
+  - `logEntityUpdate({ tenantId, userId, userName, entityType, entityId, before, after })` avec diff calculé
+- **Roll-out recommandé** (par ordre conformité) :
+  1. `tax-rates` (impact NF525 direct)
+  2. `establishments`, `registers`, `sellers` (intégrité comptable)
+  3. `products`, `categories` (data métier)
+  4. `brands`, `suppliers`, `variations`, `variation-groups` (refdata)
+- **Coût estimé** : ~24 endpoints × ~5 lignes = 120 lignes + 2 helpers + tests. Faisable en une session dédiée.
 
 ---
 

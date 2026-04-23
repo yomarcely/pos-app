@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { taxRates, products } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { logEntityDeactivation } from '~/server/utils/audit'
 
 /**
  * DELETE /api/tax-rates/:id/delete
@@ -55,6 +56,18 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Taux de TVA introuvable',
     })
   }
+
+  // Q12 — Audit log (NF525 critique : changements de taux TVA tracés)
+  const auth = event.context.auth
+  await logEntityDeactivation({
+    tenantId,
+    userId: null,
+    userName: auth?.user?.email || 'Utilisateur',
+    entityType: 'tax_rate',
+    entityId: id,
+    snapshot: { rate: archivedTaxRate.rate, code: archivedTaxRate.code },
+    ipAddress: getRequestIP(event) || null,
+  })
 
   return { success: true, message: 'Taux de TVA archivé avec succès' }
 })
