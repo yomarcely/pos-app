@@ -1,8 +1,9 @@
 import { db } from '~/server/database/connection'
-import { customers, auditLogs } from '~/server/database/schema'
+import { customers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logCustomerAnonymization } from '~/server/utils/audit'
 
 /**
  * POST /api/clients/:id/anonymize
@@ -63,25 +64,19 @@ export default defineEventHandler(async (event) => {
       .where(eq(customers.id, id))
       .returning()
 
-    // Log d'audit RGPD
+    // Q9 — Log d'audit RGPD via le helper centralisé (snapshot avant anonymisation)
     const auth = event.context.auth
-    await db.insert(auditLogs).values({
+    await logCustomerAnonymization({
       tenantId,
       userId: null,
       userName: auth?.user?.email || auth?.user?.user_metadata?.name || 'Utilisateur',
-      entityType: 'customer',
-      entityId: id,
-      action: 'customer_anonymized',
-      changes: {
-        firstName: { old: client.firstName, new: 'Anonyme' },
-        lastName: { old: client.lastName, new: 'Client' },
-        email: { old: client.email, new: null },
-        phone: { old: client.phone, new: null },
-        address: { old: client.address, new: null },
-      },
-      metadata: {
-        anonymizedAt: now.toISOString(),
-        reason: 'RGPD - droit à l\'oubli',
+      customerId: id,
+      snapshot: {
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
       },
       ipAddress: getRequestIP(event) || null,
     })

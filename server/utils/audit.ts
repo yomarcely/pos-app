@@ -34,6 +34,13 @@ export enum AuditEventType {
   REGISTER_UPDATED = 'register_updated',
   REGISTER_DELETED = 'register_deleted',
 
+  // Événements génériques CRUD (Q6/Q12)
+  ENTITY_DELETE = 'entity_delete',
+  ENTITY_DEACTIVATE = 'entity_deactivate',
+
+  // Événements RGPD (Q9)
+  CUSTOMER_ANONYMIZE = 'customer_anonymize',
+
   // Événements de sécurité
   AUTH_SUCCESS = 'auth_success',
   AUTH_FAILED = 'auth_failed',
@@ -236,6 +243,108 @@ export async function logChainVerification(params: {
     metadata: {
       integrityStatus: params.isValid ? 'valid' : 'invalid',
       registerId: params.registerId || undefined,
+    },
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Log spécifique pour la suppression d'une entité (Q6).
+ *
+ * Capture un snapshot de l'entité avant suppression dans `changes`
+ * pour pouvoir reconstituer en cas de litige/enquête. Le helper est
+ * générique : à appeler depuis n'importe quel endpoint *.delete.ts.
+ *
+ * Échec d'audit n'est PAS bloquant (logAuditEvent capture l'erreur
+ * en interne) — la suppression métier reste prioritaire.
+ */
+export async function logEntityDeletion(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  entityType: string
+  entityId: number
+  snapshot?: Record<string, string | number | boolean | null | undefined>
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    action: AuditEventType.ENTITY_DELETE,
+    changes: params.snapshot,
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Log spécifique pour la désactivation (soft-delete) d'une entité (Q6).
+ *
+ * Convention FymPOS : establishments/registers/sellers ne sont pas
+ * supprimés en base mais désactivés (`isActive = false`) pour préserver
+ * l'intégrité des références historiques (ventes/clôtures NF525).
+ */
+export async function logEntityDeactivation(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  entityType: string
+  entityId: number
+  snapshot?: Record<string, string | number | boolean | null | undefined>
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    action: AuditEventType.ENTITY_DEACTIVATE,
+    changes: params.snapshot,
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Log spécifique pour l'anonymisation d'un client (RGPD - Q9).
+ *
+ * Trace exigence légale (CNIL). `snapshot` contient les valeurs avant
+ * anonymisation pour preuve. Ne JAMAIS retirer ce log même si performance.
+ */
+export async function logCustomerAnonymization(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  customerId: number
+  snapshot: {
+    firstName?: string | null
+    lastName?: string | null
+    email?: string | null
+    phone?: string | null
+    address?: string | null
+  }
+  reason?: string
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: 'customer',
+    entityId: params.customerId,
+    action: AuditEventType.CUSTOMER_ANONYMIZE,
+    changes: {
+      firstName: params.snapshot.firstName ?? undefined,
+      lastName: params.snapshot.lastName ?? undefined,
+      email: params.snapshot.email ?? undefined,
+      phone: params.snapshot.phone ?? undefined,
+      address: params.snapshot.address ?? undefined,
+    },
+    metadata: {
+      anonymizedAt: new Date().toISOString(),
+      reason: params.reason || 'RGPD - droit à l\'oubli',
     },
     ipAddress: params.ipAddress,
   })

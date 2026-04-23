@@ -3,6 +3,7 @@ import { registers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityDeactivation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -56,6 +57,18 @@ export default defineEventHandler(async (event) => {
       )
 
     logger.info(`Caisse désactivée: ${existing.name}`)
+
+    // Q6 — Audit log de la désactivation
+    const auth = event.context.auth
+    await logEntityDeactivation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'register',
+      entityId: id,
+      snapshot: { name: existing.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

@@ -44,10 +44,10 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q3 | Haute | Validation Zod absente sur 3 endpoints POST/PATCH | ✅ Fix 2026-04-23 (24 tests) |
 | Q4 | Moyenne | 2 migrations SQL orphelines exécutables fortuitement | ✅ Commit `0ea2871` (2026-04-22) |
 | Q5 | Haute | `localStorage pos_selected_seller` non scopé tenant | ✅ Fix 2026-04-23 (5 tests) |
-| Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | ⏳ Ouvert |
+| Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | 🟡 Partiel 2026-04-23 (5/13 — reste ⊂ Q12) |
 | Q7 | Haute | `localStorage` établissement/caisse cross-tenant | ✅ Commit `07b2d14` (2026-04-22) |
 | Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ✅ Fix 2026-04-23 (7 tests) |
-| Q9 | Moyenne | Anonymisation client RGPD sans audit log | ⏳ Ouvert |
+| Q9 | Moyenne | Anonymisation client RGPD sans audit log | ✅ Fix 2026-04-23 (8 tests) |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
 | Q12 | Basse | Audit logs absents sur CRUD non-vente | ⏳ Ouvert |
@@ -79,13 +79,18 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q6 — Endpoints DELETE sans `logAuditEvent`
+### Q6 — Endpoints DELETE sans `logAuditEvent` 🟡 Partiel
 
 - **Sévérité** : Moyenne
-- **Fichiers** : tous les `*.delete.ts` (`clients/[id].delete.ts`, `sync-groups/[id]/delete.delete.ts`, products, categories, brands, suppliers, etc.)
-- **Preuve** : aucun import de `logAuditEvent` ; seul `server/api/sales/*` utilise `logSaleCreation` / `logClosure`.
-- **Risque** : suppression de données métier sans trace. En cas de litige ou enquête (RGPD, NF525), aucune preuve de qui/quand/quoi.
-- **Fix** : helper générique `logEntityDeletion({ tenantId, userId, userName, entityType, entityId, snapshot })`, appelé avant chaque `db.delete(...)`. Envisager soft-delete (`isDeleted`/`deletedAt`) pour les entités critiques (clients, ventes, archives) — déjà partiellement fait avec `isArchived`.
+- **Infra créée** : `server/utils/audit.ts` — helpers `logEntityDeletion` (vraies suppressions) et `logEntityDeactivation` (soft-deletes via `isActive=false`). 2 nouveaux `AuditEventType` : `ENTITY_DELETE`, `ENTITY_DEACTIVATE`.
+- **Endpoints couverts (5/13)** :
+  - `clients/[id].delete.ts` → `logEntityDeletion`
+  - `sync-groups/[id]/delete.delete.ts` → `logEntityDeletion`
+  - `establishments/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
+  - `registers/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
+  - `sellers/[id]/delete.delete.ts` → `logEntityDeactivation` (soft)
+- **Restants (8/13)** : `products`, `brands`, `suppliers`, `categories`, `tax-rates`, `variations`, `variations/groups`, `products/stock-movements` (déjà audit inline non-helper). Refactor à faire dans **Q12** (audit logs CRUD non-vente, même infra).
+- **Découverte** : establishments/registers/sellers font du **soft-delete** (`isActive=false`) ; helper `logEntityDeactivation` distinct pour préserver la sémantique.
 
 ---
 
@@ -106,13 +111,17 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q9 — Anonymisation client RGPD sans audit log
+### Q9 — Anonymisation client RGPD sans audit log ✅
 
 - **Sévérité** : Moyenne (RGPD)
-- **Fichier** : `server/api/clients/[id]/anonymize.post.ts`
-- **Preuve** : aucun `logAuditEvent` ni log Pino structuré ; opération destructive (anonymisation = perte d'info personnelle) non tracée.
-- **Risque** : impossibilité de prouver à la CNIL ou au client la date/auteur d'une anonymisation. Sous-cas particulier de Q6 mais critique car déclenché par demande RGPD explicite — donc traçabilité = exigence légale.
-- **Fix** : appeler `logAuditEvent` avec `action: 'anonymize'`, `entityType: 'customer'`, `metadata: { reason }`. À traiter en même temps que Q6 (même infrastructure).
+- **Fichier fixé** : `server/api/clients/[id]/anonymize.post.ts`
+- **Constat à la mise en œuvre** : un audit log existait déjà via `db.insert(auditLogs)` inline — mais hors du helper centralisé. Refactor pour utiliser `logCustomerAnonymization` (nouveau helper dans `server/utils/audit.ts`).
+- **Mécanisme** :
+  - Action `AuditEventType.CUSTOMER_ANONYMIZE`
+  - Snapshot des champs PII (firstName, lastName, email, phone, address) avant anonymisation
+  - Metadata avec `anonymizedAt` + `reason` (défaut "RGPD - droit à l'oubli", surchargeable)
+  - `userId: null` + `userName: auth.user.email` (pas d'ID legacy disponible côté Supabase)
+- **Tests** : 3 tests dans `tests/unit/audit-helpers.test.ts` (snapshot complet, raison custom, omission des null).
 
 ---
 

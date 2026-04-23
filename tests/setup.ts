@@ -15,6 +15,7 @@ import { vi } from 'vitest'
 ;(globalThis as Record<string, unknown>).readBody = async (event: { body?: unknown }) => event?.body || {}
 ;(globalThis as Record<string, unknown>).getCookie = () => undefined
 ;(globalThis as Record<string, unknown>).setCookie = () => undefined
+;(globalThis as Record<string, unknown>).getRequestIP = () => null
 
 // Fonctions auto-importées par Nuxt dans le dossier server/
 ;(globalThis as Record<string, unknown>).getTenantIdFromEvent = () => 'test-tenant-id'
