@@ -12,7 +12,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 import { logger } from '~/server/utils/logger'
-import { recomputeTotalTTC, validateTotalTTC } from '~/server/utils/financialValidation'
+import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
 
 /**
  * ==========================================
@@ -250,6 +250,36 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 400,
         message: `Totaux incohérents : déclaré ${body.totals.totalTTC}€, calculé ${recomputed}€`,
+      })
+    }
+
+    // Q8 — Revalider HT et TVA serveur. Le check TTC seul laissait un attaquant
+    // libre de modifier HT/TVA dans le payload (sous-déclaration TVA, fraude).
+    const declaredHT = Number(body.totals.totalHT)
+    const declaredTVA = Number(body.totals.totalTVA)
+    const declaredTTC = Number(body.totals.totalTTC)
+    const { totalHT: recomputedHT, totalTVA: recomputedTVA } = recomputeHTandTVA(parsedItems)
+
+    if (!validateTotalTTC(declaredHT, recomputedHT)) {
+      throw createError({
+        statusCode: 400,
+        message: `Total HT incohérent : déclaré ${declaredHT}€, calculé ${recomputedHT}€`,
+      })
+    }
+    if (!validateTotalTTC(declaredTVA, recomputedTVA)) {
+      throw createError({
+        statusCode: 400,
+        message: `Total TVA incohérent : déclaré ${declaredTVA}€, calculé ${recomputedTVA}€`,
+      })
+    }
+
+    // Cohérence interne du payload : HT + TVA doit = TTC à 1 centime près
+    const sumCents = Math.round(declaredHT * 100) + Math.round(declaredTVA * 100)
+    const ttcCents = Math.round(declaredTTC * 100)
+    if (Math.abs(sumCents - ttcCents) > 1) {
+      throw createError({
+        statusCode: 400,
+        message: `Incohérence : HT (${declaredHT}€) + TVA (${declaredTVA}€) ≠ TTC (${declaredTTC}€)`,
       })
     }
 

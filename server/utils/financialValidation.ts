@@ -31,6 +31,36 @@ export function validateTotalTTC(
 }
 
 /**
+ * Recalcule HT et TVA serveur depuis les items d'une vente.
+ *
+ * `unitPrice` doit être le prix TTC unitaire FINAL (après remise de ligne
+ * et distribution LRM du globalDiscount) — c'est ce que le client envoie
+ * dans le payload `/api/sales/create` (cf. cartUtils.getFinalPrice).
+ *
+ * Calcul par ligne : TTC ligne = unitPrice × quantity ; HT = TTC / (1 + tva%).
+ * Permet de revalider HT/TVA serveur (cf. Q8) au lieu de faire confiance
+ * aveuglément au payload, qui pouvait être manipulé pour sous-déclarer la TVA.
+ */
+export function recomputeHTandTVA(items: Array<{
+  unitPrice: number
+  quantity: number
+  tva: number
+}>): { totalHT: number; totalTVA: number } {
+  let htCents = 0
+  let ttcCents = 0
+  for (const item of items) {
+    const lineTtcCents = Math.round(item.unitPrice * item.quantity * 100)
+    const lineHtCents = Math.round(lineTtcCents / (1 + item.tva / 100))
+    ttcCents += lineTtcCents
+    htCents += lineHtCents
+  }
+  return {
+    totalHT: htCents / 100,
+    totalTVA: (ttcCents - htCents) / 100,
+  }
+}
+
+/**
  * Vérifie que HT + TVA = TTC à 1 centime près.
  * Logue un warning (pas un throw) — la clôture continue,
  * l'anomalie est tracée pour investigation.

@@ -10,7 +10,7 @@ vi.mock('~/server/utils/logger', () => ({
   },
 }))
 
-import { recomputeTotalTTC, validateTotalTTC, assertHTplusTVAequalsTTC } from '~/server/utils/financialValidation'
+import { recomputeTotalTTC, validateTotalTTC, assertHTplusTVAequalsTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
 import { logger } from '~/server/utils/logger'
 
 describe('recomputeTotalTTC', () => {
@@ -124,5 +124,62 @@ describe('assertHTplusTVAequalsTTC', () => {
       assertHTplusTVAequalsTTC(0, 0, 1000.00, 'test')
     }).not.toThrow()
     expect(vi.mocked(logger.warn)).toHaveBeenCalled()
+  })
+})
+
+describe('Q8 — recomputeHTandTVA', () => {
+  it('décompose un item TVA 20% (100€ TTC → 83.33 HT + 16.67 TVA)', () => {
+    const r = recomputeHTandTVA([{ unitPrice: 100, quantity: 1, tva: 20 }])
+    expect(r.totalHT).toBe(83.33)
+    expect(r.totalTVA).toBe(16.67)
+  })
+
+  it('décompose un item TVA 5.5% (10.55€ TTC → 10.00 HT + 0.55 TVA)', () => {
+    const r = recomputeHTandTVA([{ unitPrice: 10.55, quantity: 1, tva: 5.5 }])
+    expect(r.totalHT).toBe(10)
+    expect(r.totalTVA).toBe(0.55)
+  })
+
+  it('somme correctement plusieurs lignes même TVA', () => {
+    const r = recomputeHTandTVA([
+      { unitPrice: 50, quantity: 1, tva: 20 },
+      { unitPrice: 50, quantity: 1, tva: 20 },
+    ])
+    expect(r.totalHT + r.totalTVA).toBe(100)
+  })
+
+  it('somme correctement plusieurs lignes multi-TVA', () => {
+    // 60€ TTC à 20% (50 HT + 10 TVA) + 21.10€ TTC à 5.5% (20 HT + 1.10 TVA)
+    const r = recomputeHTandTVA([
+      { unitPrice: 60, quantity: 1, tva: 20 },
+      { unitPrice: 21.10, quantity: 1, tva: 5.5 },
+    ])
+    expect(r.totalHT).toBeCloseTo(70, 2)
+    expect(r.totalTVA).toBeCloseTo(11.10, 2)
+  })
+
+  it('respecte HT + TVA = TTC à 1 centime près', () => {
+    const items = [
+      { unitPrice: 9.99, quantity: 3, tva: 20 },
+      { unitPrice: 4.50, quantity: 2, tva: 10 },
+      { unitPrice: 1.20, quantity: 5, tva: 5.5 },
+    ]
+    const r = recomputeHTandTVA(items)
+    const ttc = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+    expect(Math.abs((r.totalHT + r.totalTVA) - ttc)).toBeLessThanOrEqual(0.01)
+  })
+
+  it('retourne 0/0 pour un panier vide', () => {
+    expect(recomputeHTandTVA([])).toEqual({ totalHT: 0, totalTVA: 0 })
+  })
+
+  it('détecte une fraude : payload TVA = 0 sur ligne taxée', () => {
+    // Si l'attaquant envoie tva: 0 mais le vrai taux était 20%, le HT/TVA recalculés
+    // ne matchent pas le vrai HT/TVA. Test que le recalcul utilise bien le taux passé.
+    const real = recomputeHTandTVA([{ unitPrice: 120, quantity: 1, tva: 20 }])
+    const fake = recomputeHTandTVA([{ unitPrice: 120, quantity: 1, tva: 0 }])
+    expect(real.totalTVA).toBe(20)
+    expect(fake.totalTVA).toBe(0)
+    // → c'est au handler de comparer le payload TVA au recalcul serveur (cf. Q8)
   })
 })

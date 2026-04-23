@@ -46,7 +46,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q5 | Haute | `localStorage pos_selected_seller` non scopé tenant | ✅ Fix 2026-04-23 (5 tests) |
 | Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | ⏳ Ouvert |
 | Q7 | Haute | `localStorage` établissement/caisse cross-tenant | ✅ Commit `07b2d14` (2026-04-22) |
-| Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ⏳ Ouvert |
+| Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ✅ Fix 2026-04-23 (7 tests) |
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ⏳ Ouvert |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ⏳ Ouvert |
@@ -89,20 +89,20 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q8 — Totaux HT/TVA non revalidés serveur
+### Q8 — Totaux HT/TVA non revalidés serveur ✅
 
-> ⚠️ Ce finding **est identique** au risque listé dans `CLAUDE.md` (« Totaux HT/TVA stockés = payload client »). Conservé sous Q8 pour traçabilité dans la série.
+> ⚠️ Ce finding **était identique** au risque listé dans `CLAUDE.md` (« Totaux HT/TVA stockés = payload client »). Avec ce fix, le risque CLAUDE.md doit être marqué résolu.
 
 - **Sévérité** : Moyenne (impact fiscal direct)
-- **Fichier** : `server/api/sales/create.post.ts:340-342` (et `:249` pour le check actuel)
-- **Preuve** :
-  ```ts
-  totalHT:  Number(body.totals.totalHT).toString(),   // l.340 — payload brut
-  totalTVA: Number(body.totals.totalTVA).toString(),  // l.341 — payload brut
-  totalTTC: Number(body.totals.totalTTC).toString(),  // l.342 — seul revalidé l.249
-  ```
-- **Risque** : un attaquant peut sous-déclarer la TVA ou créer une incohérence HT+TVA ≠ TTC. Si ces valeurs entrent dans le hash NF525, l'archive devient invalide.
-- **Fix** : utiliser `assertHTplusTVAequalsTTC` (déjà disponible dans `server/utils/financialValidation.ts`) après la validation TTC. Recalculer HT/TVA serveur à partir des items + taux TVA et comparer au payload (tolérance ≤ 1 centime). Lever 422 sinon.
+- **Fichier fixé** : `server/api/sales/create.post.ts` après `validateTotalTTC` (l.247)
+- **Mécanisme** :
+  1. Nouvelle fonction `recomputeHTandTVA` dans `server/utils/financialValidation.ts` — décompose chaque ligne par taux TVA (`unitPrice × quantity` puis `HT = TTC / (1 + tva%)`).
+  2. Comparaison payload HT/TVA vs serveur via `validateTotalTTC` (tolérance 2 cents — LRM).
+  3. Assertion stricte `HT + TVA = TTC` sur le payload (tolérance 1 cent) — détecte un attaquant qui mentirait sur HT/TVA mais avec une somme cohérente.
+  4. Si l'un échoue → `createError({ statusCode: 400 })`.
+- **Tests** : 7 tests dans `tests/unit/financialValidation.test.ts` (TVA 20%, 5.5%, multi-TVA, panier vide, fraude TVA=0).
+- **Limite résiduelle** : tolérance 2 cents → fraude max ±2 cents par vente. Négligeable. Les valeurs payload sont conservées dans le hash NF525 (pas de remplacement par le calcul serveur) pour préserver l'intégrité de la chaîne.
+- **À faire** : retirer la mention « Totaux HT/TVA stockés = payload client » des risques ouverts du `CLAUDE.md`.
 
 ---
 
