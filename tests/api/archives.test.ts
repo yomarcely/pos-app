@@ -213,18 +213,8 @@ describe('API /api/archives', () => {
       expect(res.content).toBeDefined()
     })
 
-    it('throw 400 si period ou type manquant (remonte en 500)', async () => {
-      currentDb = createReadChain([])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/archives/create.post')).default as any
-      const event = createMockEvent({
-        body: { period: '2024-01' } // type manquant
-      })
-
-      await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
-        message: 'Période et type d\'archive requis'
-      })
-    })
+    // Note : la validation Zod du body (type/period requis, format YYYY-MM)
+    // est testée en isolation dans tests/unit/validators/q3-schemas.test.ts.
+    // Le mock global de validateBody (tests/setup.ts) bypass la validation ici.
   })
 })

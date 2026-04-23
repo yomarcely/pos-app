@@ -3,6 +3,8 @@ import { syncGroups, syncGroupEstablishments, establishments, productEstablishme
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { validateBody } from '~/server/utils/validation'
+import { patchSyncGroupEstablishmentsSchema, type PatchSyncGroupEstablishmentsInput } from '~/server/validators/sync.schema'
 
 /**
  * ==========================================
@@ -18,16 +20,12 @@ export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
-    const body = await readBody(event)
 
-    const { establishmentIds } = body
-
-    if (!id || !Array.isArray(establishmentIds)) {
-      throw createError({
-        statusCode: 400,
-        message: 'Paramètres invalides (id, establishmentIds requis)',
-      })
+    if (!id) {
+      throw createError({ statusCode: 400, message: 'id du groupe requis' })
     }
+
+    const { establishmentIds } = await validateBody<PatchSyncGroupEstablishmentsInput>(event, patchSyncGroupEstablishmentsSchema)
 
     // Vérifier que le groupe existe
     const [group] = await db

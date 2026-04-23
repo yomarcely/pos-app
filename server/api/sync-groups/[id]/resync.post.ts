@@ -3,6 +3,8 @@ import { syncGroups, syncGroupEstablishments, products, productEstablishments, c
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { validateBody } from '~/server/utils/validation'
+import { resyncGroupSchema, type ResyncGroupInput } from '~/server/validators/sync.schema'
 
 // Types pour les valeurs de resync produits
 interface ProductSourceValues {
@@ -108,20 +110,12 @@ export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     const id = parseInt(getRouterParam(event, 'id') || '0')
-    const body = await readBody(event)
 
-    const {
-      sourceEstablishmentId,
-      entityType, // 'product' ou 'customer'
-      fields, // Array des champs à resynchroniser: ['supplierId', 'categoryId', ...]
-    } = body
-
-    if (!id || !sourceEstablishmentId || !entityType || !fields || !Array.isArray(fields)) {
-      throw createError({
-        statusCode: 400,
-        message: 'Paramètres manquants (sourceEstablishmentId, entityType, fields)',
-      })
+    if (!id) {
+      throw createError({ statusCode: 400, message: 'id du groupe requis' })
     }
+
+    const { sourceEstablishmentId, entityType, fields } = await validateBody<ResyncGroupInput>(event, resyncGroupSchema)
 
     // Vérifier que le groupe existe
     const [group] = await db

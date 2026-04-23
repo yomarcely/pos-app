@@ -35,9 +35,9 @@ coverage
 *.sqlite3
 server/database/migrations/
 
-# Archives NF525 (données sensibles)
+# Archives NF525 (données sensibles) — anchored à la racine pour ne pas matcher server/api/archives/
 data/
-archives/
+/archives/
 
 # Clés de certification INFOCERT (SENSIBLE!)
 *.pem

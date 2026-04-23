@@ -165,6 +165,22 @@ export const forceSyncSchema = z.object({
 })
 
 // ==========================================
+// RESYNC GROUPE
+// ==========================================
+
+export const resyncGroupSchema = z.object({
+  sourceEstablishmentId: z.number().int().positive('sourceEstablishmentId requis'),
+  entityType: z.enum(['product', 'customer'], {
+    message: 'entityType doit être "product" ou "customer"',
+  }),
+  fields: z.array(z.string().min(1)).min(1, 'Au moins un champ à resynchroniser'),
+})
+
+export const patchSyncGroupEstablishmentsSchema = z.object({
+  establishmentIds: z.array(z.number().int().positive()),
+})
+
+// ==========================================
 // TRANSFERT DE STOCK ENTRE ÉTABLISSEMENTS
 // ==========================================
 
@@ -218,3 +234,5 @@ export type ForceSyncInput = z.infer<typeof forceSyncSchema>
 export type TransferStockInput = z.infer<typeof transferStockSchema>
 export type GetProductStocksQuery = z.infer<typeof getProductStocksQuerySchema>
 export type GetSyncLogsQuery = z.infer<typeof getSyncLogsQuerySchema>
+export type ResyncGroupInput = z.infer<typeof resyncGroupSchema>
+export type PatchSyncGroupEstablishmentsInput = z.infer<typeof patchSyncGroupEstablishmentsSchema>
