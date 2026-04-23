@@ -3,8 +3,20 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { Seller } from '@/types'
 import { extractFetchError } from '@/composables/useFetchError'
+import { useAuthStore } from '@/stores/auth'
 
-const STORAGE_KEY = 'pos_selected_seller'
+const STORAGE_KEY_PREFIX = 'pos_selected_seller'
+
+function scopedKey(tenantId: string | null): string | null {
+  return tenantId ? `${STORAGE_KEY_PREFIX}_${tenantId}` : null
+}
+
+// Migration one-shot : retire l'ancienne clé non-scopée — sinon User A et
+// User B sur le même navigateur héritaient de la sélection l'un de l'autre.
+function cleanupLegacyKey(): void {
+  if (!process.client) return
+  localStorage.removeItem(STORAGE_KEY_PREFIX)
+}
 
 export const useSellersStore = defineStore('sellers', () => {
   const sellers = ref<Seller[]>([])
@@ -41,7 +53,9 @@ export const useSellersStore = defineStore('sellers', () => {
 
   function hydrateSelectedSeller(): void {
     if (!process.client) return
-    const savedId = localStorage.getItem(STORAGE_KEY)
+    const key = scopedKey(useAuthStore().tenantId)
+    if (!key) return // pas de tenant → ne rien lire (évite fuite cross-tenant)
+    const savedId = localStorage.getItem(key)
     if (savedId) {
       selectedSeller.value = savedId
     }
@@ -62,6 +76,7 @@ export const useSellersStore = defineStore('sellers', () => {
   }
 
   async function initialize(establishmentId?: number): Promise<void> {
+    cleanupLegacyKey()
     hydrateSelectedSeller()
     await loadSellers(establishmentId)
     ensureValidSelectedSeller()
@@ -73,10 +88,12 @@ export const useSellersStore = defineStore('sellers', () => {
 
   watch(selectedSeller, (value) => {
     if (!process.client) return
+    const key = scopedKey(useAuthStore().tenantId)
+    if (!key) return // fail-closed : pas de tenant → ne rien écrire
     if (value) {
-      localStorage.setItem(STORAGE_KEY, value)
+      localStorage.setItem(key, value)
     } else {
-      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(key)
     }
   })
 

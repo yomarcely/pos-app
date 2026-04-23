@@ -43,7 +43,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q2 | Haute | `ALLOW_AUTH_BYPASS=true` silencieux hors dev | ✅ Commit `4288c3c` (2026-04-22) |
 | Q3 | Haute | Validation Zod absente sur 3 endpoints POST/PATCH | ✅ Fix 2026-04-23 (24 tests) |
 | Q4 | Moyenne | 2 migrations SQL orphelines exécutables fortuitement | ✅ Commit `0ea2871` (2026-04-22) |
-| Q5 | Haute | `localStorage pos_selected_seller` non scopé tenant | ⏳ Ouvert |
+| Q5 | Haute | `localStorage pos_selected_seller` non scopé tenant | ✅ Fix 2026-04-23 (5 tests) |
 | Q6 | Moyenne | Endpoints DELETE sans `logAuditEvent` | ⏳ Ouvert |
 | Q7 | Haute | `localStorage` établissement/caisse cross-tenant | ✅ Commit `07b2d14` (2026-04-22) |
 | Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ⏳ Ouvert |
@@ -70,18 +70,12 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q5 — `localStorage pos_selected_seller` non scopé tenant
+### Q5 — `localStorage pos_selected_seller` non scopé tenant ✅
 
 - **Sévérité** : Haute
-- **Fichier** : `stores/sellers.ts:7,44,77`
-- **Preuve** :
-  ```ts
-  const STORAGE_KEY = 'pos_selected_seller'   // l.7 — clé globale
-  const savedId = localStorage.getItem(STORAGE_KEY)  // l.44 — restore sans tenant
-  localStorage.setItem(STORAGE_KEY, value)    // l.77 — write sans tenant
-  ```
-- **Risque** : même classe de bug que Q7. User A (tenant1) sélectionne seller#5 → User B (tenant2) sur le même navigateur hérite de la sélection. Si seller#5 existe aussi dans tenant2, les ventes sont attribuées au mauvais vendeur (intégrité comptable).
-- **Fix** : scoper la clé par `tenantId` (`'pos_selected_seller_' + tenantId`), lire `tenantId` via `useAuthStore()`, fail-closed si absent, cleanup de l'ancienne clé au premier init. Pattern identique à Q7 — réutiliser le code de `useEstablishmentRegister`.
+- **Fichier fixé** : `stores/sellers.ts`
+- **Tests** : 5 tests dans `tests/stores/sellersStore.test.ts` — hydrate scopé, save scopé, cleanup legacy, fail-closed sans tenantId, scénario cross-tenant explicite (User A/B).
+- **Notes** : pattern identique à Q7 (`composables/useEstablishmentRegister.ts`). Helper `scopedKey(tenantId)` local, `cleanupLegacyKey()` appelé dans `initialize()`, watch sur `selectedSeller` lit `useAuthStore().tenantId` à chaque écriture. Si tenantId absent → ne lit ni n'écrit (fail-closed).
 
 ---
 
