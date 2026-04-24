@@ -6,6 +6,7 @@ import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { getGlobalProductFields, type ProductFields } from '~/server/utils/sync'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * Type pour les overrides locaux d'un établissement
@@ -187,6 +188,25 @@ export default defineEventHandler(async (event) => {
     // Les modifications sont déjà appliquées à tous les établissements via la table products
     // syncProductToGroup() est uniquement utile lors de la CRÉATION pour dupliquer
     // les entrées product_stocks et product_establishments
+
+    // Q12 — Audit log (inclut l'establishmentId si l'update est local)
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'product',
+      entityId: parseInt(id),
+      changes: {
+        name: updatedProduct.name,
+        price: updatedProduct.price,
+        categoryId: updatedProduct.categoryId,
+        brandId: updatedProduct.brandId,
+        supplierId: updatedProduct.supplierId,
+        establishmentId: establishmentId ?? null,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

@@ -1,11 +1,12 @@
 import { db } from '~/server/database/connection'
-import { customers, customerEstablishments, establishments, auditLogs } from '~/server/database/schema'
+import { customers, customerEstablishments, establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 import { syncCustomerToGroup } from '~/server/utils/sync'
 import { and, eq } from 'drizzle-orm'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -154,24 +155,19 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Log d'audit RGPD
+    // Q12 — Audit log RGPD via le helper centralisé (refactor : avant insert inline)
     const auth = event.context.auth
-    const userId = auth?.user?.id
-    if (userId) {
-      await db.insert(auditLogs).values({
+    if (auth?.user?.id) {
+      await logEntityCreation({
         tenantId,
         userId: null,
         userName: auth.user?.email || auth.user?.user_metadata?.name || 'Utilisateur',
         entityType: 'customer',
         entityId: newClient.id,
-        action: 'create',
-        changes: {
+        snapshot: {
           firstName: body.firstName,
           lastName: body.lastName,
           gdprConsent: body.gdprConsent,
-        },
-        metadata: {
-          consentDate: new Date().toISOString(),
           marketingConsent: body.marketingConsent || false,
         },
         ipAddress: getRequestIP(event) || null,

@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateVariationGroupSchema, type UpdateVariationGroupInput } from '~/server/validators/variation.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -53,6 +54,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info(`Groupe de variation mis à jour: ${updated.name}`)
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'variation_group',
+      entityId: id,
+      changes: { name: updated.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

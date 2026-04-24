@@ -3,6 +3,7 @@ import { products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * POST /api/products/:id/unarchive
@@ -39,6 +40,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info({ productId, productName: product.name }, 'Produit désarchivé')
+
+    // Q12 — Audit log (réactivation = update du flag isArchived)
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'product',
+      entityId: productId,
+      changes: { name: product.name, isArchived: false },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

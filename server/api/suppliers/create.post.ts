@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSupplierSchema, type CreateSupplierInput } from '~/server/validators/supplier.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -36,6 +37,18 @@ export default defineEventHandler(async (event) => {
       establishmentId,
       tenantId
     }, 'Supplier created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'supplier',
+      entityId: newSupplier.id,
+      snapshot: { name: newSupplier.name, contact: newSupplier.contact, email: newSupplier.email },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return newSupplier
   }

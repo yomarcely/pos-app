@@ -3,6 +3,7 @@ import { products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * POST /api/products/:id/duplicate
@@ -67,6 +68,22 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info({ sourceId: productId, newId: newProduct.id }, 'Produit dupliqué')
+
+    // Q12 — Audit log (création via duplication)
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'product',
+      entityId: newProduct.id,
+      snapshot: {
+        name: newProduct.name,
+        duplicatedFrom: productId,
+        price: newProduct.price,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

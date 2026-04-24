@@ -50,7 +50,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ✅ Fix 2026-04-23 (8 tests) |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
-| Q12 | Basse | Audit logs absents sur CRUD non-vente | 🟡 Partiel 2026-04-24 (DELETE ✅ + 4 entités CREATE/UPDATE — reste 7) |
+| Q12 | Basse | Audit logs absents sur CRUD non-vente | ✅ Fix 2026-04-24 (11/11 entités CRUD — DELETE + CREATE + UPDATE) |
 
 ---
 
@@ -140,29 +140,24 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q12 — Audit logs absents sur CRUD non-vente 🟡 Partiel
+### Q12 — Audit logs absents sur CRUD non-vente ✅
 
 - **Sévérité** : Basse
 - **Périmètre** : tous les endpoints CRUD hors `sales/`
-- **DELETE** : ✅ couvert par Q6 (13/13)
-- **CREATE / UPDATE** : 🟡 4 entités sur 11
-- **Infra créée** : 2 helpers + 2 `AuditEventType` (`ENTITY_CREATE`, `ENTITY_UPDATE`)
-  - `logEntityCreation({ tenantId, userId, userName, entityType, entityId, snapshot })`
-  - `logEntityUpdate({ tenantId, userId, userName, entityType, entityId, changes })` — snapshot après modification (pas de diff before/after pour l'instant ; nécessiterait un SELECT before + adaptation des mocks de tests, reportée)
-- **Entités couvertes (Phase 1 — conformité)** :
-  - ✅ `tax-rates` (NF525 critique) : create + update
-  - ✅ `establishments` : create + update
-  - ✅ `registers` : create + update
-  - ✅ `sellers` : create + update
-- **Restants (Phase 2 — data/refdata)** :
-  - `products` (create + put + archive + unarchive + duplicate)
-  - `clients` (create + put — note : delete et anonymize déjà tracés)
-  - `categories` (create + update)
-  - `brands` (create + update)
-  - `suppliers` (create + update)
-  - `variations` (create + update)
-  - `variations/groups` (create + update)
-- **Coût restant estimé** : ~16 endpoints × ~10 lignes = 160 lignes. Pattern identique à Phase 1, mécanique.
+- **Infra** : 2 helpers + 2 `AuditEventType` (`ENTITY_CREATE`, `ENTITY_UPDATE`) — voir [Q6](#q6) pour les helpers DELETE.
+- **11/11 entités couvertes** :
+  - **Phase 1 — conformité** (commit `c44206e`) : `tax-rates`, `establishments`, `registers`, `sellers` (create + update)
+  - **Phase 2 — data + refdata** : `products` (create + put + archive + unarchive + duplicate), `clients` (create + put — note : delete + anonymize déjà tracés via Q6/Q9), `categories`, `brands`, `suppliers`, `variations`, `variations/groups` (create + update)
+- **Sémantique** :
+  - CREATE → `logEntityCreation` avec snapshot des champs métier
+  - UPDATE → `logEntityUpdate` avec snapshot après (cf. note ci-dessous)
+  - `archive` produit → `logEntityDeactivation` (cohérent avec les autres soft-deletes)
+  - `unarchive` produit → `logEntityUpdate` avec `{ isArchived: false }` (réactivation = update du flag)
+- **Cas particuliers refactor** : `clients/index.post.ts` utilisait `db.insert(auditLogs)` inline avec un guard `if (userId)` → migré sur `logEntityCreation` (même garde conservée).
+- **Note technique — pas de diff before/after** : `logEntityUpdate` capture uniquement le snapshot APRÈS modification (pas de SELECT before ni de diff structuré `{ old, new }`). Raisons :
+  1. Adaptation des mocks de tests existants (chains de `select().from().where().limit()` non supportés par les mocks UPDATE actuels) coûteuse
+  2. Le snapshot après suffit pour reconstituer l'historique en lisant les logs successifs pour une même `entityId`
+  - Le diff structuré pourra être ajouté ultérieurement (changement transparent côté appelants : la signature de `logEntityUpdate` reste compatible).
 
 ---
 

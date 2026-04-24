@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { updateCategorySchema } from '~/server/validators/category.schema'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -57,6 +58,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info(`Catégorie mise à jour: ${updated.name}`)
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'category',
+      entityId: id,
+      changes: { name: updated.name, parentId: updated.parentId },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { updateSupplierSchema } from '~/server/validators/supplier.schema'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -47,6 +48,18 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info({ supplierId: updated.id, supplierName: updated.name, tenantId }, 'Supplier updated')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'supplier',
+      entityId: id,
+      changes: { name: updated.name, contact: updated.contact, email: updated.email },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return updated
   } catch (error) {

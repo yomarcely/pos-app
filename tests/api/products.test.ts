@@ -359,7 +359,8 @@ describe('API /api/products', () => {
       const res = await handler(event)
 
       expect(res.success).toBe(true)
-      expect(currentDb.insert).toHaveBeenCalledTimes(2)
+      // 3 inserts : produit + stock + audit log (Q12)
+      expect(currentDb.insert).toHaveBeenCalledTimes(3)
     })
   })
 

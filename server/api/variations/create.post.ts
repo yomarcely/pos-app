@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createVariationSchema, type CreateVariationInput } from '~/server/validators/variation.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -50,6 +51,18 @@ export default defineEventHandler(async (event) => {
       groupName: group.name,
       tenantId
     }, 'Variation created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'variation',
+      entityId: newVariation.id,
+      snapshot: { name: newVariation.name, groupId: body.groupId, groupName: group.name },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

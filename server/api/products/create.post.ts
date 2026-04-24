@@ -5,6 +5,7 @@ import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { syncProductToGroup } from '~/server/utils/sync'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -30,6 +31,25 @@ export default defineEventHandler(async (event) => {
     if (!newProduct) {
       throw createError({ statusCode: 500, message: 'Échec de la création du produit' })
     }
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'product',
+      entityId: newProduct.id,
+      snapshot: {
+        name: newProduct.name,
+        barcode: newProduct.barcode,
+        price: newProduct.price,
+        categoryId: newProduct.categoryId,
+        brandId: newProduct.brandId,
+        supplierId: newProduct.supplierId,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     // Créer le stock initial pour l'établissement source
     if (establishmentId) {

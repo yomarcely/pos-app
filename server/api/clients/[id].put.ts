@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createClientSchema, type CreateClientInput } from '~/server/validators/customer.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -92,6 +93,26 @@ export default defineEventHandler(async (event) => {
       .set(updateData)
       .where(eq(customers.id, id))
       .returning()
+
+    // Q12 — Audit log
+    if (updatedClient) {
+      const auth = event.context.auth
+      await logEntityUpdate({
+        tenantId,
+        userId: null,
+        userName: auth?.user?.email || 'Utilisateur',
+        entityType: 'customer',
+        entityId: id,
+        changes: {
+          firstName: updatedClient.firstName,
+          lastName: updatedClient.lastName,
+          email: updatedClient.email,
+          phone: updatedClient.phone,
+          gdprConsent: updatedClient.gdprConsent,
+        },
+        ipAddress: getRequestIP(event) || null,
+      })
+    }
 
     return {
       success: true,

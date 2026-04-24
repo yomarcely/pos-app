@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { createCategorySchema, type CreateCategoryInput } from '~/server/validators/category.schema'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -39,6 +40,18 @@ export default defineEventHandler(async (event) => {
       establishmentId,
       tenantId
     }, 'Category created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'category',
+      entityId: newCategory.id,
+      snapshot: { name: newCategory.name, parentId: newCategory.parentId },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,
