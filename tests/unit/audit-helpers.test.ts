@@ -24,11 +24,83 @@ vi.mock('~/server/utils/logger', () => ({
 }))
 
 import {
+  logEntityCreation,
+  logEntityUpdate,
   logEntityDeletion,
   logEntityDeactivation,
   logCustomerAnonymization,
   AuditEventType,
 } from '~/server/utils/audit'
+
+describe('Q12 — logEntityCreation', () => {
+  beforeEach(() => {
+    captured = []
+  })
+
+  it('insère un row avec action ENTITY_CREATE et le snapshot', async () => {
+    await logEntityCreation({
+      tenantId: 'tenant-a',
+      userId: null,
+      userName: 'admin@fym.com',
+      entityType: 'tax_rate',
+      entityId: 3,
+      snapshot: { name: 'TVA 20%', rate: '20', code: 'TVA_3', isDefault: false },
+      ipAddress: '1.2.3.4',
+    })
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0]).toMatchObject({
+      action: AuditEventType.ENTITY_CREATE,
+      entityType: 'tax_rate',
+      entityId: 3,
+      changes: { name: 'TVA 20%', rate: '20', code: 'TVA_3', isDefault: false },
+    })
+  })
+
+  it('accepte un snapshot vide', async () => {
+    await logEntityCreation({
+      tenantId: 'tenant-a',
+      userId: null,
+      userName: 'x',
+      entityType: 'register',
+      entityId: 1,
+    })
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0]?.action).toBe(AuditEventType.ENTITY_CREATE)
+  })
+})
+
+describe('Q12 — logEntityUpdate', () => {
+  beforeEach(() => {
+    captured = []
+  })
+
+  it('insère un row avec action ENTITY_UPDATE et le snapshot après', async () => {
+    await logEntityUpdate({
+      tenantId: 'tenant-a',
+      userId: null,
+      userName: 'admin@fym.com',
+      entityType: 'establishment',
+      entityId: 1,
+      changes: { name: 'Boutique Sud', city: 'Lyon', isActive: true },
+      ipAddress: '1.2.3.4',
+    })
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0]).toMatchObject({
+      action: AuditEventType.ENTITY_UPDATE,
+      entityType: 'establishment',
+      entityId: 1,
+      changes: { name: 'Boutique Sud', city: 'Lyon', isActive: true },
+    })
+  })
+
+  it('distinct de ENTITY_CREATE et ENTITY_DELETE', () => {
+    expect(AuditEventType.ENTITY_UPDATE).not.toBe(AuditEventType.ENTITY_CREATE)
+    expect(AuditEventType.ENTITY_UPDATE).not.toBe(AuditEventType.ENTITY_DELETE)
+  })
+})
 
 describe('Q6 — logEntityDeletion', () => {
   beforeEach(() => {

@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createEstablishmentSchema, type CreateEstablishmentInput } from '~/server/validators/establishment.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -45,6 +46,23 @@ export default defineEventHandler(async (event) => {
       establishmentName: newEstablishment.name,
       tenantId
     }, 'Establishment created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'establishment',
+      entityId: newEstablishment.id,
+      snapshot: {
+        name: newEstablishment.name,
+        city: newEstablishment.city,
+        siret: newEstablishment.siret,
+        isActive: newEstablishment.isActive,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

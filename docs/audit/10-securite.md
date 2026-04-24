@@ -50,7 +50,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ✅ Fix 2026-04-23 (8 tests) |
 | Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
-| Q12 | Basse | Audit logs absents sur CRUD non-vente | 🟡 Partiel 2026-04-23 (DELETE ✅, CREATE/UPDATE à faire) |
+| Q12 | Basse | Audit logs absents sur CRUD non-vente | 🟡 Partiel 2026-04-24 (DELETE ✅ + 4 entités CREATE/UPDATE — reste 7) |
 
 ---
 
@@ -145,15 +145,24 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 - **Sévérité** : Basse
 - **Périmètre** : tous les endpoints CRUD hors `sales/`
 - **DELETE** : ✅ couvert par Q6 (13/13)
-- **CREATE / UPDATE** : ⏳ à faire. Helpers à ajouter dans `server/utils/audit.ts` :
+- **CREATE / UPDATE** : 🟡 4 entités sur 11
+- **Infra créée** : 2 helpers + 2 `AuditEventType` (`ENTITY_CREATE`, `ENTITY_UPDATE`)
   - `logEntityCreation({ tenantId, userId, userName, entityType, entityId, snapshot })`
-  - `logEntityUpdate({ tenantId, userId, userName, entityType, entityId, before, after })` avec diff calculé
-- **Roll-out recommandé** (par ordre conformité) :
-  1. `tax-rates` (impact NF525 direct)
-  2. `establishments`, `registers`, `sellers` (intégrité comptable)
-  3. `products`, `categories` (data métier)
-  4. `brands`, `suppliers`, `variations`, `variation-groups` (refdata)
-- **Coût estimé** : ~24 endpoints × ~5 lignes = 120 lignes + 2 helpers + tests. Faisable en une session dédiée.
+  - `logEntityUpdate({ tenantId, userId, userName, entityType, entityId, changes })` — snapshot après modification (pas de diff before/after pour l'instant ; nécessiterait un SELECT before + adaptation des mocks de tests, reportée)
+- **Entités couvertes (Phase 1 — conformité)** :
+  - ✅ `tax-rates` (NF525 critique) : create + update
+  - ✅ `establishments` : create + update
+  - ✅ `registers` : create + update
+  - ✅ `sellers` : create + update
+- **Restants (Phase 2 — data/refdata)** :
+  - `products` (create + put + archive + unarchive + duplicate)
+  - `clients` (create + put — note : delete et anonymize déjà tracés)
+  - `categories` (create + update)
+  - `brands` (create + update)
+  - `suppliers` (create + update)
+  - `variations` (create + update)
+  - `variations/groups` (create + update)
+- **Coût restant estimé** : ~16 endpoints × ~10 lignes = 160 lignes. Pattern identique à Phase 1, mécanique.
 
 ---
 

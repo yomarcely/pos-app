@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createRegisterSchema, type CreateRegisterInput } from '~/server/validators/register.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -38,6 +39,22 @@ export default defineEventHandler(async (event) => {
       establishmentId: body.establishmentId,
       tenantId
     }, 'Register created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'register',
+      entityId: newRegister.id,
+      snapshot: {
+        name: newRegister.name,
+        establishmentId: newRegister.establishmentId,
+        isActive: newRegister.isActive,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

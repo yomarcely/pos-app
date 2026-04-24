@@ -4,6 +4,7 @@ import { taxRates } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createTaxRateSchema } from '~/server/validators/tax-rate.schema'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * POST /api/tax-rates/create
@@ -48,6 +49,25 @@ export default defineEventHandler(async (event) => {
       isDefault: validatedData.isDefault,
     })
     .returning()
+
+  // Q12 — Audit log (NF525 critique : création d'un taux de TVA)
+  if (newTaxRate) {
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'tax_rate',
+      entityId: newTaxRate.id,
+      snapshot: {
+        name: newTaxRate.name,
+        rate: newTaxRate.rate,
+        code: newTaxRate.code,
+        isDefault: newTaxRate.isDefault,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
+  }
 
   return newTaxRate
 })

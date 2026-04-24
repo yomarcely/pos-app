@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateSellerSchema, type UpdateSellerInput } from '~/server/validators/seller.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -60,6 +61,22 @@ export default defineEventHandler(async (event) => {
         message: 'Vendeur introuvable',
       })
     }
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'seller',
+      entityId: id,
+      changes: {
+        name: updated.name,
+        code: updated.code,
+        isActive: updated.isActive,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     // Mettre à jour les affectations établissements si fourni
     if (body.establishmentIds !== undefined) {

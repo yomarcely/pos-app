@@ -5,6 +5,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateEstablishmentSchema, type UpdateEstablishmentInput } from '~/server/validators/establishment.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -78,6 +79,24 @@ export default defineEventHandler(async (event) => {
     }
 
     logger.info(`Établissement mis à jour: ${updated.name}`)
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityUpdate({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'establishment',
+      entityId: id,
+      changes: {
+        name: updated.name,
+        address: updated.address,
+        city: updated.city,
+        siret: updated.siret,
+        isActive: updated.isActive,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

@@ -4,6 +4,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { createSellerSchema, type CreateSellerInput } from '~/server/validators/seller.schema'
 import { logger } from '~/server/utils/logger'
+import { logEntityCreation } from '~/server/utils/audit'
 
 /**
  * ==========================================
@@ -49,6 +50,23 @@ export default defineEventHandler(async (event) => {
       establishmentCount: body.establishmentIds?.length || 0,
       tenantId
     }, 'Seller created')
+
+    // Q12 — Audit log
+    const auth = event.context.auth
+    await logEntityCreation({
+      tenantId,
+      userId: null,
+      userName: auth?.user?.email || 'Utilisateur',
+      entityType: 'seller',
+      entityId: newSeller.id,
+      snapshot: {
+        name: newSeller.name,
+        code: newSeller.code,
+        isActive: newSeller.isActive,
+        establishmentCount: body.establishmentIds?.length || 0,
+      },
+      ipAddress: getRequestIP(event) || null,
+    })
 
     return {
       success: true,

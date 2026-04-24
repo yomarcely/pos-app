@@ -4,6 +4,7 @@ import { taxRates } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateTaxRateSchema } from '~/server/validators/tax-rate.schema'
+import { logEntityUpdate } from '~/server/utils/audit'
 
 /**
  * PATCH /api/tax-rates/:id/update
@@ -57,6 +58,23 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Taux de TVA introuvable',
     })
   }
+
+  // Q12 — Audit log (NF525 critique : changement de taux tracé)
+  const auth = event.context.auth
+  await logEntityUpdate({
+    tenantId,
+    userId: null,
+    userName: auth?.user?.email || 'Utilisateur',
+    entityType: 'tax_rate',
+    entityId: id,
+    changes: {
+      name: updatedTaxRate.name,
+      rate: updatedTaxRate.rate,
+      code: updatedTaxRate.code,
+      isDefault: updatedTaxRate.isDefault,
+    },
+    ipAddress: getRequestIP(event) || null,
+  })
 
   return updatedTaxRate
 })

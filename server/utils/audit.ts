@@ -35,6 +35,8 @@ export enum AuditEventType {
   REGISTER_DELETED = 'register_deleted',
 
   // Événements génériques CRUD (Q6/Q12)
+  ENTITY_CREATE = 'entity_create',
+  ENTITY_UPDATE = 'entity_update',
   ENTITY_DELETE = 'entity_delete',
   ENTITY_DEACTIVATE = 'entity_deactivate',
 
@@ -82,7 +84,9 @@ export async function logAuditEvent(params: {
   entityType: string
   entityId: number | null
   action: string
-  changes?: Record<string, string | number | boolean | undefined>
+  // Q12 — typage élargi : accepte les diffs `{ old, new }` pour ENTITY_UPDATE
+  // tout en restant rétrocompatible avec les valeurs scalaires.
+  changes?: Record<string, unknown>
   metadata?: AuditMetadata
   ipAddress?: string | null
 }): Promise<void> {
@@ -244,6 +248,61 @@ export async function logChainVerification(params: {
       integrityStatus: params.isValid ? 'valid' : 'invalid',
       registerId: params.registerId || undefined,
     },
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Log spécifique pour la création d'une entité (Q12).
+ * Capture l'entité créée dans `changes` pour pouvoir la reconstituer.
+ */
+export async function logEntityCreation(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  entityType: string
+  entityId: number
+  snapshot?: Record<string, unknown>
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    action: AuditEventType.ENTITY_CREATE,
+    changes: params.snapshot,
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Log spécifique pour la modification d'une entité (Q12).
+ *
+ * `changes` : snapshot des valeurs APRÈS modification. Pas de diff
+ * automatique — l'historique se reconstitue en lisant les logs
+ * successifs pour une même `entityId`. Un diff structuré avec
+ * `{ field: { old, new } }` sera ajouté ultérieurement (nécessite
+ * un SELECT before + adaptation des mocks de tests).
+ */
+export async function logEntityUpdate(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  entityType: string
+  entityId: number
+  changes: Record<string, unknown>
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    action: AuditEventType.ENTITY_UPDATE,
+    changes: params.changes,
     ipAddress: params.ipAddress,
   })
 }
