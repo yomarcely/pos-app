@@ -48,7 +48,7 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 | Q7 | Haute | `localStorage` établissement/caisse cross-tenant | ✅ Commit `07b2d14` (2026-04-22) |
 | Q8 | Moyenne | Totaux HT/TVA non revalidés serveur (= risque CLAUDE.md) | ✅ Fix 2026-04-23 (7 tests) |
 | Q9 | Moyenne | Anonymisation client RGPD sans audit log | ✅ Fix 2026-04-23 (8 tests) |
-| Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ⏳ Ouvert |
+| Q10 | Basse | Pas de rate-limiting sur endpoints sensibles | ✅ Fix 2026-04-24 (in-memory, 9 tests) |
 | Q11 | Basse | CSP `unsafe-eval` actif en production | ✅ Fix 2026-04-23 (test preview à faire) |
 | Q12 | Basse | Audit logs absents sur CRUD non-vente | ✅ Fix 2026-04-24 (11/11 entités CRUD — DELETE + CREATE + UPDATE) |
 
@@ -121,12 +121,26 @@ La numérotation **Q** vient d'une session du 2026-04-22 où Q1, Q2, Q4 et Q7 on
 
 ---
 
-### Q10 — Pas de rate-limiting
+### Q10 — Pas de rate-limiting ✅
 
 - **Sévérité** : Basse
-- **Périmètre** : global (pas de middleware détecté, `nuxt.config.ts` sans `routeRules` rate-limit)
-- **Risque** : brute-force sur login, énumération clients, création massive de ventes frauduleuses, DoS applicatif.
-- **Fix** : middleware Nitro avec stockage en mémoire (dev) / Redis (prod). Clé `tenantId + userId + route`. Cibles : 10 req/min sur POST `/api/sales/*`, `/api/clients/create`, login Supabase ; 100 req/min sur les GET. À faire après Q3-Q9.
+- **Fichiers créés** :
+  - `server/utils/rateLimiter.ts` — store in-memory (Map) + `checkLimit(key, limit, windowMs)`. Fixed window. Cleanup paresseux (toutes les 1000 appels) pour éviter la fuite mémoire.
+  - `server/middleware/rateLimit.global.ts` — middleware Nitro qui s'exécute **après** `auth.global.ts` (ordre alphabétique : `auth` < `rateLimit`).
+- **Stratégie de clé** :
+  - Authentifié : `auth:tenantId:userId:category` (granularité fine, isolation cross-tenant)
+  - Non-authentifié (PUBLIC_ENDPOINTS) : `ip:path` (anti-bruteforce ciblé)
+- **Limites par catégorie** :
+  | Catégorie | Limite | Application |
+  |---|---|---|
+  | `sales-create` | 30/min | `POST /api/sales/create` (pic possible en rush) |
+  | `mutation` | 60/min | autres POST/PUT/PATCH/DELETE |
+  | `read` | 300/min | GET / HEAD |
+  | `public` | 5/min | endpoints non-auth, par IP |
+- **Réponse 429** : status `429 Too Many Requests` + `Retry-After` (s) + `X-RateLimit-Limit/Remaining/Reset` posés sur **toutes** les réponses (allowed ou non).
+- **Tests** : 9 tests dans `tests/unit/rateLimiter.test.ts` (autorise/refuse, isolation par clé, fixed window vs sliding, reset après expiration, edge case `limit=0`).
+- **Limite connue (assumée)** : single-instance uniquement. Si plusieurs instances Node tournent (cluster ou pods), chacune compte indépendamment — la limite effective globale est N × `limit`. Pour distribution réelle : migrer vers Redis (signature `checkLimit` reste compatible).
+- **Note** : login Supabase est géré côté client (`supabase.auth.signIn`) — pas couvert par ce middleware. Supabase dispose de ses propres protections anti-bruteforce. Endpoints custom d'auth FymPOS, s'ils sont ajoutés ultérieurement, hériteront automatiquement du seuil `public` (5/min/IP).
 
 ---
 
