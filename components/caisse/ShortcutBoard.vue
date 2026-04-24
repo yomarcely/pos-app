@@ -201,7 +201,7 @@ function executeShortcut(shortcut: Shortcut) {
 </script>
 
 <template>
-  <div class="flex-1 min-h-0 flex flex-col gap-2">
+  <div class="flex flex-col gap-4">
     <!-- Tab list -->
     <div class="flex items-center gap-0.5 flex-shrink-0">
       <button
@@ -283,12 +283,12 @@ function executeShortcut(shortcut: Shortcut) {
     </div>
 
     <!-- Grid -->
-    <div class="flex-1 min-h-0 relative overflow-hidden">
+    <div class="overflow-hidden">
       <Transition name="tab-slide" mode="out-in">
         <div
           v-if="activeTab"
           :key="activeTabId"
-          class="grid grid-cols-4 gap-2 overflow-auto h-full content-start absolute inset-0"
+          class="grid grid-cols-4 gap-2"
         >
           <ContextMenu v-for="cell in activeTab.cells" :key="cell.position">
             <ContextMenuTrigger>

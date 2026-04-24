@@ -196,7 +196,7 @@ async function handleClientCreated(response: any) {
     </div>
 
     <!-- Raccourcis -->
-    <CaisseShortcutBoard />
+    <CaisseShortcutBoard class="mt-auto" />
 
     <!-- Drawer historique client -->
     <Drawer v-model:open="isHistoryDrawerOpen">

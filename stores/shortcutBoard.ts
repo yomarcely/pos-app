@@ -1,9 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { ShortcutTab, ShortcutCell } from '@/types/shortcut'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
-const STORAGE_KEY = 'fympos-shortcut-board'
+const STORAGE_PREFIX = 'fympos-shortcut-board'
 const CELLS_PER_TAB = 20
+
+function storageKey(establishmentId: number | null): string {
+  return establishmentId
+    ? `${STORAGE_PREFIX}-${establishmentId}`
+    : STORAGE_PREFIX
+}
 
 function createEmptyCells(): ShortcutCell[] {
   return Array.from({ length: CELLS_PER_TAB }, (_, i) => ({
@@ -20,10 +27,10 @@ function createDefaultTab(id?: string, name?: string): ShortcutTab {
   }
 }
 
-function loadFromStorage(): ShortcutTab[] {
+function loadFromStorage(establishmentId: number | null): ShortcutTab[] {
   if (typeof window === 'undefined') return [createDefaultTab()]
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey(establishmentId))
     if (!raw) return [createDefaultTab()]
     const parsed = JSON.parse(raw) as ShortcutTab[]
     if (!Array.isArray(parsed) || parsed.length === 0) return [createDefaultTab()]
@@ -33,17 +40,28 @@ function loadFromStorage(): ShortcutTab[] {
   }
 }
 
-function saveToStorage(tabs: ShortcutTab[]) {
+function saveToStorage(establishmentId: number | null, tabs: ShortcutTab[]) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs))
+  localStorage.setItem(storageKey(establishmentId), JSON.stringify(tabs))
 }
 
 export const useShortcutBoardStore = defineStore('shortcutBoard', () => {
-  const tabs = ref<ShortcutTab[]>(loadFromStorage())
+  const { selectedEstablishmentId } = useEstablishmentRegister()
+
+  const currentEstablishmentId = ref<number | null>(selectedEstablishmentId.value)
+  const tabs = ref<ShortcutTab[]>(loadFromStorage(currentEstablishmentId.value))
   const activeTabId = ref(tabs.value[0]?.id ?? '')
 
+  // Reload when establishment changes
+  watch(selectedEstablishmentId, (newId) => {
+    if (newId === currentEstablishmentId.value) return
+    currentEstablishmentId.value = newId
+    tabs.value = loadFromStorage(newId)
+    activeTabId.value = tabs.value[0]?.id ?? ''
+  })
+
   // Persist on change
-  watch(tabs, (val) => saveToStorage(val), { deep: true })
+  watch(tabs, (val) => saveToStorage(currentEstablishmentId.value, val), { deep: true })
 
   function addTab(name = 'Nouvel onglet') {
     const tab = createDefaultTab(undefined, name)
