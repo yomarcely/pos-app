@@ -171,6 +171,20 @@
             <Switch id="create-active" v-model="newEstablishment.isActive" />
             <Label for="create-active">Établissement actif</Label>
           </div>
+
+          <!-- Paramètres caisse -->
+          <div class="space-y-4 pt-2 border-t">
+            <h3 class="font-semibold">Paramètres caisse</h3>
+            <div class="flex items-start space-x-2">
+              <Switch id="create-share-pending" v-model="newEstablishment.sharePendingSales" />
+              <div>
+                <Label for="create-share-pending">Partager les tickets en attente entre les caisses</Label>
+                <p class="text-xs text-muted-foreground">
+                  Si activé, chaque caisse de l'établissement voit les tickets en attente des autres caisses.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <DialogFooter>
@@ -309,6 +323,20 @@
           <div class="flex items-center space-x-2">
             <Switch id="edit-active" v-model="editEstablishment.isActive" />
             <Label for="edit-active">Établissement actif</Label>
+          </div>
+
+          <!-- Paramètres caisse -->
+          <div class="space-y-4 pt-2 border-t">
+            <h3 class="font-semibold">Paramètres caisse</h3>
+            <div class="flex items-start space-x-2">
+              <Switch id="edit-share-pending" v-model="editEstablishment.sharePendingSales" />
+              <div>
+                <Label for="edit-share-pending">Partager les tickets en attente entre les caisses</Label>
+                <p class="text-xs text-muted-foreground">
+                  Si activé, chaque caisse de l'établissement voit les tickets en attente des autres caisses.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

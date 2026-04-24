@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import {
   Combobox, ComboboxAnchor, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxGroup
 } from '@/components/ui/combobox'
@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { UserRoundPlus, X, User, List, ShoppingBag } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { useToast } from '@/composables/useToast'
+import { extractFetchError } from '@/composables/useFetchError'
 
 const isPendingDialogOpen = ref(false)
 const isAddClientDialogOpen = ref(false)
@@ -19,6 +22,35 @@ const purchases = ref<any[]>([])
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
+const { selectedEstablishmentId, selectedRegisterId } = useEstablishmentRegister()
+const toast = useToast()
+
+async function handleAddPending() {
+  if (!selectedEstablishmentId.value || !selectedRegisterId.value) {
+    toast.error('Veuillez sélectionner un établissement et une caisse')
+    return
+  }
+  try {
+    const clientId = customerStore.client ? customerStore.client.id : null
+    await cartStore.addPendingCart(selectedEstablishmentId.value, selectedRegisterId.value, clientId)
+    customerStore.clearClient()
+  } catch (error: unknown) {
+    console.error('Erreur lors de la mise en attente:', error)
+    toast.error(extractFetchError(error, 'Impossible de mettre le ticket en attente'))
+  }
+}
+
+async function refreshPending() {
+  if (!selectedEstablishmentId.value || !selectedRegisterId.value) return
+  try {
+    await cartStore.loadPendingCarts(selectedEstablishmentId.value, selectedRegisterId.value)
+  } catch (error) {
+    console.error('Erreur lors du chargement des tickets en attente:', error)
+  }
+}
+
+onMounted(refreshPending)
+watch([selectedEstablishmentId, selectedRegisterId], refreshPending)
 
 const Clients = computed(() => customerStore.clients)
 const selectedClient = computed({
@@ -174,13 +206,12 @@ async function handleClientCreated(response: any) {
     <div class="flex gap-2 flex-shrink-0">
       <client-only>
         <!-- Bouton Mise en attente -->
-        <Button variant="outline" class="flex-1" @click="cartStore.addPendingCart(customerStore.client ? customerStore.client.id : null);
-        customerStore.clearClient()">
+        <Button variant="outline" class="flex-1" @click="handleAddPending">
           Mise en attente
         </Button>
 
         <!-- Dialog de reprise -->
-        <Dialog class="flex-1" v-model:open="isPendingDialogOpen">
+        <Dialog class="flex-1" v-model:open="isPendingDialogOpen" @update:open="(v) => v && refreshPending()">
           <DialogTrigger>
             <Button variant="secondary">
               Reprise

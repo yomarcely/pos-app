@@ -36,7 +36,7 @@ describe('useEstablishments', () => {
   it('deleteEstablishment() appelle DELETE /api/establishments/:id/delete', async () => {
     fetchMock.mockResolvedValue({ establishments: [] })
     const { deleteEstablishment, selectedEstablishment } = useEstablishments()
-    selectedEstablishment.value = { id: 42, name: 'Test', address: null, postalCode: null, city: null, country: null, phone: null, email: null, siret: null, naf: null, tvaNumber: null, isActive: true }
+    selectedEstablishment.value = { id: 42, name: 'Test', address: null, postalCode: null, city: null, country: null, phone: null, email: null, siret: null, naf: null, tvaNumber: null, isActive: true, sharePendingSales: false }
     await deleteEstablishment()
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/establishments/42/delete',

@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
       naf?: string | null
       tvaNumber?: string | null
       isActive?: boolean
+      sharePendingSales?: boolean
     }
 
     const updateData: EstablishmentUpdateData = {
@@ -58,6 +59,7 @@ export default defineEventHandler(async (event) => {
     if (body.naf !== undefined) updateData.naf = body.naf?.trim() || null
     if (body.tvaNumber !== undefined) updateData.tvaNumber = body.tvaNumber?.trim() || null
     if (body.isActive !== undefined) updateData.isActive = body.isActive
+    if (body.sharePendingSales !== undefined) updateData.sharePendingSales = body.sharePendingSales
 
     // Mettre à jour - SÉCURITÉ: filtre par tenantId ET id
     const [updated] = await db

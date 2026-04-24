@@ -34,6 +34,7 @@ export default defineEventHandler(async (event) => {
         naf: body.naf?.trim() || null,
         tvaNumber: body.tvaNumber?.trim() || null,
         isActive: body.isActive ?? true,
+        sharePendingSales: body.sharePendingSales ?? false,
       })
       .returning()
 

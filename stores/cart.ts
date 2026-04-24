@@ -20,47 +20,74 @@ export const useCartStore = defineStore('cart', () => {
   const globalDiscountType = ref<'%' | '€'>('%')
 
   // --- TICKETS EN ATTENTE ---
-  const pendingCart = ref<{
+  // Persistés côté serveur (table pending_sales). Chargés via loadPendingCarts()
+  // au montage de la caisse, rafraîchis à chaque add/recover/delete.
+  interface PendingCartRow {
     id: number
+    tenantId: string
+    establishmentId: number
+    registerId: number
+    customerId: number | null
     items: ProductInCart[]
-    globalDiscount: number
+    globalDiscount: string // decimal côté DB
     globalDiscountType: '%' | '€'
-    clientId: number | null
-  }[]>([])
+    createdByEmail: string | null
+    createdAt: string
+  }
 
-  let nextPendingId = 1
+  const pendingCart = ref<PendingCartRow[]>([])
+  const pendingSharedAcrossRegisters = ref(false)
+
   const zeroGlobal = { value: 0, type: '%' as '%' }
 
-  function addPendingCart(clientId: number | null = null): void {
+  async function loadPendingCarts(establishmentId: number, registerId: number): Promise<void> {
+    const response = await $fetch<{
+      success: boolean
+      shared: boolean
+      pendingSales: PendingCartRow[]
+    }>('/api/pending-sales', {
+      params: { establishmentId, registerId },
+    })
+    pendingCart.value = response.pendingSales
+    pendingSharedAcrossRegisters.value = response.shared
+  }
+
+  async function addPendingCart(
+    establishmentId: number,
+    registerId: number,
+    clientId: number | null = null
+  ): Promise<void> {
     if (!items.value.length) return
 
-    pendingCart.value.push({
-      id: nextPendingId++,
-      items: JSON.parse(JSON.stringify(items.value)),
-      globalDiscount: globalDiscount.value,
-      globalDiscountType: globalDiscountType.value,
-      clientId
+    await $fetch('/api/pending-sales/create', {
+      method: 'POST',
+      body: {
+        establishmentId,
+        registerId,
+        customerId: clientId,
+        items: JSON.parse(JSON.stringify(items.value)),
+        globalDiscount: globalDiscount.value,
+        globalDiscountType: globalDiscountType.value,
+      },
     })
 
     clearCart()
+    await loadPendingCarts(establishmentId, registerId)
   }
 
-  function recoverPendingCart(id: number): void {
-    const index = pendingCart.value.findIndex(c => c.id === id)
-    if (index === -1) return
-
-    const cartData = pendingCart.value[index]
+  async function recoverPendingCart(id: number, establishmentId: number, registerId: number): Promise<void> {
+    const cartData = pendingCart.value.find(c => c.id === id)
     if (!cartData) return
 
     // Appliquer les données du panier (sans vérification de stock car on permet les stocks négatifs)
     items.value = cartData.items
-    globalDiscount.value = cartData.globalDiscount
+    globalDiscount.value = Number(cartData.globalDiscount) || 0
     globalDiscountType.value = cartData.globalDiscountType
 
     // Gérer le client
     const customerStore = useCustomerStore()
-    if (cartData.clientId !== null) {
-      const client = customerStore.clients.find(c => c.id === cartData.clientId)
+    if (cartData.customerId !== null) {
+      const client = customerStore.clients.find(c => c.id === cartData.customerId)
       if (client) {
         customerStore.selectClient(client)
       } else {
@@ -70,8 +97,14 @@ export const useCartStore = defineStore('cart', () => {
       customerStore.clearClient()
     }
 
-    // Supprimer le panier
-    pendingCart.value.splice(index, 1)
+    // Supprimer côté serveur
+    await $fetch(`/api/pending-sales/${id}/delete`, { method: 'DELETE' })
+    await loadPendingCarts(establishmentId, registerId)
+  }
+
+  async function deletePendingCart(id: number, establishmentId: number, registerId: number): Promise<void> {
+    await $fetch(`/api/pending-sales/${id}/delete`, { method: 'DELETE' })
+    await loadPendingCarts(establishmentId, registerId)
   }
 
   // Totaux ne prennent pas la remise globale tant qu'elle n'est pas appliquée
@@ -333,6 +366,7 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscount,
     globalDiscountType,
     pendingCart,
+    pendingSharedAcrossRegisters,
 
     // getters
     getFinalPrice: (product: ProductInCart) =>
@@ -353,6 +387,8 @@ export const useCartStore = defineStore('cart', () => {
     updateVariation,
     addPendingCart,
     recoverPendingCart,
+    deletePendingCart,
+    loadPendingCarts,
     validateStock,
     checkDayClosure,
     submitSale,

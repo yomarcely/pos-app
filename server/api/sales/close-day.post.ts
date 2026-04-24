@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
-import { sales, closures, registers } from '~/server/database/schema'
-import { desc, gte, lt, and, eq, inArray } from 'drizzle-orm'
+import { sales, closures, registers, pendingSales } from '~/server/database/schema'
+import { desc, gte, lt, and, eq, inArray, sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
@@ -86,6 +86,26 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 400,
         message: 'Cette journée est déjà clôturée pour cette caisse',
+      })
+    }
+
+    // ==========================================
+    // 1b. VÉRIFIER QU'AUCUN TICKET N'EST EN ATTENTE SUR CETTE CAISSE
+    // ==========================================
+    const [pendingCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pendingSales)
+      .where(
+        and(
+          eq(pendingSales.tenantId, tenantId),
+          eq(pendingSales.registerId, body.registerId),
+        )
+      )
+
+    if ((pendingCount?.count ?? 0) > 0) {
+      throw createError({
+        statusCode: 400,
+        message: `Impossible de clôturer : ${pendingCount?.count} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les avant la clôture.`,
       })
     }
 

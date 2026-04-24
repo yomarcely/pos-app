@@ -159,6 +159,7 @@ interface Establishment {
   naf: string | null
   tvaNumber: string | null
   isActive: boolean
+  sharePendingSales: boolean
 }
 
 interface Register {

@@ -37,6 +37,7 @@ const dailyData = ref<any>(null)
 const loading = ref(false)
 const isClosed = ref(false)
 const closureData = ref<any>(null)
+const pendingForRegister = ref<any[]>([])
 
 // Dialog d'annulation
 const isCancelDialogOpen = ref(false)
@@ -78,6 +79,22 @@ async function loadDailyData() {
     const closureCheck = await $fetch(`/api/sales/check-closure?${closureParams.toString()}`)
     isClosed.value = closureCheck.isClosed
     closureData.value = closureCheck.closure
+
+    // Tickets en attente sur cette caisse (bloquent la clôture)
+    if (selectedEstablishmentId.value) {
+      const pendingResp = await $fetch<{ pendingSales: any[] }>('/api/pending-sales', {
+        params: {
+          establishmentId: selectedEstablishmentId.value,
+          registerId: selectedRegisterId.value,
+        },
+      })
+      // Filtrer sur la caisse courante (la liste peut être partagée)
+      pendingForRegister.value = pendingResp.pendingSales.filter(
+        (p) => p.registerId === selectedRegisterId.value
+      )
+    } else {
+      pendingForRegister.value = []
+    }
   } catch (error) {
     console.error('Erreur lors du chargement de la synthèse:', error)
     alert('Erreur lors du chargement des données')
@@ -135,6 +152,18 @@ async function cancelSale() {
     console.error('Erreur lors de l\'annulation:', error)
     alert('Erreur lors de l\'annulation de la vente')
   }
+}
+
+// Tenter d'ouvrir le dialog de clôture, en bloquant s'il y a des tickets en attente
+function tryOpenCloseDialog() {
+  if (pendingForRegister.value.length > 0) {
+    alert(
+      `Impossible de clôturer : ${pendingForRegister.value.length} ticket(s) en attente sur cette caisse.\n` +
+      `Reprenez ou supprimez-les depuis la page caisse avant de clôturer.`
+    )
+    return
+  }
+  isCloseDialogOpen.value = true
 }
 
 // Clôturer la journée
@@ -224,10 +253,15 @@ const cancelledSales = computed(() => {
             Ouverte
           </Badge>
 
+          <!-- Badge tickets en attente bloquants -->
+          <Badge v-if="!isClosed && pendingForRegister.length > 0" variant="destructive" class="gap-1">
+            {{ pendingForRegister.length }} en attente
+          </Badge>
+
           <!-- Bouton de clôture -->
           <Button
             v-if="!isClosed"
-            @click="isCloseDialogOpen = true"
+            @click="tryOpenCloseDialog"
             :disabled="loading || closingDay || !dailyData"
             variant="default"
             class="bg-blue-600 hover:bg-blue-700"

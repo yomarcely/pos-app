@@ -11,7 +11,9 @@ const ButtonStub = { template: '<button @click="$emit(\'click\')"><slot /></butt
 
 const cartStoreMock = {
   pendingCart: [] as any[],
-  recoverPendingCart: vi.fn()
+  pendingSharedAcrossRegisters: false,
+  recoverPendingCart: vi.fn().mockResolvedValue(undefined),
+  deletePendingCart: vi.fn().mockResolvedValue(undefined)
 }
 const customerStoreMock = {
   clients: [{ id: 1, firstName: 'Client' }]
@@ -23,15 +25,30 @@ vi.mock('@/stores/cart', () => ({
 vi.mock('@/stores/customer', () => ({
   useCustomerStore: () => customerStoreMock
 }))
+vi.mock('@/composables/useEstablishmentRegister', () => ({
+  useEstablishmentRegister: () => ({
+    selectedEstablishmentId: { value: 1 },
+    selectedRegisterId: { value: 1 },
+    allRegisters: { value: [] }
+  })
+}))
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn() })
+}))
+vi.mock('@/composables/useFetchError', () => ({
+  extractFetchError: (_e: unknown, fallback: string) => fallback
+}))
 
 describe('PendingCartForm', () => {
   beforeEach(() => {
     cartStoreMock.pendingCart = [{
       id: 1,
-      clientId: 1,
+      registerId: 1,
+      customerId: 1,
       items: [{ id: 1, name: 'P1', price: 5, quantity: 2, discount: 0, discountType: '%', variation: '' }]
     }]
     cartStoreMock.recoverPendingCart.mockClear()
+    cartStoreMock.deletePendingCart.mockClear()
   })
 
   it('sélectionne et récupère un panier en attente', async () => {
@@ -55,6 +72,6 @@ describe('PendingCartForm', () => {
     const vm = wrapper.vm as any
     vm.selectedCartId = 1
     await vm.handleRecover()
-    expect(cartStoreMock.recoverPendingCart).toHaveBeenCalledWith(1)
+    expect(cartStoreMock.recoverPendingCart).toHaveBeenCalledWith(1, 1, 1)
   })
 })

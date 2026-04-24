@@ -16,9 +16,13 @@ export interface Establishment {
   naf: string | null
   tvaNumber: string | null
   isActive: boolean
+  sharePendingSales: boolean
 }
 
-type ApiEstablishment = Omit<Establishment, 'isActive'> & { isActive: boolean | null }
+type ApiEstablishment = Omit<Establishment, 'isActive' | 'sharePendingSales'> & {
+  isActive: boolean | null
+  sharePendingSales: boolean | null
+}
 
 export function useEstablishments() {
   const toast = useToast()
@@ -43,6 +47,7 @@ export function useEstablishments() {
     naf: '',
     tvaNumber: '',
     isActive: true,
+    sharePendingSales: false,
   })
 
   const editEstablishment = ref({
@@ -58,6 +63,7 @@ export function useEstablishments() {
     naf: '',
     tvaNumber: '',
     isActive: true,
+    sharePendingSales: false,
   })
 
   const selectedEstablishment = ref<Establishment | null>(null)
@@ -72,6 +78,7 @@ export function useEstablishments() {
         (establishment): Establishment => ({
           ...establishment,
           isActive: establishment.isActive ?? true,
+          sharePendingSales: establishment.sharePendingSales ?? false,
         })
       )
     } catch (error) {
@@ -95,6 +102,7 @@ export function useEstablishments() {
       naf: '',
       tvaNumber: '',
       isActive: true,
+      sharePendingSales: false,
     }
     createDialogOpen.value = true
   }
@@ -120,6 +128,7 @@ export function useEstablishments() {
           naf: newEstablishment.value.naf || null,
           tvaNumber: newEstablishment.value.tvaNumber || null,
           isActive: newEstablishment.value.isActive,
+          sharePendingSales: newEstablishment.value.sharePendingSales,
         },
       })
 
@@ -147,6 +156,7 @@ export function useEstablishments() {
       naf: establishment.naf || '',
       tvaNumber: establishment.tvaNumber || '',
       isActive: establishment.isActive,
+      sharePendingSales: establishment.sharePendingSales,
     }
     editDialogOpen.value = true
   }
@@ -172,6 +182,7 @@ export function useEstablishments() {
           naf: editEstablishment.value.naf || null,
           tvaNumber: editEstablishment.value.tvaNumber || null,
           isActive: editEstablishment.value.isActive,
+          sharePendingSales: editEstablishment.value.sharePendingSales,
         },
       })
 

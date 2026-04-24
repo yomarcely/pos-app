@@ -144,6 +144,10 @@ vi.mock('~/server/database/schema', () => ({
   auditLogs: {
     tenantId: 'al.tenantId',
   },
+  pendingSales: {
+    id: 'pendingSales.id', tenantId: 'pendingSales.tenantId',
+    establishmentId: 'pendingSales.establishmentId', registerId: 'pendingSales.registerId',
+  },
 }))
 
 // ===========================================
@@ -169,9 +173,10 @@ function createReadChain(rows: unknown[]) {
 /**
  * For close-day: 3 selects (register, closure, sales) + 1 insert + 1 update
  */
-function createCloseDayChain(register: unknown | null, existingClosure: unknown[], dailySales: unknown[], newClosure: unknown) {
+function createCloseDayChain(register: unknown | null, existingClosure: unknown[], dailySales: unknown[], newClosure: unknown, pendingCount: unknown[] = [{ count: 0 }]) {
   let selectIdx = 0
-  const selectResults = [register ? [register] : [], existingClosure, dailySales]
+  // Ordre des SELECT dans close-day.post.ts : register, existingClosure, pendingSalesCount, dailySales
+  const selectResults = [register ? [register] : [], existingClosure, pendingCount, dailySales]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectChain: any = {
     from: vi.fn(() => selectChain),

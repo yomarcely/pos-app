@@ -25,7 +25,8 @@ const cartStoreMock = {
   globalDiscount: 0,
   globalDiscountType: '%',
   applyGlobalDiscountToItems: vi.fn(),
-  addPendingCart: vi.fn(),
+  addPendingCart: vi.fn().mockResolvedValue(undefined),
+  loadPendingCarts: vi.fn().mockResolvedValue(undefined),
   pendingCart: [],
   clearCart: vi.fn()
 }
@@ -53,9 +54,17 @@ vi.mock('@/stores/sellers', () => ({
 }))
 vi.mock('@/composables/useEstablishmentRegister', () => ({
   useEstablishmentRegister: () => ({
-    selectedEstablishmentId: { value: null },
+    selectedEstablishmentId: { value: 1 },
+    selectedRegisterId: { value: 1 },
+    allRegisters: { value: [] },
     initialize: vi.fn().mockResolvedValue(undefined)
   })
+}))
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn() })
+}))
+vi.mock('@/composables/useFetchError', () => ({
+  extractFetchError: (_e: unknown, fallback: string) => fallback
 }))
 
 describe('ColLeft (caisse)', () => {
@@ -135,7 +144,8 @@ describe('ColLeft (caisse)', () => {
     const buttons = wrapper.findAll('button')
     const pendingBtn = buttons.find(b => b.text().includes('Mise en attente'))
     await pendingBtn?.trigger('click')
-    expect(cartStoreMock.addPendingCart).toHaveBeenCalled()
+    await Promise.resolve() // attendre la résolution de la promesse async
+    expect(cartStoreMock.addPendingCart).toHaveBeenCalledWith(1, 1, null)
     expect(customerStoreMock.clearClient).toHaveBeenCalled()
   })
 })

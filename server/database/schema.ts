@@ -465,6 +465,9 @@ export const establishments = pgTable('establishments', {
   // Statut
   isActive: boolean('is_active').default(true),
 
+  // Paramètres
+  sharePendingSales: boolean('share_pending_sales').default(false).notNull(),
+
   // Audit
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -495,6 +498,40 @@ export const registers = pgTable('registers', {
 }, (table) => ({
   tenantIdIdx: index('registers_tenant_id_idx').on(table.tenantId),
   establishmentIdIdx: index('registers_establishment_id_idx').on(table.establishmentId),
+}))
+
+// ==========================================
+// 10d. TICKETS EN ATTENTE (MISE EN ATTENTE PANIER)
+// ==========================================
+//
+// Paniers mis en pause par le caissier avant encaissement.
+// Ne sont PAS soumis à NF525 (pas encore une vente).
+// Blocent la clôture tant qu'ils ne sont pas résolus (repris ou supprimés).
+
+export const pendingSales = pgTable('pending_sales', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Scope
+  establishmentId: integer('establishment_id').notNull().references(() => establishments.id),
+  registerId: integer('register_id').notNull().references(() => registers.id),
+
+  // Client associé (optionnel)
+  customerId: integer('customer_id').references(() => customers.id),
+
+  // Contenu du panier (sérialisé)
+  items: jsonb('items').notNull(),
+  globalDiscount: decimal('global_discount', { precision: 10, scale: 2 }).default('0').notNull(),
+  globalDiscountType: varchar('global_discount_type', { length: 2 }).default('%').notNull(), // '%' | '€'
+
+  // Audit
+  createdByEmail: varchar('created_by_email', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('pending_sales_tenant_id_idx').on(table.tenantId),
+  establishmentIdIdx: index('pending_sales_establishment_id_idx').on(table.establishmentId),
+  registerIdIdx: index('pending_sales_register_id_idx').on(table.registerId),
 }))
 
 // ==========================================

@@ -38,6 +38,7 @@ export const createEstablishmentSchema = z.object({
     .nullable(),
 
   isActive: z.boolean().default(true),
+  sharePendingSales: z.boolean().default(false),
 })
 
 // Schéma de mise à jour d'un établissement
@@ -72,6 +73,7 @@ export const updateEstablishmentSchema = z.object({
     .nullable(),
 
   isActive: z.boolean().optional(),
+  sharePendingSales: z.boolean().optional(),
 })
 
 // Types TypeScript
