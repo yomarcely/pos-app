@@ -38,6 +38,7 @@
 | 2026-03-25 | Clients U1-U5 | Listing cliquable, champs obligatoires, unicité email/tenant, anonymisation RGPD, remise permanente auto | ✅ |
 | 2026-04-01 | TVA + Catégories + Nettoyage | T1 code TVA auto-généré, T3 pré-sélection TVA par défaut, C1 protection suppression catégorie 409, N1/N2 console.log debug + toasts doublons | ✅ |
 | 2026-04-25 | Phase B — robustesse & scaling | B1 helpers pagination (`apiResponse.ts`), B2 pagination back+front sur `/clients` & `/produits` (compat additive `meta.pagination`), B3 extraction `productOverrides` (endpoint -104 l.), B4 refactor ColRight via `useCheckout` (442→167 l., -62 %). 513 tests / 72 fichiers, +69 tests | ✅ |
+| 2026-04-25 | D1 — Impression ticket & facture | Modale post-vente avec 2 boutons (ticket 80mm / facture A4). Générateurs HTML purs (`utils/saleDocuments.ts`), iframe print (`usePrintDocument`), dialog shadcn. Suppression code mort `printReceipt` orphelin. 544 tests / 73 fichiers, +31 tests (29 sur les générateurs + 2 sur le dialog) | ✅ |
 
 ---
 
@@ -65,6 +66,25 @@
 - Suppression code mort : génération `receipt` (60 l. de template literal jamais utilisé) + fonction `printReceipt` orpheline
 - 21 tests caractérisation (3 → 21) couvrent tous les chemins erreur + payload `submitSale`
 - ColRight 442 → 167 lignes (-62 %), n'est plus zone critique 🔴
+
+---
+
+## 📝 D1 — Impression ticket & facture (2026-04-25)
+
+**Architecture** : iframe caché + `window.print()` (plus fiable que `window.open()`, souvent bloqué par les pop-up blockers).
+
+**Fichiers créés** :
+- [utils/saleDocuments.ts](../utils/saleDocuments.ts) — générateurs HTML purs : `buildReceiptHtml` (ticket 80mm thermique) + `buildInvoiceHtml` (facture A4 avec détail TVA par taux). Échappement HTML systématique (anti-XSS sur nom produit/client).
+- [composables/usePrintDocument.ts](../composables/usePrintDocument.ts) — `printHtml(html)` via iframe `srcdoc`, cleanup auto sur `afterprint` ou timeout 60s.
+- [components/caisse/SaleSuccessDialog.vue](../components/caisse/SaleSuccessDialog.vue) — modale shadcn avec 2 gros boutons (icônes Printer / FileText) + fermeture sans imprimer.
+
+**Branchement** :
+- [composables/useCheckout.ts](../composables/useCheckout.ts) capture `lastSaleDocument` AVANT `clearCart`/`clearClient`, ouvre la modale après reset.
+- [components/caisse/ColRight.vue](../components/caisse/ColRight.vue) gère les handlers `print-receipt` / `print-invoice` qui appellent les générateurs + iframe.
+
+**Tests** : +31 tests (29 sur générateurs HTML — XSS, formats, fallbacks ; 2 sur ouverture/non-ouverture du dialog selon succès/erreur API).
+
+**Note** : impression PDF native via dialog navigateur — pas de dépendance lib externe. Pour ESC/POS thermique direct (sans dialog) : phase ultérieure si besoin terrain.
 
 ---
 
