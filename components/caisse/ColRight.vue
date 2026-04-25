@@ -4,10 +4,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard, Lock } from 'lucide-vue-next'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
+import SaleSuccessDialog from '@/components/caisse/SaleSuccessDialog.vue'
 import { useCartStore } from '@/stores/cart'
 import { useCheckout } from '@/composables/useCheckout'
+import { usePrintDocument } from '@/composables/usePrintDocument'
+import { buildReceiptHtml, buildInvoiceHtml } from '@/utils/saleDocuments'
 
 const cartStore = useCartStore()
+const { printHtml } = usePrintDocument()
 
 const {
   payments,
@@ -17,6 +21,8 @@ const {
   totalTTC,
   totalHT,
   totalTVA,
+  lastSaleDocument,
+  showSuccessDialog,
   addPayment,
   removePayment,
   validerVente,
@@ -31,7 +37,28 @@ watch(
   newLength => emit('payments-changed', newLength > 0),
 )
 
-defineExpose({ payments, addPayment, removePayment, validerVente })
+async function handlePrintReceipt() {
+  if (!lastSaleDocument.value) return
+  await printHtml(buildReceiptHtml(lastSaleDocument.value))
+}
+
+async function handlePrintInvoice() {
+  if (!lastSaleDocument.value) return
+  await printHtml(buildInvoiceHtml(lastSaleDocument.value))
+}
+
+function closeSuccessDialog() {
+  showSuccessDialog.value = false
+}
+
+defineExpose({
+  payments,
+  addPayment,
+  removePayment,
+  validerVente,
+  showSuccessDialog,
+  lastSaleDocument,
+})
 </script>
 
 <template>
@@ -153,15 +180,15 @@ defineExpose({ payments, addPayment, removePayment, validerVente })
         {{ isDayClosed ? 'Journée clôturée' : (totalTTC === 0 ? 'Valider l\'échange' : (totalTTC < 0 ? 'Valider le remboursement' : 'Valider la vente')) }}
       </Button>
 
-      <!-- <Button
-        variant="outline"
-        class="w-full"
-        @click="printReceipt"
-        :disabled="cartStore.items.length === 0"
-      >
-        <Printer class="w-4 h-4 mr-2" />
-        Imprimer ticket
-      </Button> -->
     </div>
+
+    <SaleSuccessDialog
+      :open="showSuccessDialog"
+      :ticket-number="lastSaleDocument?.ticketNumber"
+      @update:open="(v) => (showSuccessDialog = v)"
+      @print-receipt="handlePrintReceipt"
+      @print-invoice="handlePrintInvoice"
+      @close="closeSuccessDialog"
+    />
   </div>
 </template>

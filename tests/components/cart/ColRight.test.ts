@@ -116,8 +116,18 @@ describe('ColRight (caisse)', () => {
     cartStoreMock.clearCart.mockClear()
     cartStoreMock.checkDayClosure.mockClear()
     cartStoreMock.checkDayClosure.mockResolvedValue(false)
-    cartStoreMock.submitSale.mockClear()
-    cartStoreMock.validateStock.mockClear()
+    cartStoreMock.submitSale.mockReset()
+    cartStoreMock.submitSale.mockImplementation(async () => ({
+      success: true,
+      sale: {
+        id: 1,
+        ticketNumber: 'T-001',
+        hash: 'abc123def456',
+        signature: 'TEMP_SIG_xyz',
+        saleDate: new Date('2026-04-25T10:00:00Z'),
+      },
+    }))
+    cartStoreMock.validateStock.mockReset()
     cartStoreMock.validateStock.mockReturnValue({ valid: true, errors: [] })
     customerStoreMock.clearClient.mockClear()
     selectedRegisterId.value = null
@@ -391,5 +401,35 @@ describe('ColRight (caisse)', () => {
     expect(cartStoreMock.submitSale).toHaveBeenCalledTimes(1)
     const payload = cartStoreMock.submitSale.mock.calls[0]![0] as Record<string, unknown>
     expect(payload.payments).toEqual([])
+  })
+
+  it('validerVente — succès : ouvre le dialog et capture lastSaleDocument', async () => {
+    setupHappyPath()
+    const wrapper = mountComponent()
+    await (wrapper.vm as any).addPayment('Espèces')
+    await (wrapper.vm as any).validerVente()
+
+    expect((wrapper.vm as any).showSuccessDialog).toBe(true)
+    const doc = (wrapper.vm as any).lastSaleDocument
+    expect(doc).toMatchObject({
+      ticketNumber: 'T-001',
+      hash: 'abc123def456',
+      registerName: 'Caisse 1',
+      sellerName: 'Seller 1',
+    })
+    expect(doc.items).toHaveLength(1)
+    expect(doc.items[0]).toMatchObject({ name: 'Produit A', quantity: 1, tva: 20 })
+    expect(doc.payments).toEqual([{ mode: 'Espèces', amount: 20 }])
+  })
+
+  it('validerVente — erreur API : dialog NE s\'ouvre PAS', async () => {
+    setupHappyPath()
+    cartStoreMock.submitSale.mockRejectedValue(new Error('API down'))
+    const wrapper = mountComponent()
+    await (wrapper.vm as any).addPayment('Espèces')
+    await (wrapper.vm as any).validerVente()
+
+    expect((wrapper.vm as any).showSuccessDialog).toBe(false)
+    expect((wrapper.vm as any).lastSaleDocument).toBeNull()
   })
 })

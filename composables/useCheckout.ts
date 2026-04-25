@@ -8,6 +8,7 @@ import { useVariationGroupsStore } from '@/stores/variationGroups'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useToast } from '@/composables/useToast'
 import { extractFetchError } from '@/composables/useFetchError'
+import type { SaleDocumentData } from '@/utils/saleDocuments'
 
 export interface Payment {
   mode: string
@@ -32,6 +33,8 @@ export function useCheckout() {
   const payments = ref<Payment[]>([])
   const isSubmitting = ref(false)
   const isDayClosed = ref(false)
+  const lastSaleDocument = ref<SaleDocumentData | null>(null)
+  const showSuccessDialog = ref(false)
 
   const totalPaid = computed(() => payments.value.reduce((sum, p) => sum + p.amount, 0))
   const balance = computed(() => totalTTC.value - totalPaid.value)
@@ -178,6 +181,55 @@ export function useCheckout() {
         throw new Error('Échec de l\'enregistrement de la vente')
       }
 
+      // Capturer toutes les données AVANT le reset cart/customer
+      lastSaleDocument.value = {
+        ticketNumber: response.sale.ticketNumber,
+        saleDate: response.sale.saleDate,
+        hash: response.sale.hash,
+        signature: response.sale.signature,
+        establishment: {
+          name: establishment.name,
+          address: establishment.address,
+          postalCode: establishment.postalCode,
+          city: establishment.city,
+          country: establishment.country,
+          phone: establishment.phone,
+          email: establishment.email,
+          siret: establishment.siret,
+          naf: establishment.naf,
+          tvaNumber: establishment.tvaNumber,
+        },
+        registerName: register.name,
+        sellerName: seller?.name || 'Vendeur inconnu',
+        customer: customerStore.client
+          ? {
+              firstName: customerStore.client.firstName,
+              lastName: customerStore.client.lastName,
+              address: customerStore.client.address,
+              postalCode: (customerStore.client.metadata as { postalCode?: string } | undefined)?.postalCode,
+              city: customerStore.client.city,
+              email: customerStore.client.email,
+            }
+          : null,
+        items: cartStore.items.map(item => ({
+          name: item.name,
+          variation: item.variation || null,
+          quantity: item.quantity,
+          unitPrice: cartStore.getFinalPrice(item),
+          originalPrice: item.price,
+          discount: item.discount,
+          discountType: item.discountType,
+          tva: item.tva || 20,
+        })),
+        payments: payments.value.map(p => ({ mode: p.mode, amount: p.amount })),
+        totals: {
+          totalHT: totalHT.value,
+          totalTVA: totalTVA.value,
+          totalTTC: totalTTC.value,
+        },
+        changeDue: balance.value < 0 ? Math.abs(balance.value) : 0,
+      }
+
       productsStore.loaded = false
       await productsStore.loadProducts()
 
@@ -186,6 +238,9 @@ export function useCheckout() {
       cartStore.clearCart()
       customerStore.clearClient()
       payments.value = []
+
+      // Ouverture du dialog après reset (les données sont safe dans lastSaleDocument)
+      showSuccessDialog.value = true
     }
     catch (error) {
       const message = extractFetchError(error, 'Erreur lors de la validation de la vente')
@@ -209,6 +264,8 @@ export function useCheckout() {
     totalTTC,
     totalHT,
     totalTVA,
+    lastSaleDocument,
+    showSuccessDialog,
     addPayment,
     removePayment,
     validerVente,
