@@ -210,6 +210,10 @@ const data = {
           title: 'TVA',
           url: '/tva',
         },
+        {
+          title: 'Fidélité',
+          url: '/parametres/fidelite',
+        },
       ],
     },
   ],

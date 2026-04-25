@@ -39,6 +39,7 @@
 | 2026-04-01 | TVA + Catégories + Nettoyage | T1 code TVA auto-généré, T3 pré-sélection TVA par défaut, C1 protection suppression catégorie 409, N1/N2 console.log debug + toasts doublons | ✅ |
 | 2026-04-25 | Phase B — robustesse & scaling | B1 helpers pagination (`apiResponse.ts`), B2 pagination back+front sur `/clients` & `/produits` (compat additive `meta.pagination`), B3 extraction `productOverrides` (endpoint -104 l.), B4 refactor ColRight via `useCheckout` (442→167 l., -62 %). 513 tests / 72 fichiers, +69 tests | ✅ |
 | 2026-04-25 | D1 — Impression ticket & facture | Modale post-vente avec 2 boutons (ticket 80mm / facture A4). Générateurs HTML purs (`utils/saleDocuments.ts`), iframe print (`usePrintDocument`), dialog shadcn. Suppression code mort `printReceipt` orphelin. 544 tests / 73 fichiers, +31 tests (29 sur les générateurs + 2 sur le dialog) | ✅ |
+| 2026-04-25 | D2.1 — Fidélité : schéma + admin | Tables `loyalty_config` (par tenant) + `loyalty_vouchers` + colonnes `points_earned/consumed/voucher_used_id` sur `sales`. Endpoints GET/PUT `/api/loyalty/config` (audit log inclus), validateur Zod (cap % à 100). Page admin `/parametres/fidelite` (3 cards : activation, calcul, avantage) + entrée sidebar. Migration `0012_sticky_photon.sql`. **Note** : journal `__drizzle_migrations` était désynchro (0010+0011 appliquées sans enregistrement) — réparé via `scripts/repair-migrations.ts`. 548 tests / 74 fichiers, +4 tests | ✅ |
 
 ---
 

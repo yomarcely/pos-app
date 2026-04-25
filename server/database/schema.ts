@@ -74,6 +74,13 @@ export const sales = pgTable('sales', {
   closureId: integer('closure_id').references(() => closures.id),
   closedAt: timestamp('closed_at', { withTimezone: true }),
 
+  // ==========================================
+  // FIDÉLITÉ
+  // ==========================================
+  pointsEarned: integer('points_earned').default(0).notNull(),
+  pointsConsumed: integer('points_consumed').default(0).notNull(),
+  voucherUsedId: integer('voucher_used_id'),
+
   // Audit
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -87,6 +94,7 @@ export const sales = pgTable('sales', {
   establishmentIdIdx: index('sales_establishment_id_idx').on(table.establishmentId),
   registerIdIdx: index('sales_register_id_idx').on(table.registerId),
   statusIdx: index('sales_status_idx').on(table.status),
+  voucherUsedIdIdx: index('sales_voucher_used_id_idx').on(table.voucherUsedId),
 }))
 
 // ==========================================
@@ -917,6 +925,66 @@ export const syncLogs = pgTable('sync_logs', {
 }))
 
 // ==========================================
+// 22. CONFIGURATION FIDÉLITÉ (PAR TENANT)
+// ==========================================
+export const loyaltyConfig = pgTable('loyalty_config', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().unique(),
+
+  enabled: boolean('enabled').notNull().default(false),
+
+  // 'per_euro' (1pt par € TTC arrondi inférieur) ou 'per_ticket' (1pt par ticket complet)
+  pointMode: varchar('point_mode', { length: 32 }).notNull().default('per_euro'),
+
+  // Nombre de points pour déclencher l'avantage
+  thresholdPoints: integer('threshold_points').notNull().default(100),
+
+  // Type d'avantage : 'percent_discount' (% sur le total), 'euro_discount' (€ remise), 'voucher' (bon d'achat différé)
+  rewardType: varchar('reward_type', { length: 32 }).notNull().default('percent_discount'),
+
+  // Valeur de l'avantage (% ou € selon rewardType)
+  rewardValue: decimal('reward_value', { precision: 10, scale: 2 }).notNull().default('5'),
+
+  // Validité du voucher en jours (utilisé seulement si rewardType='voucher')
+  voucherValidityDays: integer('voucher_validity_days').notNull().default(60),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: uniqueIndex('loyalty_config_tenant_id_idx').on(table.tenantId),
+}))
+
+// ==========================================
+// 23. BONS D'ACHAT FIDÉLITÉ
+// ==========================================
+export const loyaltyVouchers = pgTable('loyalty_vouchers', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  customerId: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+
+  // Code unique imprimé sur le ticket (scope tenant)
+  code: varchar('code', { length: 32 }).notNull(),
+
+  // Montant du bon en €
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+
+  // 'active' (utilisable), 'used' (consommé), 'expired' (résolu en lecture, pas en colonne)
+  status: varchar('status', { length: 16 }).notNull().default('active'),
+
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  usedSaleId: integer('used_sale_id').references(() => sales.id),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('loyalty_vouchers_tenant_id_idx').on(table.tenantId),
+  customerIdIdx: index('loyalty_vouchers_customer_id_idx').on(table.customerId),
+  codeIdx: uniqueIndex('loyalty_vouchers_code_idx').on(table.tenantId, table.code),
+  statusIdx: index('loyalty_vouchers_status_idx').on(table.status),
+}))
+
+// ==========================================
 // RELATIONS
 // ==========================================
 
@@ -1134,5 +1202,16 @@ export const syncLogsRelations = relations(syncLogs, ({ one }) => ({
   sourceEstablishment: one(establishments, {
     fields: [syncLogs.sourceEstablishmentId],
     references: [establishments.id],
+  }),
+}))
+
+export const loyaltyVouchersRelations = relations(loyaltyVouchers, ({ one }) => ({
+  customer: one(customers, {
+    fields: [loyaltyVouchers.customerId],
+    references: [customers.id],
+  }),
+  usedSale: one(sales, {
+    fields: [loyaltyVouchers.usedSaleId],
+    references: [sales.id],
   }),
 }))
