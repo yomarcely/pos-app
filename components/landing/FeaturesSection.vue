@@ -13,7 +13,7 @@
 
       <!-- Grille de fonctionnalités -->
       <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-        <Card v-for="feature in features" :key="feature.title" class="border-gray-100">
+        <Card v-for="feature in features" :key="feature.title" class="border-gray-100 hover:shadow-lg transition-shadow duration-300">
           <CardHeader>
             <div class="mb-4 text-3xl">{{ feature.icon }}</div>
             <CardTitle class="text-xl">{{ feature.title }}</CardTitle>

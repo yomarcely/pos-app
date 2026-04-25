@@ -14,15 +14,20 @@
         <Card
           v-for="testimonial in testimonials"
           :key="testimonial.name"
-          class="border-gray-100"
+          class="border-gray-100 hover:shadow-lg transition-shadow duration-300"
         >
           <CardHeader>
-            <CardTitle class="text-base">{{ testimonial.name }}</CardTitle>
-            <CardDescription>{{ testimonial.business }}</CardDescription>
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle class="text-base">{{ testimonial.name }}</CardTitle>
+                <CardDescription>{{ testimonial.business }}</CardDescription>
+              </div>
+              <div class="text-amber-400 text-sm">★★★★★</div>
+            </div>
           </CardHeader>
           <CardContent>
-            <p class="text-sm leading-relaxed text-gray-600">
-              "{{ testimonial.quote }}"
+            <p class="text-sm leading-relaxed text-gray-600 italic">
+              “{{ testimonial.quote }}”
             </p>
           </CardContent>
         </Card>
