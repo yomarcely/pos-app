@@ -16,7 +16,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Routes publiques (accessibles sans authentification)
   const publicRoutes = ['/login', '/signup']
-  const isPublicRoute = publicRoutes.some(route => to.path.startsWith(route))
+  // Autoriser explicitement la page d'accueil (`/`) sans authentification
+  const isPublicRoute = to.path === '/' || publicRoutes.some(route => to.path.startsWith(route))
 
   // Si non authentifié et route non publique, rediriger vers login
   if (!auth.isAuthenticated && !isPublicRoute) {
