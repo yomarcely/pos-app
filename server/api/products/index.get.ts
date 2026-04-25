@@ -9,6 +9,8 @@ import {
 } from '~/server/database/schema'
 import { sql, eq, and, type SQL } from 'drizzle-orm'
 import { logger } from '~/server/utils/logger'
+import { parsePaginationQuery, paginationMeta } from '~/server/utils/apiResponse'
+import { applyEstablishmentOverrides, type ProductRow } from '~/server/utils/productOverrides'
 
 /**
  * ==========================================
@@ -26,74 +28,6 @@ import { logger } from '~/server/utils/logger'
  * Retourne la liste des produits avec leur stock et catégorie
  */
 
-/**
- * Convertit le format array de productStocks.stockByVariation
- * [{variationId: "9", stock: 1}] → {"9": 1}
- * en format objet attendu par le frontend.
- */
-function normalizeEstablishmentStockByVariation(raw: unknown): Record<string, number> | undefined {
-  if (!raw) return undefined
-  if (Array.isArray(raw)) {
-    const result: Record<string, number> = {}
-    for (const entry of raw as Array<{ variationId: string | number; stock: number }>) {
-      if (entry && entry.variationId !== undefined) {
-        result[String(entry.variationId)] = Number(entry.stock) || 0
-      }
-    }
-    return Object.keys(result).length > 0 ? result : undefined
-  }
-  // Déjà en format objet (cas legacy)
-  return raw as Record<string, number>
-}
-
-/**
- * Interface pour le résultat de la requête avec champs établissement
- */
-interface ProductQueryResult {
-  id: number
-  name: string
-  barcode: string | null
-  barcodeByVariation: unknown
-  categoryId: number | null
-  categoryName: string | null
-  supplierId: number | null
-  supplierName: string | null
-  brandId: number | null
-  brandName: string | null
-  price: string
-  purchasePrice: string | null
-  tva: string | null
-  stock: number | null
-  minStock: number | null
-  stockByVariation: unknown
-  minStockByVariation: unknown
-  variationGroupIds: unknown
-  image: string | null
-  description: string | null
-  isArchived: boolean | null
-  createdAt: Date | null
-  updatedAt: Date | null
-  // Champs spécifiques établissement (optionnels)
-  establishmentId?: number | null
-  establishmentStock?: number | null
-  establishmentStockByVariation?: unknown
-  establishmentMinStock?: number | null
-  establishmentMinStockByVariation?: unknown
-  priceOverride?: string | null
-  purchasePriceOverride?: string | null
-  nameOverride?: string | null
-  descriptionOverride?: string | null
-  barcodeOverride?: string | null
-  supplierIdOverride?: number | null
-  categoryIdOverride?: number | null
-  brandIdOverride?: number | null
-  tvaOverride?: string | null
-  tvaIdOverride?: number | null
-  imageOverride?: string | null
-  variationGroupIdsOverride?: unknown
-  isAvailableLocally?: boolean | null
-}
-
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
@@ -105,6 +39,7 @@ export default defineEventHandler(async (event) => {
     const supplierId = query.supplierId ? Number(query.supplierId) : undefined
     const brandId = query.brandId ? Number(query.brandId) : undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+    const { page, limit, offset } = parsePaginationQuery(event)
 
     // Construction de la requête avec filtres
     const conditions: SQL[] = []
@@ -230,80 +165,41 @@ export default defineEventHandler(async (event) => {
 
     const allProducts = await queryBuilder
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(products.name) as unknown as ProductQueryResult[]
+      .orderBy(products.name)
+      .limit(limit)
+      .offset(offset) as unknown as ProductRow[]
 
-    // Transformer les données pour correspondre au format attendu par le frontend
-    const formattedProducts = allProducts.map((product) => ({
-      id: product.id,
-      // Utiliser les overrides si disponibles pour cet établissement
-      name: establishmentId && product.nameOverride
-        ? product.nameOverride
-        : product.name,
-      description: establishmentId && product.descriptionOverride
-        ? product.descriptionOverride
-        : (product.description || ''),
-      barcode: establishmentId && product.barcodeOverride
-        ? product.barcodeOverride
-        : (product.barcode || ''),
-      barcodeByVariation: product.barcodeByVariation as Record<string, string> | undefined,
-      categoryId: establishmentId && product.categoryIdOverride
-        ? product.categoryIdOverride
-        : product.categoryId,
-      categoryName: product.categoryName || null,
-      supplierId: establishmentId && product.supplierIdOverride
-        ? product.supplierIdOverride
-        : product.supplierId,
-      supplierName: product.supplierName || null,
-      brandId: establishmentId && product.brandIdOverride
-        ? product.brandIdOverride
-        : product.brandId,
-      brandName: product.brandName || null,
-      image: establishmentId && product.imageOverride
-        ? product.imageOverride
-        : (product.image || null),
-      tva: establishmentId && product.tvaOverride
-        ? parseFloat(product.tvaOverride)
-        : parseFloat(product.tva || '20'),
-      variationGroupIds: establishmentId && product.variationGroupIdsOverride
-        ? product.variationGroupIdsOverride as number[]
-        : product.variationGroupIds as number[] | undefined,
-      price: establishmentId && product.priceOverride
-        ? parseFloat(product.priceOverride)
-        : parseFloat(product.price),
-      purchasePrice: establishmentId && product.purchasePriceOverride
-        ? parseFloat(product.purchasePriceOverride)
-        : product.purchasePrice ? parseFloat(product.purchasePrice) : undefined,
-      priceOverride: establishmentId && product.priceOverride
-        ? parseFloat(product.priceOverride)
-        : undefined,
-      purchasePriceOverride: establishmentId && product.purchasePriceOverride
-        ? parseFloat(product.purchasePriceOverride)
-        : undefined,
-      stock: establishmentId
-        ? product.establishmentStock ?? 0
-        : product.stock || 0,
-      minStock: establishmentId
-        ? product.establishmentMinStock ?? 5
-        : product.minStock ?? 5,
-      stockByVariation: establishmentId
-        ? normalizeEstablishmentStockByVariation(product.establishmentStockByVariation)
-        : product.stockByVariation as Record<string, number> | undefined,
-      minStockByVariation: establishmentId
-        ? (product.establishmentMinStockByVariation as Record<string, number> | undefined)
-        : product.minStockByVariation as Record<string, number> | undefined,
-      isArchived: product.isArchived,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-      establishmentId: establishmentId || product.establishmentId || null,
-      isAvailable: establishmentId
-        ? (product.isAvailableLocally ?? true)
-        : true,
-    }))
+    // COUNT séparé pour la pagination — DISTINCT products.id car les JOINs peuvent multiplier
+    let countQuery = db
+      .select({ total: sql<number>`COUNT(DISTINCT ${products.id})` })
+      .from(products) as unknown as {
+        innerJoin: (...args: unknown[]) => typeof countQuery
+        where: (...args: unknown[]) => Promise<Array<{ total: number }>>
+      }
+
+    if (establishmentId) {
+      countQuery = countQuery.innerJoin(
+        productStocks,
+        and(
+          eq(productStocks.productId, products.id),
+          eq(productStocks.establishmentId, establishmentId),
+          eq(productStocks.tenantId, tenantId),
+        ),
+      )
+    }
+
+    const countRow = await countQuery.where(conditions.length > 0 ? and(...conditions) : undefined)
+    const total = Number(countRow[0]?.total ?? 0)
+
+    const formattedProducts = allProducts.map(row => applyEstablishmentOverrides(row, establishmentId))
 
     return {
       success: true,
       products: formattedProducts,
       count: formattedProducts.length,
+      meta: {
+        pagination: paginationMeta({ page, limit, total }),
+      },
     }
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des produits')

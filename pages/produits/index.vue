@@ -3,7 +3,7 @@
     <!-- Header -->
     <PageHeader
       title="Catalogue produits"
-      :description="`${filteredCount} produit(s)`"
+      :description="`${totalCount} produit(s)`"
     >
       <template #actions>
         <Button @click="navigateTo('/produits/create')">
@@ -25,8 +25,8 @@
       :brands="brands"
       :suppliers="suppliers"
       @search="debouncedSearch"
-      @category-change="loadProducts"
-      @filter-change="loadProducts"
+      @category-change="reloadFromFirstPage"
+      @filter-change="reloadFromFirstPage"
       @reset-filters="resetFilters"
     />
 
@@ -61,6 +61,32 @@
       v-else-if="!loading && products.length === 0"
       :message="searchQuery || selectedCategoryId || selectedBrandId || selectedSupplierId ? 'Essayez de modifier vos filtres' : 'Créez votre premier produit pour commencer'"
     />
+
+    <!-- Pagination -->
+    <Pagination
+      v-if="!loading && totalCount > pageSize"
+      v-slot="{ page }"
+      v-model:page="currentPage"
+      :items-per-page="pageSize"
+      :total="totalCount"
+      :sibling-count="1"
+      show-edges
+    >
+      <PaginationContent v-slot="{ items }">
+        <PaginationPrevious />
+        <template v-for="(item, index) in items" :key="index">
+          <PaginationItem
+            v-if="item.type === 'page'"
+            :value="item.value"
+            :is-active="item.value === page"
+          >
+            {{ item.value }}
+          </PaginationItem>
+          <PaginationEllipsis v-else :index="index" />
+        </template>
+        <PaginationNext />
+      </PaginationContent>
+    </Pagination>
   </div>
 </template>
 
@@ -71,6 +97,14 @@ definePageMeta({
 
 import { Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import { useToast } from '@/composables/useToast'
 import PageHeader from '@/components/common/PageHeader.vue'
 import ProductsSearchBar from '@/components/produits/ProductsSearchBar.vue'
@@ -82,7 +116,20 @@ import type { Product, Brand, Supplier } from '@/types'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 
 const toast = useToast()
-type ProductsResponse = { products: Product[]; count: number }
+interface ProductsResponse {
+  products: Product[]
+  count: number
+  meta?: {
+    pagination?: {
+      page: number
+      limit: number
+      total: number
+      pages: number
+      hasNext: boolean
+      hasPrev: boolean
+    }
+  }
+}
 
 // State
 const loading = ref(true)
@@ -104,13 +151,17 @@ const selectedSupplierId = ref<number | null>(null)
 const showArchived = ref(false)
 const viewMode = ref<'list' | 'grid'>('grid')
 const filteredCount = ref(0)
+const totalCount = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(30)
 const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
-// Debounced search
+// Debounced search — reset à la page 1 quand on tape
 let searchTimeout: NodeJS.Timeout
 const debouncedSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
+    currentPage.value = 1
     loadProducts()
   }, 300)
 }
@@ -120,7 +171,10 @@ async function loadProducts() {
   try {
     loading.value = true
 
-    const params: Record<string, string | number | boolean> = {}
+    const params: Record<string, string | number | boolean> = {
+      page: currentPage.value,
+      limit: pageSize.value,
+    }
     if (searchQuery.value && searchQuery.value.trim() !== '') {
       params.search = searchQuery.value.trim()
     }
@@ -133,6 +187,7 @@ async function loadProducts() {
     const response = await $fetch<ProductsResponse>('/api/products', { params })
     products.value = response.products
     filteredCount.value = response.count
+    totalCount.value = response.meta?.pagination?.total ?? response.count
   } catch (error) {
     console.error('Erreur lors du chargement des produits:', error)
     toast.error('Erreur lors du chargement des produits')
@@ -140,6 +195,10 @@ async function loadProducts() {
     loading.value = false
   }
 }
+
+watch(currentPage, () => {
+  loadProducts()
+})
 
 // Charger les catégories
 async function loadCategories() {
@@ -174,6 +233,15 @@ async function loadSuppliers() {
   }
 }
 
+// Reset page=1 puis recharge — évite d'atterrir sur une page vide après un filtre
+function reloadFromFirstPage() {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1 // watcher déclenchera loadProducts
+  } else {
+    loadProducts()
+  }
+}
+
 // Réinitialiser les filtres
 function resetFilters() {
   searchQuery.value = ''
@@ -181,7 +249,7 @@ function resetFilters() {
   selectedBrandId.value = null
   selectedSupplierId.value = null
   showArchived.value = false
-  loadProducts()
+  reloadFromFirstPage()
 }
 
 // Actions
@@ -253,6 +321,12 @@ onMounted(async () => {
 })
 
 watch(selectedEstablishmentId, async () => {
-  await Promise.all([loadCategories(), loadProducts()])
+  // Reset à la page 1 : les produits diffèrent par établissement
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+    await loadCategories()
+  } else {
+    await Promise.all([loadCategories(), loadProducts()])
+  }
 })
 </script>

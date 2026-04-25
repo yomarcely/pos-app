@@ -155,6 +155,45 @@ function createReadChain(rows: unknown[]) {
 }
 
 /**
+ * Mock pour GET /api/clients avec pagination :
+ * - 1er select() → query data (await sur .offset())
+ * - 2e select() → query count (await sur .where())
+ */
+function createPaginatedClientChain(rows: unknown[], total: number) {
+  let selectIdx = 0
+  const dataResults = [rows]
+  const countResults = [[{ total }]]
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
+    select: vi.fn(() => { selectIdx++; return chain }),
+    from: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    innerJoin: vi.fn(() => chain),
+    where: vi.fn(() => {
+      // Sur le 2e select (count), where() est awaited directement (pas de chain après)
+      if (selectIdx === 2) {
+        return Object.assign(
+          Promise.resolve(countResults[0]),
+          { then: (r: (v: unknown) => void, rej?: (e: unknown) => void) =>
+            Promise.resolve(countResults[0]).then(r, rej) }
+        )
+      }
+      return chain
+    }),
+    groupBy: vi.fn(() => chain),
+    having: vi.fn(() => chain),
+    orderBy: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    offset: vi.fn(() => Promise.resolve(dataResults[0])),
+    insert: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  }
+  return chain
+}
+
+/**
  * Creates a db mock for POST /api/clients that handles the complex chain:
  * 1. insert(customers).values(...).returning() -> [newClient]
  * 2. select().from(establishments).where(...).limit(2) -> estabs (fallback lookup)
@@ -290,7 +329,7 @@ describe('API /api/clients', () => {
         totalRevenue: '150.50'
       }]
 
-      currentDb = createReadChain(mockRows)
+      currentDb = createPaginatedClientChain(mockRows, 1)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/clients/index.get')).default as any
       const event = createMockEvent()
@@ -311,7 +350,7 @@ describe('API /api/clients', () => {
     })
 
     it('retourne liste vide si aucun client', async () => {
-      currentDb = createReadChain([])
+      currentDb = createPaginatedClientChain([], 0)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/clients/index.get')).default as any
       const event = createMockEvent()
@@ -324,7 +363,7 @@ describe('API /api/clients', () => {
     })
 
     it('appelle innerJoin si establishmentId fourni', async () => {
-      currentDb = createReadChain([])
+      currentDb = createPaginatedClientChain([], 0)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/clients/index.get')).default as any
       const event = createMockEvent({ query: { establishmentId: '5' } })
@@ -334,15 +373,55 @@ describe('API /api/clients', () => {
       expect(currentDb.innerJoin).toHaveBeenCalled()
     })
 
-    it('applique la recherche si search fourni (having)', async () => {
-      currentDb = createReadChain([])
+    it('applique la recherche si search fourni (where, plus having)', async () => {
+      currentDb = createPaginatedClientChain([], 0)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/clients/index.get')).default as any
       const event = createMockEvent({ query: { search: 'Jean' } })
 
       await handler(event)
 
-      expect(currentDb.having).toHaveBeenCalled()
+      expect(currentDb.where).toHaveBeenCalled()
+      // having ne doit plus être utilisé pour la recherche
+      expect(currentDb.having).not.toHaveBeenCalled()
+    })
+
+    it('expose meta.pagination avec defaults page=1 limit=50', async () => {
+      currentDb = createPaginatedClientChain([], 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/index.get')).default as any
+      const event = createMockEvent()
+
+      const res = await handler(event)
+
+      expect(res.meta.pagination).toEqual({
+        page: 1,
+        limit: 50,
+        total: 0,
+        pages: 1,
+        hasNext: false,
+        hasPrev: false,
+      })
+    })
+
+    it('calcule meta.pagination quand page/limit fournis', async () => {
+      currentDb = createPaginatedClientChain([], 120)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/index.get')).default as any
+      const event = createMockEvent({ query: { page: '2', limit: '20' } })
+
+      const res = await handler(event)
+
+      expect(res.meta.pagination).toEqual({
+        page: 2,
+        limit: 20,
+        total: 120,
+        pages: 6,
+        hasNext: true,
+        hasPrev: true,
+      })
+      expect(currentDb.limit).toHaveBeenCalled()
+      expect(currentDb.offset).toHaveBeenCalled()
     })
   })
 

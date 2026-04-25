@@ -3,18 +3,19 @@ import { customers, sales, customerEstablishments } from '~/server/database/sche
 import { desc, or, like, sql, eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
+import { parsePaginationQuery, paginationMeta } from '~/server/utils/apiResponse'
 
 /**
  * ==========================================
  * API: Récupérer les clients avec recherche
  * ==========================================
  *
- * GET /api/clients?search=...
+ * GET /api/clients?search=...&page=1&limit=50
  *
- * Retourne la liste des clients avec support de recherche
- * Inclut le chiffre d'affaire total de chaque client
+ * Retourne la liste des clients avec support de recherche et pagination.
+ * Inclut le chiffre d'affaire total de chaque client.
  *
- * Performance: Utilise un LEFT JOIN pour éviter N+1 queries
+ * Performance: LEFT JOIN pour éviter N+1, COUNT séparé pour la pagination.
  */
 
 export default defineEventHandler(async (event) => {
@@ -23,14 +24,27 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event)
     const searchTerm = query.search as string | undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+    const { page, limit, offset } = parsePaginationQuery(event)
 
     // Logique de visibilité des clients par établissement :
     // - Si l'établissement a une liaison avec un client (dans customer_establishments), il le voit
     // - Cela permet aux nouveaux établissements de démarrer vides
     // - Et aux établissements désynchro de garder leurs clients
 
-    // Conditions de base
+    // Conditions de base (WHERE) — incluent désormais le filtre search
     const baseConditions = [eq(customers.tenantId, tenantId)]
+
+    if (searchTerm && searchTerm.trim() !== '') {
+      const term = `%${searchTerm.trim()}%`
+      const searchCondition = or(
+        like(customers.firstName, term),
+        like(customers.lastName, term),
+        like(customers.email, term),
+        like(customers.phone, term),
+        sql`CONCAT(${customers.firstName}, ' ', ${customers.lastName}) ILIKE ${term}`,
+      )
+      if (searchCondition) baseConditions.push(searchCondition)
+    }
 
     // Query optimisée avec LEFT JOIN pour calculer le CA en une seule requête
     let queryBuilder = db
@@ -108,21 +122,32 @@ export default defineEventHandler(async (event) => {
         customers.updatedAt
       )
 
-    // Appliquer la recherche si présente
-    const filteredQuery = (searchTerm && searchTerm.trim() !== '')
-      ? groupedQuery.having(
-        or(
-          like(customers.firstName, `%${searchTerm.trim()}%`),
-          like(customers.lastName, `%${searchTerm.trim()}%`),
-          like(customers.email, `%${searchTerm.trim()}%`),
-          like(customers.phone, `%${searchTerm.trim()}%`),
-          sql`CONCAT(${customers.firstName}, ' ', ${customers.lastName}) ILIKE ${`%${searchTerm.trim()}%`}`
-        )
-      )
-      : groupedQuery
+    // Ordonner par date de création (plus récents en premier) + pagination
+    const allClients = await groupedQuery
+      .orderBy(desc(customers.createdAt))
+      .limit(limit)
+      .offset(offset)
 
-    // Ordonner par date de création (plus récents en premier)
-    const allClients = await filteredQuery.orderBy(desc(customers.createdAt))
+    // COUNT séparé pour la pagination — DISTINCT customers.id car le JOIN sales/CE
+    // peut multiplier les lignes
+    const countRow = establishmentId
+      ? await db
+          .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
+          .from(customers)
+          .innerJoin(
+            customerEstablishments,
+            and(
+              eq(customerEstablishments.customerId, customers.id),
+              eq(customerEstablishments.establishmentId, establishmentId),
+              eq(customerEstablishments.tenantId, tenantId),
+            ),
+          )
+          .where(and(...baseConditions))
+      : await db
+          .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
+          .from(customers)
+          .where(and(...baseConditions))
+    const total = Number(countRow[0]?.total ?? 0)
 
     // Transformer les résultats
     type ClientMetadata = { city?: string }
@@ -154,6 +179,9 @@ export default defineEventHandler(async (event) => {
       success: true,
       clients: clientsWithCA,
       count: clientsWithCA.length,
+      meta: {
+        pagination: paginationMeta({ page, limit, total }),
+      },
     }
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des clients')

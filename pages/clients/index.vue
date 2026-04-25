@@ -3,7 +3,7 @@
     <!-- Header -->
     <PageHeader
       title="Gestion des clients"
-      :description="`${filteredCount} client(s)`"
+      :description="`${totalCount} client(s)`"
     >
       <template #actions>
         <Button @click="navigateTo('/clients/create')">
@@ -130,6 +130,32 @@
       title="Aucun client trouvé"
       :description="searchQuery ? 'Essayez de modifier votre recherche' : 'Créez votre premier client pour commencer'"
     />
+
+    <!-- Pagination -->
+    <Pagination
+      v-if="!loading && totalCount > pageSize"
+      v-slot="{ page }"
+      v-model:page="currentPage"
+      :items-per-page="pageSize"
+      :total="totalCount"
+      :sibling-count="1"
+      show-edges
+    >
+      <PaginationContent v-slot="{ items }">
+        <PaginationPrevious />
+        <template v-for="(item, index) in items" :key="index">
+          <PaginationItem
+            v-if="item.type === 'page'"
+            :value="item.value"
+            :is-active="item.value === page"
+          >
+            {{ item.value }}
+          </PaginationItem>
+          <PaginationEllipsis v-else :index="index" />
+        </template>
+        <PaginationNext />
+      </PaginationContent>
+    </Pagination>
   </div>
 </template>
 
@@ -144,6 +170,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -186,13 +220,33 @@ const loading = ref(true)
 const clients = ref<Customer[]>([])
 const searchQuery = ref('')
 const filteredCount = ref(0)
+const totalCount = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(30)
 const { selectedEstablishmentId, initialize: initializeEstablishments } = useEstablishmentRegister()
 
-// Debounced search
+interface PaginatedClientsResponse {
+  success: boolean
+  clients: Customer[]
+  count: number
+  meta: {
+    pagination: {
+      page: number
+      limit: number
+      total: number
+      pages: number
+      hasNext: boolean
+      hasPrev: boolean
+    }
+  }
+}
+
+// Debounced search — reset à la page 1 quand on tape
 let searchTimeout: NodeJS.Timeout
 const debouncedSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
+    currentPage.value = 1
     loadClients()
   }, 300)
 }
@@ -202,15 +256,19 @@ async function loadClients() {
   try {
     loading.value = true
 
-    const params: Record<string, string | number> = {}
+    const params: Record<string, string | number> = {
+      page: currentPage.value,
+      limit: pageSize.value,
+    }
     if (searchQuery.value && searchQuery.value.trim() !== '') {
       params.search = searchQuery.value.trim()
     }
     if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
-    const response = await $fetch('/api/clients', { params })
-    clients.value = response.clients as unknown as Customer[]
+    const response = await $fetch<PaginatedClientsResponse>('/api/clients', { params })
+    clients.value = response.clients
     filteredCount.value = response.count
+    totalCount.value = response.meta?.pagination?.total ?? response.count
   } catch (error) {
     console.error('Erreur lors du chargement des clients:', error)
     toast.error('Erreur lors du chargement des clients')
@@ -218,6 +276,10 @@ async function loadClients() {
     loading.value = false
   }
 }
+
+watch(currentPage, () => {
+  loadClients()
+})
 
 // Obtenir le nom complet
 function getFullName(client: Customer): string {
@@ -255,6 +317,11 @@ onMounted(async () => {
 })
 
 watch(selectedEstablishmentId, async () => {
-  await loadClients()
+  // Reset à la page 1 : les clients diffèrent par établissement
+  if (currentPage.value !== 1) {
+    currentPage.value = 1 // watcher déclenchera loadClients
+  } else {
+    await loadClients()
+  }
 })
 </script>

@@ -73,17 +73,27 @@ vi.mock('~/server/database/schema', () => ({
 // ===========================================
 
 function createDbForProducts(rows: unknown[]) {
-  const chain: MockDbChain = {
+  // Pagination : 1er await = data (via .offset()), 2e await = count (via .where())
+  let awaitCount = 0
+  const results: unknown[] = [rows, [{ total: rows.length }]]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
     select: vi.fn(() => chain),
     from: vi.fn(() => chain),
     leftJoin: vi.fn(() => chain),
     innerJoin: vi.fn(() => chain),
-    where: vi.fn(() => chain),
+    where: vi.fn(() => {
+      // 2e select (count) → where() est awaited directement
+      if (awaitCount >= 1) {
+        return Promise.resolve(results[awaitCount++] ?? [])
+      }
+      return chain
+    }),
     groupBy: vi.fn(() => chain),
     having: vi.fn(() => chain),
-    orderBy: vi.fn(() => Promise.resolve(rows)),
+    orderBy: vi.fn(() => chain),
     limit: vi.fn(() => chain),
-    offset: vi.fn(() => chain)
+    offset: vi.fn(() => Promise.resolve(results[awaitCount++] ?? [])),
   }
   return chain
 }

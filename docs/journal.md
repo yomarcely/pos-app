@@ -37,6 +37,34 @@
 | 2026-03-25 | Marques + Fournisseurs | Pages CRUD /marques et /fournisseurs, endpoints update/delete, composables, navigation | ✅ |
 | 2026-03-25 | Clients U1-U5 | Listing cliquable, champs obligatoires, unicité email/tenant, anonymisation RGPD, remise permanente auto | ✅ |
 | 2026-04-01 | TVA + Catégories + Nettoyage | T1 code TVA auto-généré, T3 pré-sélection TVA par défaut, C1 protection suppression catégorie 409, N1/N2 console.log debug + toasts doublons | ✅ |
+| 2026-04-25 | Phase B — robustesse & scaling | B1 helpers pagination (`apiResponse.ts`), B2 pagination back+front sur `/clients` & `/produits` (compat additive `meta.pagination`), B3 extraction `productOverrides` (endpoint -104 l.), B4 refactor ColRight via `useCheckout` (442→167 l., -62 %). 513 tests / 72 fichiers, +69 tests | ✅ |
+
+---
+
+## 📝 Phase B — détails (2026-04-25)
+
+**B1 — Format API standardisé** ([server/utils/apiResponse.ts](../server/utils/apiResponse.ts))
+- `parsePaginationQuery(event)` : `?page=1&limit=50` (max 200), tronque/valide les inputs
+- `paginationMeta({ page, limit, total })` → `{ page, limit, total, pages, hasNext, hasPrev }`
+- Types `ApiResponse<T>`, `PaginationMeta`, `PaginationParams` exportés
+- Approche additive : pas d'imposition de wrapper sur les endpoints existants
+
+**B2 — Pagination clients & produits**
+- Backend : 2 requêtes (data + COUNT DISTINCT), filtre `search` migré `having→where` dans clients
+- Frontend : composant shadcn `Pagination` (Reka UI), `pageSize=30`, reset page=1 sur recherche/filtre/établissement
+- Compat additive : `clients: [...]` / `products: [...]` conservés, `meta.pagination` ajouté à côté
+
+**B3 — Extraction overrides établissement** ([server/utils/productOverrides.ts](../server/utils/productOverrides.ts))
+- `applyEstablishmentOverrides(row, establishmentId)` isolé du endpoint
+- 27 tests unitaires couvrant fallbacks (TVA 20 %, minStock 5, stock 0), modes global/scoped, `normalizeStockByVariation` array→objet
+- Endpoint `/api/products` : 316 → 212 lignes
+
+**B4 — Refactor ColRight** ([composables/useCheckout.ts](../composables/useCheckout.ts))
+- Logique `validerVente` + paiements + clôture extraite dans composable réutilisable
+- `try/finally` garantit `isSubmitting=false` (vs 8 reset dispersés dans l'original)
+- Suppression code mort : génération `receipt` (60 l. de template literal jamais utilisé) + fonction `printReceipt` orpheline
+- 21 tests caractérisation (3 → 21) couvrent tous les chemins erreur + payload `submitSale`
+- ColRight 442 → 167 lignes (-62 %), n'est plus zone critique 🔴
 
 ---
 

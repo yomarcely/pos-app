@@ -138,8 +138,33 @@ function createReadChain(rows: unknown[]) {
     leftJoin: vi.fn(() => chain),
     innerJoin: vi.fn(() => chain),
     limit: vi.fn(() => chain),
+    offset: vi.fn(() => chain),
     then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(rows).then(resolve, reject),
+  }
+  return chain
+}
+
+/**
+ * Mock pour GET /api/products avec pagination :
+ * - 1er await → rows (data query)
+ * - 2e await → [{ total }] (count query)
+ */
+function createPaginatedProductChain(rows: unknown[], total: number) {
+  let awaitCount = 0
+  const results: unknown[] = [rows, [{ total }]]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
+    select: vi.fn(() => chain),
+    from: vi.fn(() => chain),
+    where: vi.fn(() => chain),
+    orderBy: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    innerJoin: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    offset: vi.fn(() => chain),
+    then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+      Promise.resolve(results[awaitCount++] ?? []).then(resolve, reject),
   }
   return chain
 }
@@ -301,7 +326,7 @@ describe('API /api/products', () => {
       const mockProducts = [
         { id: 1, name: 'Produit A', price: '10.00', tva: '20', stock: 5, categoryName: 'Cat 1', supplierName: null, brandName: null, barcode: null, barcodeByVariation: null, categoryId: 1, supplierId: null, brandId: null, purchasePrice: null, minStock: 5, stockByVariation: null, minStockByVariation: null, variationGroupIds: null, image: null, description: null, isArchived: false, createdAt: null, updatedAt: null },
       ]
-      currentDb = createReadChain(mockProducts)
+      currentDb = createPaginatedProductChain(mockProducts, 1)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/products/index.get')).default as any
       const event = createMockEvent()
@@ -315,7 +340,7 @@ describe('API /api/products', () => {
     })
 
     it('utilise innerJoin pour filtrer par establishmentId', async () => {
-      currentDb = createReadChain([])
+      currentDb = createPaginatedProductChain([], 0)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/products/index.get')).default as any
       const event = createMockEvent({ query: { establishmentId: '5' } })
@@ -324,6 +349,44 @@ describe('API /api/products', () => {
 
       expect(res.success).toBe(true)
       expect(currentDb.innerJoin).toHaveBeenCalled()
+    })
+
+    it('expose meta.pagination avec defaults page=1 limit=50', async () => {
+      currentDb = createPaginatedProductChain([], 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/products/index.get')).default as any
+      const event = createMockEvent()
+
+      const res = await handler(event)
+
+      expect(res.meta.pagination).toEqual({
+        page: 1,
+        limit: 50,
+        total: 0,
+        pages: 1,
+        hasNext: false,
+        hasPrev: false,
+      })
+    })
+
+    it('calcule meta.pagination quand page/limit fournis', async () => {
+      currentDb = createPaginatedProductChain([], 250)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/products/index.get')).default as any
+      const event = createMockEvent({ query: { page: '3', limit: '25' } })
+
+      const res = await handler(event)
+
+      expect(res.meta.pagination).toEqual({
+        page: 3,
+        limit: 25,
+        total: 250,
+        pages: 10,
+        hasNext: true,
+        hasPrev: true,
+      })
+      expect(currentDb.limit).toHaveBeenCalled()
+      expect(currentDb.offset).toHaveBeenCalled()
     })
   })
 
