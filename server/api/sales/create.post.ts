@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks, customers, customerEstablishments } from '~/server/database/schema'
 import { desc, and, eq, sql, inArray } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -13,6 +13,7 @@ import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
+import { getActiveLoyaltyConfig, calculatePointsForSale } from '~/server/utils/loyalty'
 
 /**
  * ==========================================
@@ -284,6 +285,28 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
+    // FIDÉLITÉ : calcul des points à attribuer (avant transaction)
+    // ==========================================
+    // Conditions cumulatives pour attribuer des points :
+    // 1. Une config fidélité existe et est activée pour ce tenant
+    // 2. La vente est rattachée à un client (customer.id présent)
+    // 3. Ce client a opté pour le programme (customers.loyalty_program=true)
+    let pointsEarned = 0
+    if (body.customer?.id) {
+      const loyaltyCfg = await getActiveLoyaltyConfig(tenantId)
+      if (loyaltyCfg) {
+        const [customerRow] = await db
+          .select({ loyaltyProgram: customers.loyaltyProgram })
+          .from(customers)
+          .where(and(eq(customers.id, body.customer.id), eq(customers.tenantId, tenantId)))
+          .limit(1)
+        if (customerRow?.loyaltyProgram) {
+          pointsEarned = calculatePointsForSale(Number(body.totals.totalTTC), loyaltyCfg.pointMode)
+        }
+      }
+    }
+
+    // ==========================================
     // TRANSACTION: NUMÉROTATION + HASH + VENTE + STOCK
     // ==========================================
 
@@ -381,6 +404,7 @@ export default defineEventHandler(async (event) => {
           currentHash,
           signature,
           status: 'completed',
+          pointsEarned,
         })
         .returning()
 
@@ -557,7 +581,43 @@ export default defineEventHandler(async (event) => {
         await tx.insert(stockMovements).values(stockMovementsData)
       }
 
-      // 5.4 Log d'audit NF525 complet
+      // 5.4 FIDÉLITÉ : incrémenter les points sur customer_establishments
+      // (uniquement si pointsEarned > 0 — sinon pas d'écriture inutile)
+      if (pointsEarned > 0 && body.customer?.id) {
+        const [existingCE] = await tx
+          .select({ id: customerEstablishments.id, current: customerEstablishments.localLoyaltyPoints })
+          .from(customerEstablishments)
+          .where(
+            and(
+              eq(customerEstablishments.tenantId, tenantId),
+              eq(customerEstablishments.customerId, body.customer.id),
+              eq(customerEstablishments.establishmentId, establishment.id),
+            ),
+          )
+          .limit(1)
+
+        if (existingCE) {
+          await tx
+            .update(customerEstablishments)
+            .set({
+              localLoyaltyPoints: (existingCE.current ?? 0) + pointsEarned,
+              updatedAt: new Date(),
+            })
+            .where(eq(customerEstablishments.id, existingCE.id))
+        }
+        else {
+          await tx
+            .insert(customerEstablishments)
+            .values({
+              tenantId,
+              customerId: body.customer.id,
+              establishmentId: establishment.id,
+              localLoyaltyPoints: pointsEarned,
+            })
+        }
+      }
+
+      // 5.5 Log d'audit NF525 complet
       await logSaleCreation({
         tenantId,
         userId: body.seller.id,
