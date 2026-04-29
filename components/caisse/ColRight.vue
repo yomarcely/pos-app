@@ -1,17 +1,38 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { X, Banknote, CreditCard, Lock } from 'lucide-vue-next'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import SaleSuccessDialog from '@/components/caisse/SaleSuccessDialog.vue'
+import LoyaltyRewardDialog from '@/components/caisse/LoyaltyRewardDialog.vue'
 import { useCartStore } from '@/stores/cart'
+import { useCustomerStore } from '@/stores/customer'
 import { useCheckout } from '@/composables/useCheckout'
+import { useLoyaltyForCustomer } from '@/composables/useLoyaltyForCustomer'
 import { usePrintDocument } from '@/composables/usePrintDocument'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { buildReceiptHtml, buildInvoiceHtml } from '@/utils/saleDocuments'
 
 const cartStore = useCartStore()
+const customerStore = useCustomerStore()
 const { printHtml } = usePrintDocument()
+const { selectedEstablishmentId } = useEstablishmentRegister()
+const {
+  status: loyaltyStatus,
+  fetchStatus,
+  reset: resetLoyaltyStatus,
+  isEligibleForReward,
+  isRewardApplied,
+  applyReward,
+} = useLoyaltyForCustomer()
+
+// Modale d'avantage à la sélection client (proposition automatique)
+const loyaltyDialogOpen = ref(false)
+const loyaltyDialogCustomerName = ref('')
+const loyaltyDialogPointsRequired = computed(() => loyaltyStatus.value?.pointsRequired ?? 0)
+const loyaltyDialogRewardType = computed(() => loyaltyStatus.value?.rewardType ?? 'percent_discount')
+const loyaltyDialogRewardValue = computed(() => loyaltyStatus.value?.rewardValue ?? 0)
 
 const {
   payments,
@@ -49,6 +70,38 @@ async function handlePrintInvoice() {
 
 function closeSuccessDialog() {
   showSuccessDialog.value = false
+}
+
+// ===========================================
+// Fidélité : charge le statut à la sélection d'un client + propose la modale si éligible.
+// L'application/retrait peut aussi se faire via l'étoile dans ColLeft (singleton useLoyaltyForCustomer).
+// ===========================================
+watch(() => customerStore.client, async (client) => {
+  if (!client || !selectedEstablishmentId.value) {
+    resetLoyaltyStatus()
+    loyaltyDialogOpen.value = false
+    return
+  }
+  try {
+    await fetchStatus(client.id, selectedEstablishmentId.value)
+    // Proposition automatique : si éligible et pas déjà appliqué, ouvrir la modale
+    if (isEligibleForReward.value && !isRewardApplied.value) {
+      loyaltyDialogCustomerName.value = `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() || 'Client'
+      loyaltyDialogOpen.value = true
+    }
+  }
+  catch (error) {
+    console.error('Erreur lors du chargement du statut fidélité', error)
+  }
+})
+
+function applyLoyaltyFromDialog() {
+  applyReward()
+  loyaltyDialogOpen.value = false
+}
+
+function declineLoyaltyDialog() {
+  loyaltyDialogOpen.value = false
 }
 
 defineExpose({
@@ -189,6 +242,18 @@ defineExpose({
       @print-receipt="handlePrintReceipt"
       @print-invoice="handlePrintInvoice"
       @close="closeSuccessDialog"
+    />
+
+    <LoyaltyRewardDialog
+      :open="loyaltyDialogOpen"
+      :customer-name="loyaltyDialogCustomerName"
+      :points-current="loyaltyStatus?.pointsCurrent ?? 0"
+      :points-required="loyaltyDialogPointsRequired"
+      :reward-type="loyaltyDialogRewardType"
+      :reward-value="loyaltyDialogRewardValue"
+      @update:open="(v) => (loyaltyDialogOpen = v)"
+      @apply="applyLoyaltyFromDialog"
+      @decline="declineLoyaltyDialog"
     />
   </div>
 </template>

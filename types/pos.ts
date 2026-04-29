@@ -68,6 +68,11 @@ export interface SalePayload {
   globalDiscount: { value: number; type: '%' | '€' }
   establishmentId: number
   registerId: number
+  loyaltyReward?: {
+    type: 'percent_discount' | 'euro_discount' | 'voucher'
+    value: number
+    pointsToConsume: number
+  } | null
 }
 
 export interface SaleRecord {

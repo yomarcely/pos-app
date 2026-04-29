@@ -19,6 +19,22 @@ export const useCartStore = defineStore('cart', () => {
   const globalDiscount = ref(0)
   const globalDiscountType = ref<'%' | '€'>('%')
 
+  // --- FIDÉLITÉ ---
+  // Avantage en attente d'être consommé sur cette vente.
+  // Modes :
+  // - 'percent_discount' / 'euro_discount' : appliqué immédiatement sur les items via applyLoyaltyReward()
+  // - 'voucher' : pas d'effet sur le panier, le serveur génère le bon à la création de la vente
+  type LoyaltyRewardKind = 'percent_discount' | 'euro_discount' | 'voucher'
+  interface LoyaltyReward {
+    type: LoyaltyRewardKind
+    value: number // % ou € selon type
+    pointsToConsume: number // nb de points qui seront décrémentés à la validation
+  }
+  const loyaltyReward = ref<LoyaltyReward | null>(null)
+  // Snapshot des items pris AVANT application d'un reward %/€, pour restauration au retrait.
+  // Null pour reward type 'voucher' (le panier n'est pas modifié).
+  const _itemsBackupBeforeLoyalty = ref<ProductInCart[] | null>(null)
+
   // --- TICKETS EN ATTENTE ---
   // Persistés côté serveur (table pending_sales). Chargés via loadPendingCarts()
   // au montage de la caisse, rafraîchis à chaque add/recover/delete.
@@ -191,6 +207,13 @@ export const useCartStore = defineStore('cart', () => {
       items.value.push(cartItem)
     }
 
+    // Si une remise loyalty %/€ est active, la (ré)appliquer maintenant que les items ont changé.
+    // Cas typique : l'utilisateur a sélectionné le client (et activé l'étoile) AVANT d'ajouter
+    // les produits — la remise n'avait pas pu s'appliquer (panier vide) et doit l'être ici.
+    if (loyaltyReward.value && loyaltyReward.value.type !== 'voucher') {
+      _applyLoyaltyDiscountToItems(loyaltyReward.value)
+    }
+
     return true
   }
 
@@ -204,8 +227,84 @@ export const useCartStore = defineStore('cart', () => {
     items.value = []
     globalDiscount.value = 0
     globalDiscountType.value = '%'
+    loyaltyReward.value = null
+    _itemsBackupBeforeLoyalty.value = null
     const customerStore = useCustomerStore()
     customerStore.clearClient?.()
+  }
+
+  /**
+   * Helper interne : applique la remise loyalty %/€ sur les items du panier.
+   * - Si un backup existe (re-application après ajout/modif) : restaure d'abord depuis le backup
+   *   pour ne pas empiler les remises, puis prend un nouveau snapshot.
+   * - Snapshot toujours pris AVANT modif → permet restauration propre au retrait.
+   * - Pour reward type 'voucher' : noop (le panier n'est pas modifié).
+   */
+  function _applyLoyaltyDiscountToItems(reward: LoyaltyReward): void {
+    if (reward.type === 'voucher') return
+    if (items.value.length === 0) return
+
+    // Si on avait déjà appliqué une fois : revenir à l'état "sans remise loyalty" depuis le backup,
+    // tout en préservant les items qui auraient pu être ajoutés depuis (qui n'étaient pas dans le backup).
+    if (_itemsBackupBeforeLoyalty.value !== null) {
+      const backupIds = new Set(_itemsBackupBeforeLoyalty.value.map(i => `${i.id}|${i.variation}`))
+      const newItemsAddedAfterApply = items.value
+        .filter(i => !backupIds.has(`${i.id}|${i.variation}`))
+        .map(i => JSON.parse(JSON.stringify(i)))
+      items.value = [
+        ...JSON.parse(JSON.stringify(_itemsBackupBeforeLoyalty.value)),
+        ...newItemsAddedAfterApply,
+      ]
+    }
+
+    // Nouveau snapshot deep-clone AVANT remise loyalty (= état actuel sans remise loyalty)
+    _itemsBackupBeforeLoyalty.value = JSON.parse(JSON.stringify(items.value))
+
+    // Application via globalDiscount (vecteur partagé)
+    const previousValue = globalDiscount.value
+    const previousType = globalDiscountType.value
+    globalDiscount.value = reward.value
+    globalDiscountType.value = reward.type === 'percent_discount' ? '%' : '€'
+    applyGlobalDiscountToItems()
+    globalDiscount.value = previousValue
+    globalDiscountType.value = previousType
+  }
+
+  /**
+   * Applique un avantage fidélité au panier.
+   * - 'percent_discount' / 'euro_discount' : si items présents, applique immédiatement.
+   *   Si panier vide, on garde `loyaltyReward` en attente — sera appliqué au prochain `addToCart`.
+   * - 'voucher' : ne touche pas aux items. Le bon sera généré par le serveur à la validation.
+   *
+   * `loyaltyReward` est toujours stocké pour que useCheckout transmette `pointsToConsume` et
+   * l'éventuelle demande de génération de voucher dans le payload de la vente.
+   */
+  function applyLoyaltyReward(reward: LoyaltyReward): void {
+    loyaltyReward.value = reward
+    if (reward.type === 'voucher') return
+    _applyLoyaltyDiscountToItems(reward)
+  }
+
+  /**
+   * Retire l'avantage fidélité.
+   * Pour reward %/€ : restaure les items dans leur état d'avant application.
+   * Pour reward voucher : juste reset (le panier n'avait pas été modifié).
+   *
+   * Items ajoutés APRÈS l'application sont préservés (sans remise loyalty bien sûr).
+   */
+  function clearLoyaltyReward(): void {
+    if (_itemsBackupBeforeLoyalty.value) {
+      const backupIds = new Set(_itemsBackupBeforeLoyalty.value.map(i => `${i.id}|${i.variation}`))
+      const itemsAddedAfter = items.value
+        .filter(i => !backupIds.has(`${i.id}|${i.variation}`))
+        .map(i => JSON.parse(JSON.stringify(i)))
+      items.value = [
+        ...JSON.parse(JSON.stringify(_itemsBackupBeforeLoyalty.value)),
+        ...itemsAddedAfter,
+      ]
+      _itemsBackupBeforeLoyalty.value = null
+    }
+    loyaltyReward.value = null
   }
 
   /**
@@ -367,6 +466,7 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscountType,
     pendingCart,
     pendingSharedAcrossRegisters,
+    loyaltyReward,
 
     // getters
     getFinalPrice: (product: ProductInCart) =>
@@ -384,6 +484,8 @@ export const useCartStore = defineStore('cart', () => {
     updateDiscount,
     updateGlobalDiscount,
     applyGlobalDiscountToItems,
+    applyLoyaltyReward,
+    clearLoyaltyReward,
     updateVariation,
     addPendingCart,
     recoverPendingCart,

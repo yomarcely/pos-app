@@ -173,6 +173,13 @@ export function useCheckout() {
         },
         establishmentId: establishment.id,
         registerId: register.id,
+        loyaltyReward: cartStore.loyaltyReward
+          ? {
+              type: cartStore.loyaltyReward.type,
+              value: cartStore.loyaltyReward.value,
+              pointsToConsume: cartStore.loyaltyReward.pointsToConsume,
+            }
+          : null,
       }
 
       const response = await cartStore.submitSale(saleData)

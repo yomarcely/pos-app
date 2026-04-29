@@ -71,6 +71,11 @@ export const createSaleRequestSchema = z.object({
   }),
   establishmentId: z.number().int().positive('Établissement requis'),
   registerId: z.number().int().positive('Caisse requise'),
+  loyaltyReward: z.object({
+    type: z.enum(['percent_discount', 'euro_discount', 'voucher']),
+    value: z.number().positive(),
+    pointsToConsume: z.number().int().positive(),
+  }).optional().nullable(),
 }).refine(
   (data) => {
     // Si le total est différent de 0, au moins un paiement est requis

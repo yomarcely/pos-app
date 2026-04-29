@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { customers, sales } from '~/server/database/schema'
+import { customers, sales, customerEstablishments } from '~/server/database/schema'
 import { eq, sql, count, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
@@ -79,9 +79,18 @@ export default defineEventHandler(async (event) => {
 
     const purchaseCount = purchaseCountResult[0]?.count || 0
 
-    // TODO: Implémenter le calcul réel des points de fidélité
-    // Pour l'instant, 1 point par euro dépensé
-    const loyaltyPoints = client.loyaltyProgram ? Math.floor(totalRevenue) : 0
+    // Points de fidélité : SUM cross-établissement de customer_establishments.local_loyalty_points
+    // (compteur incrémenté à chaque vente et décrémenté à chaque consommation d'avantage)
+    const [pointsRow] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${customerEstablishments.localLoyaltyPoints}), 0)` })
+      .from(customerEstablishments)
+      .where(
+        and(
+          eq(customerEstablishments.tenantId, tenantId),
+          eq(customerEstablishments.customerId, id),
+        ),
+      )
+    const loyaltyPoints = client.loyaltyProgram ? Number(pointsRow?.total ?? 0) : 0
 
     return {
       success: true,

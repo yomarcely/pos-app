@@ -46,10 +46,22 @@ vi.mock('~/server/database/connection', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: (...args: unknown[]) => ({ type: 'eq', args }),
+  and: (...args: unknown[]) => ({ type: 'and', args }),
+  or: (...args: unknown[]) => ({ type: 'or', args }),
+  asc: (...args: unknown[]) => ({ type: 'asc', args }),
+  isNull: (...args: unknown[]) => ({ type: 'isNull', args }),
+  gt: (...args: unknown[]) => ({ type: 'gt', args }),
+  inArray: (...args: unknown[]) => ({ type: 'inArray', args }),
+  sql: (...args: unknown[]) => args,
 }))
 
 vi.mock('h3', () => ({
   getRequestIP: vi.fn(() => '127.0.0.1'),
+}))
+
+vi.mock('~/server/utils/loyalty', () => ({
+  getActiveLoyaltyConfig: vi.fn(),
+  getCustomerLoyaltyPoints: vi.fn(),
 }))
 
 vi.mock('~/server/database/schema', () => ({
@@ -62,6 +74,21 @@ vi.mock('~/server/database/schema', () => ({
     rewardType: 'lc.rewardType',
     rewardValue: 'lc.rewardValue',
     voucherValidityDays: 'lc.voucherValidityDays',
+  },
+  customers: {
+    id: 'customers.id',
+    tenantId: 'customers.tenantId',
+    loyaltyProgram: 'customers.loyaltyProgram',
+  },
+  loyaltyVouchers: {
+    id: 'lv.id',
+    tenantId: 'lv.tenantId',
+    customerId: 'lv.customerId',
+    code: 'lv.code',
+    amount: 'lv.amount',
+    status: 'lv.status',
+    expiresAt: 'lv.expiresAt',
+    createdAt: 'lv.createdAt',
   },
 }))
 
@@ -211,5 +238,131 @@ describe('PUT /api/loyalty/config', () => {
     expect(currentDb.update).toHaveBeenCalled()
     expect(auditMocks.logEntityUpdate).toHaveBeenCalledTimes(1)
     expect(auditMocks.logEntityCreation).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/clients/:id/loyalty-status', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  // Helper : mock db pour 2 selects séquentiels (customer puis vouchers)
+  function createLoyaltyStatusChain(customerRow: unknown | null, voucherRows: unknown[] = []) {
+    let selectIdx = 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {
+      select: vi.fn(() => { selectIdx++; return chain }),
+      from: vi.fn(() => chain),
+      where: vi.fn(() => chain),
+      limit: vi.fn(() => Promise.resolve(customerRow ? [customerRow] : [])),
+      orderBy: vi.fn(() => Promise.resolve(voucherRows)),
+    }
+    return chain
+  }
+
+  it('retourne enabled=false si pas de config active', async () => {
+    const loyaltyMod = await import('~/server/utils/loyalty')
+    vi.mocked(loyaltyMod.getActiveLoyaltyConfig).mockResolvedValue(null)
+    currentDb = createLoyaltyStatusChain({ id: 1, loyaltyProgram: true })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+    const event = createMockEvent({ params: { id: '1' }, query: { establishmentId: '5' } })
+    const res = await handler(event)
+
+    expect(res).toEqual({ success: true, enabled: false })
+  })
+
+  it('retourne optedIn=false si client sans loyaltyProgram', async () => {
+    const loyaltyMod = await import('~/server/utils/loyalty')
+    vi.mocked(loyaltyMod.getActiveLoyaltyConfig).mockResolvedValue({
+      enabled: true, pointMode: 'per_euro', thresholdPoints: 100,
+      rewardType: 'percent_discount', rewardValue: 5, voucherValidityDays: 60,
+    })
+    currentDb = createLoyaltyStatusChain({ id: 1, loyaltyProgram: false })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+    const res = await handler(createMockEvent({ params: { id: '1' }, query: { establishmentId: '5' } }))
+
+    expect(res).toMatchObject({ success: true, enabled: false, optedIn: false })
+  })
+
+  it('retourne immediateRewardEligible=true quand seuil atteint et reward != voucher', async () => {
+    const loyaltyMod = await import('~/server/utils/loyalty')
+    vi.mocked(loyaltyMod.getActiveLoyaltyConfig).mockResolvedValue({
+      enabled: true, pointMode: 'per_euro', thresholdPoints: 100,
+      rewardType: 'percent_discount', rewardValue: 5, voucherValidityDays: 60,
+    })
+    vi.mocked(loyaltyMod.getCustomerLoyaltyPoints).mockResolvedValue(120)
+    currentDb = createLoyaltyStatusChain({ id: 1, loyaltyProgram: true }, [])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+    const res = await handler(createMockEvent({ params: { id: '1' }, query: { establishmentId: '5' } }))
+
+    expect(res).toMatchObject({
+      enabled: true,
+      optedIn: true,
+      pointsCurrent: 120,
+      pointsRequired: 100,
+      pointsRemaining: 0,
+      rewardType: 'percent_discount',
+      rewardValue: 5,
+      immediateRewardEligible: true,
+      vouchers: [],
+    })
+  })
+
+  it('immediateRewardEligible=false pour reward type voucher (génération séparée)', async () => {
+    const loyaltyMod = await import('~/server/utils/loyalty')
+    vi.mocked(loyaltyMod.getActiveLoyaltyConfig).mockResolvedValue({
+      enabled: true, pointMode: 'per_euro', thresholdPoints: 100,
+      rewardType: 'voucher', rewardValue: 10, voucherValidityDays: 60,
+    })
+    vi.mocked(loyaltyMod.getCustomerLoyaltyPoints).mockResolvedValue(150)
+    currentDb = createLoyaltyStatusChain({ id: 1, loyaltyProgram: true }, [])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+    const res = await handler(createMockEvent({ params: { id: '1' }, query: { establishmentId: '5' } }))
+
+    expect(res.immediateRewardEligible).toBe(false)
+    expect(res.rewardType).toBe('voucher')
+  })
+
+  it('liste les vouchers actifs du client avec montant parsé', async () => {
+    const loyaltyMod = await import('~/server/utils/loyalty')
+    vi.mocked(loyaltyMod.getActiveLoyaltyConfig).mockResolvedValue({
+      enabled: true, pointMode: 'per_euro', thresholdPoints: 100,
+      rewardType: 'voucher', rewardValue: 10, voucherValidityDays: 60,
+    })
+    vi.mocked(loyaltyMod.getCustomerLoyaltyPoints).mockResolvedValue(50)
+    const expiresAt = new Date('2026-08-01T00:00:00Z')
+    currentDb = createLoyaltyStatusChain({ id: 1, loyaltyProgram: true }, [
+      { id: 10, code: 'A1B2C3D4', amount: '10.00', expiresAt, createdAt: new Date('2026-04-01') },
+    ])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+    const res = await handler(createMockEvent({ params: { id: '1' }, query: { establishmentId: '5' } }))
+
+    expect(res.vouchers).toHaveLength(1)
+    expect(res.vouchers[0]).toMatchObject({
+      id: 10, code: 'A1B2C3D4', amount: 10, expiresAt,
+    })
+  })
+
+  it('throw 400 si establishmentId manquant', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/clients/[id]/loyalty-status.get')).default as any
+
+    await expect(
+      handler(createMockEvent({ params: { id: '1' } })),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'customerId et establishmentId requis',
+    })
   })
 })

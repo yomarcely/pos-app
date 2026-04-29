@@ -1,5 +1,6 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks, customers, customerEstablishments } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks, customers, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
+import { randomBytes } from 'node:crypto'
 import { desc, and, eq, sql, inArray } from 'drizzle-orm'
 import {
   generateTicketNumber,
@@ -13,7 +14,7 @@ import { validateBody } from '~/server/utils/validation'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
-import { getActiveLoyaltyConfig, calculatePointsForSale } from '~/server/utils/loyalty'
+import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
 
 /**
  * ==========================================
@@ -70,6 +71,11 @@ interface CreateSaleRequest {
   }
   establishmentId: number
   registerId: number
+  loyaltyReward?: {
+    type: 'percent_discount' | 'euro_discount' | 'voucher'
+    value: number
+    pointsToConsume: number
+  } | null
 }
 
 export default defineEventHandler(async (event) => {
@@ -285,15 +291,18 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
-    // FIDÉLITÉ : calcul des points à attribuer (avant transaction)
+    // FIDÉLITÉ : calcul des points à attribuer + validation reward (avant transaction)
     // ==========================================
     // Conditions cumulatives pour attribuer des points :
     // 1. Une config fidélité existe et est activée pour ce tenant
     // 2. La vente est rattachée à un client (customer.id présent)
     // 3. Ce client a opté pour le programme (customers.loyalty_program=true)
     let pointsEarned = 0
+    let pointsConsumed = 0
+    let voucherToGenerate: { amount: number, expiresAt: Date | null } | null = null
+    let loyaltyCfg: LoyaltyConfigData | null = null
     if (body.customer?.id) {
-      const loyaltyCfg = await getActiveLoyaltyConfig(tenantId)
+      loyaltyCfg = await getActiveLoyaltyConfig(tenantId)
       if (loyaltyCfg) {
         const [customerRow] = await db
           .select({ loyaltyProgram: customers.loyaltyProgram })
@@ -302,6 +311,26 @@ export default defineEventHandler(async (event) => {
           .limit(1)
         if (customerRow?.loyaltyProgram) {
           pointsEarned = calculatePointsForSale(Number(body.totals.totalTTC), loyaltyCfg.pointMode)
+
+          // Validation et application du reward demandé par le client
+          // Anti-tampering : on vérifie que reward.type/value correspondent à la config serveur
+          if (body.loyaltyReward) {
+            const r = body.loyaltyReward
+            const matchesConfig = r.type === loyaltyCfg.rewardType
+              && Math.abs(r.value - loyaltyCfg.rewardValue) < 0.01
+              && r.pointsToConsume === loyaltyCfg.thresholdPoints
+            if (matchesConfig) {
+              const currentPoints = await getCustomerLoyaltyPoints(tenantId, body.customer.id, body.establishmentId)
+              if (currentPoints >= r.pointsToConsume) {
+                pointsConsumed = r.pointsToConsume
+                if (r.type === 'voucher') {
+                  const expiresAt = new Date()
+                  expiresAt.setDate(expiresAt.getDate() + loyaltyCfg.voucherValidityDays)
+                  voucherToGenerate = { amount: r.value, expiresAt }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -405,6 +434,7 @@ export default defineEventHandler(async (event) => {
           signature,
           status: 'completed',
           pointsEarned,
+          pointsConsumed,
         })
         .returning()
 
@@ -581,9 +611,12 @@ export default defineEventHandler(async (event) => {
         await tx.insert(stockMovements).values(stockMovementsData)
       }
 
-      // 5.4 FIDÉLITÉ : incrémenter les points sur customer_establishments
-      // (uniquement si pointsEarned > 0 — sinon pas d'écriture inutile)
-      if (pointsEarned > 0 && body.customer?.id) {
+      // 5.4 FIDÉLITÉ : ajuster le compteur (gain - consommation) sur customer_establishments
+      // Net = pointsEarned - pointsConsumed. Peut être négatif (cas où conso > gain) :
+      // localLoyaltyPoints peut alors devenir négatif sur cet établissement, mais le total
+      // cumulé cross-établissement reste correct (somme intacte).
+      const pointsDelta = pointsEarned - pointsConsumed
+      if (pointsDelta !== 0 && body.customer?.id) {
         const [existingCE] = await tx
           .select({ id: customerEstablishments.id, current: customerEstablishments.localLoyaltyPoints })
           .from(customerEstablishments)
@@ -600,7 +633,7 @@ export default defineEventHandler(async (event) => {
           await tx
             .update(customerEstablishments)
             .set({
-              localLoyaltyPoints: (existingCE.current ?? 0) + pointsEarned,
+              localLoyaltyPoints: (existingCE.current ?? 0) + pointsDelta,
               updatedAt: new Date(),
             })
             .where(eq(customerEstablishments.id, existingCE.id))
@@ -612,9 +645,22 @@ export default defineEventHandler(async (event) => {
               tenantId,
               customerId: body.customer.id,
               establishmentId: establishment.id,
-              localLoyaltyPoints: pointsEarned,
+              localLoyaltyPoints: pointsDelta,
             })
         }
+      }
+
+      // 5.4b FIDÉLITÉ : générer un voucher si demandé (et validé en pré-transaction)
+      if (voucherToGenerate && body.customer?.id) {
+        const code = randomBytes(4).toString('hex').toUpperCase() // 8 caractères hex (ex: A3F9C2D1)
+        await tx.insert(loyaltyVouchers).values({
+          tenantId,
+          customerId: body.customer.id,
+          code,
+          amount: voucherToGenerate.amount.toString(),
+          status: 'active',
+          expiresAt: voucherToGenerate.expiresAt,
+        })
       }
 
       // 5.5 Log d'audit NF525 complet

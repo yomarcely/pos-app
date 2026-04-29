@@ -7,10 +7,11 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UserRoundPlus, X, User, List, ShoppingBag } from 'lucide-vue-next'
+import { UserRoundPlus, X, User, List, ShoppingBag, Star, Sparkles } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { useLoyaltyForCustomer } from '@/composables/useLoyaltyForCustomer'
 import { useToast } from '@/composables/useToast'
 import { extractFetchError } from '@/composables/useFetchError'
 
@@ -23,7 +24,22 @@ const purchases = ref<any[]>([])
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
 const { selectedEstablishmentId, selectedRegisterId } = useEstablishmentRegister()
+const { status: loyaltyStatus, isEligibleForReward, toggleReward } = useLoyaltyForCustomer()
 const toast = useToast()
+
+// Tooltip contextuel selon que l'avantage est appliqué ou pas
+const loyaltyTooltip = computed(() => {
+  const s = loyaltyStatus.value
+  if (!s || !s.rewardType || typeof s.rewardValue !== 'number') return ''
+  const label = s.rewardType === 'percent_discount'
+    ? `${s.rewardValue}% de remise`
+    : s.rewardType === 'euro_discount'
+      ? `${s.rewardValue.toFixed(2)} € de rabais`
+      : `Bon d'achat de ${s.rewardValue.toFixed(2)} €`
+  return cartStore.loyaltyReward
+    ? `Avantage appliqué : ${label} — cliquer pour retirer`
+    : `Avantage disponible : ${label} — cliquer pour appliquer`
+})
 
 async function handleAddPending() {
   if (!selectedEstablishmentId.value || !selectedRegisterId.value) {
@@ -170,31 +186,67 @@ async function handleClientCreated(response: any) {
       <!-- Card client sélectionné -->
       <div class="relative mt-2 px-4 py-3 rounded-md"
         :class="selectedClient ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border shadow-sm' : 'bg-transparent'"
-        style="min-height: 66px;">
+        style="min-height: 72px;">
         <template v-if="selectedClient">
-          <!-- ❌ Bouton de suppression client -->
-          <button @click="deselectClient" class="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+          <!-- ❌ Bouton de suppression client (top-right) -->
+          <button
+            @click="deselectClient"
+            class="absolute top-2 right-2 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
             <X class="w-4 h-4" />
           </button>
 
-          <!-- 🧍 Infos client -->
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="font-semibold text-base">
+          <!-- Layout : ⭐ étoile loyalty | nom + sous-info | actions -->
+          <div class="flex items-center gap-3 pr-7">
+            <!-- ⭐ Toggle avantage fidélité (visible si éligible OU déjà appliqué) -->
+            <button
+              v-if="isEligibleForReward || cartStore.loyaltyReward"
+              @click="toggleReward"
+              :title="loyaltyTooltip"
+              :class="[
+                'flex flex-shrink-0 items-center justify-center h-7 w-7 rounded-full shadow-sm transition-colors',
+                cartStore.loyaltyReward
+                  ? 'bg-amber-400 hover:bg-amber-500 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-400',
+              ]"
+            >
+              <Star class="w-4 h-4" :fill="cartStore.loyaltyReward ? 'currentColor' : 'none'" />
+            </button>
+
+            <!-- Nom + sous-ligne (ville + points) -->
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-base leading-tight truncate">
                 {{ selectedClient.firstName }} {{ selectedClient.lastName }}
               </div>
-              <div class="text-xs text-gray-500">
-                {{ selectedClient.city }}
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 mt-1">
+                <span v-if="selectedClient.city">{{ selectedClient.city }}</span>
+                <span v-if="selectedClient.city && loyaltyStatus?.optedIn" class="text-gray-300">•</span>
+                <span
+                  v-if="loyaltyStatus?.optedIn"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
+                  :title="`Points fidélité (seuil : ${loyaltyStatus.pointsRequired ?? '—'} pts)`"
+                >
+                  <Sparkles class="w-3 h-3" />
+                  {{ loyaltyStatus.pointsCurrent ?? 0 }} pts
+                </span>
               </div>
             </div>
 
-            <!-- 🔘 Actions client -->
-            <div class="flex items-center gap-2 pr-5">
-              <button @click="openClientCard" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                <User class="w-5 h-5 text-gray-600 dark:text-gray-300" />
+            <!-- 🔘 Actions client (compact à droite) -->
+            <div class="flex items-center gap-0.5 -mr-1">
+              <button
+                @click="openClientCard"
+                title="Ouvrir la fiche client"
+                class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <User class="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
-              <button @click="openClientHistory" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                <List class="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <button
+                @click="openClientHistory"
+                title="Historique d'achats"
+                class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <List class="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
           </div>
