@@ -121,6 +121,7 @@ export default defineEventHandler(async (event) => {
         tenantId: registers.tenantId,
         establishmentId: registers.establishmentId,
         name: registers.name,
+        registerNumber: registers.registerNumber,
       })
       .from(registers)
       .where(
@@ -150,6 +151,7 @@ export default defineEventHandler(async (event) => {
       .select({
         id: establishments.id,
         name: establishments.name,
+        establishmentNumber: establishments.establishmentNumber,
       })
       .from(establishments)
       .where(
@@ -168,45 +170,12 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Numérotation logique: établissement n°X pour ce tenant, caisse n°Y dans cet établissement
-    const tenantEstablishments = await db
-      .select({ id: establishments.id })
-      .from(establishments)
-      .where(
-        and(
-          eq(establishments.tenantId, tenantId),
-          eq(establishments.isActive, true)
-        )
-      )
-      .orderBy(establishments.id)
-
-    const establishmentNumber = tenantEstablishments.findIndex(e => e.id === establishment.id) + 1
-    if (establishmentNumber <= 0) {
-      throw createError({
-        statusCode: 400,
-        message: 'Établissement non autorisé pour ce tenant',
-      })
-    }
-
-    const establishmentRegisters = await db
-      .select({ id: registers.id })
-      .from(registers)
-      .where(
-        and(
-          eq(registers.establishmentId, establishment.id),
-          eq(registers.tenantId, tenantId),
-          eq(registers.isActive, true)
-        )
-      )
-      .orderBy(registers.id)
-
-    const registerNumber = establishmentRegisters.findIndex(r => r.id === register.id) + 1
-    if (registerNumber <= 0) {
-      throw createError({
-        statusCode: 400,
-        message: 'Caisse non autorisée pour cet établissement',
-      })
-    }
+    // Numérotation NF525 stable : établissement.establishment_number + register.register_number
+    // Ces valeurs sont assignées immutables à la création (cf. migration 0013) et ne dépendent
+    // plus de la position dans une liste filtrée — désactiver un établissement ou une caisse
+    // ne décale plus les numéros de ticket.
+    const establishmentNumber = establishment.establishmentNumber
+    const registerNumber = register.registerNumber
 
     // ==========================================
     // VÉRIFIER SI LA JOURNÉE EST CLÔTURÉE POUR CETTE CAISSE

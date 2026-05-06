@@ -86,12 +86,21 @@ function createReadChain(rows: unknown[]) {
 }
 
 function createInsertChain(newItem: unknown) {
-  return {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx: any = {
+    execute: vi.fn(() => Promise.resolve()),
+    select: vi.fn(() => tx),
+    from: vi.fn(() => tx),
+    where: vi.fn(() => Promise.resolve([{ max: 0 }])),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
         returning: vi.fn(() => Promise.resolve([newItem]))
       }))
     })),
+  }
+  return {
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx)),
+    insert: tx.insert,
   }
 }
 

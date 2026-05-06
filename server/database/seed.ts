@@ -184,9 +184,10 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
       const insertedEstablishments = await tx
         .insert(establishments)
         .values(
-          tenant.establishments.map(est => ({
+          tenant.establishments.map((est, idx) => ({
             ...est,
             tenantId: tenant.id,
+            establishmentNumber: idx + 1,
             isActive: true,
           }))
         )
@@ -325,17 +326,19 @@ export async function seedDatabase(options: SeedOptions = {}): Promise<SeedResul
         .returning({ id: products.id })
 
       // Les établissements ont déjà été insérés plus haut (ligne 460)
-      // Caisses : 2 par établissement
+      // Caisses : 2 par établissement (numérotées 1 et 2 par établissement)
       const registerValues = tenant.establishments.flatMap(est => ([
         {
           tenantId: tenant.id,
           establishmentId: est.id,
+          registerNumber: 1,
           name: `${est.name} - Caisse 1`,
           isActive: true,
         },
         {
           tenantId: tenant.id,
           establishmentId: est.id,
+          registerNumber: 2,
           name: `${est.name} - Caisse 2`,
           isActive: true,
         },

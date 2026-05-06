@@ -452,6 +452,11 @@ export const establishments = pgTable('establishments', {
   id: serial('id').primaryKey(),
   tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
+  // Numéro logique stable utilisé dans le numéro de ticket NF525.
+  // Assigné à la création (MAX+1 par tenant), IMMUTABLE — désactiver un établissement
+  // ne décale pas les numéros suivants.
+  establishmentNumber: integer('establishment_number').notNull(),
+
   // Informations de base
   name: varchar('name', { length: 255 }).notNull(),
 
@@ -481,6 +486,7 @@ export const establishments = pgTable('establishments', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tenantIdIdx: index('establishments_tenant_id_idx').on(table.tenantId),
+  establishmentNumberUnique: uniqueIndex('establishments_tenant_number_unique').on(table.tenantId, table.establishmentNumber),
 }))
 
 // ==========================================
@@ -494,6 +500,11 @@ export const registers = pgTable('registers', {
   // Relation avec l'établissement
   establishmentId: integer('establishment_id').notNull().references(() => establishments.id),
 
+  // Numéro logique stable utilisé dans le numéro de ticket NF525.
+  // Assigné à la création (MAX+1 par établissement), IMMUTABLE — désactiver une caisse
+  // ne décale pas les numéros suivants.
+  registerNumber: integer('register_number').notNull(),
+
   // Informations de base
   name: varchar('name', { length: 100 }).notNull(), // Ex: "Caisse 1", "Caisse principale"
 
@@ -506,6 +517,7 @@ export const registers = pgTable('registers', {
 }, (table) => ({
   tenantIdIdx: index('registers_tenant_id_idx').on(table.tenantId),
   establishmentIdIdx: index('registers_establishment_id_idx').on(table.establishmentId),
+  registerNumberUnique: uniqueIndex('registers_establishment_number_unique').on(table.establishmentId, table.registerNumber),
 }))
 
 // ==========================================
