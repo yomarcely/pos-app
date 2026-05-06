@@ -63,7 +63,7 @@ export const useCartStore = defineStore('cart', () => {
   const pendingCart = ref<PendingCartRow[]>([])
   const pendingSharedAcrossRegisters = ref(false)
 
-  const zeroGlobal = { value: 0, type: '%' as '%' }
+  const zeroGlobal = { value: 0, type: '%' as const }
 
   async function loadPendingCarts(establishmentId: number, registerId: number): Promise<void> {
     const response = await $fetch<{

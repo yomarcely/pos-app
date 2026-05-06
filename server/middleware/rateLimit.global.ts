@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'X-RateLimit-Reset', String(Math.floor(result.resetAt / 1000)))
 
   if (!result.allowed) {
-    setResponseHeader(event, 'Retry-After', String(result.retryAfterSec))
+    setResponseHeader(event, 'Retry-After', result.retryAfterSec)
     logger.warn({
       path,
       method: event.method,

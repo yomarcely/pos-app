@@ -1,4 +1,9 @@
 {
   // https://nuxt.com/docs/guide/concepts/typescript
-  "extends": "./.nuxt/tsconfig.json"
+  "extends": "./.nuxt/tsconfig.json",
+  // Fichiers archivés (anciens scripts de migration ad-hoc) référencent
+  // un module './connection' qui n'existe pas — exclus du typecheck.
+  "exclude": [
+    "docs/legacy-migrations/**/*"
+  ]
 }

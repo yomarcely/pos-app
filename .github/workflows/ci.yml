@@ -6,8 +6,46 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel les runs précédents sur la même PR pour économiser les minutes
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-test:
+  # Job rapide qui fail tôt sur les violations critiques (audit statique).
+  # Pas de cache install lourd : si un endpoint est cassé, on le sait en < 30s.
+  audit:
+    name: Audit (tenant + migrations)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Audit statique des endpoints : tous doivent appeler getTenantIdFromEvent
+      # et filtrer par tenantId dans leurs queries Drizzle.
+      - name: Audit isolation tenant
+        run: pnpm audit:tenant
+
+      # Audit du journal Drizzle : cohérence fichiers SQL ↔ _journal.json,
+      # ordre chronologique, contenu non vide.
+      - name: Audit migrations
+        run: pnpm audit:migrations
+
+  # Lint + typecheck en parallèle
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,5 +66,56 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  # Tests + couverture (le plus long)
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: audit  # ne lance pas les tests si l'audit fail
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Tests + coverage
         run: pnpm test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
