@@ -187,6 +187,10 @@ const data = {
           url: '#',
           disabled: true,
         },
+        {
+          title: 'Rapports comptables',
+          url: '/rapports',
+        },
       ],
     },
     {
