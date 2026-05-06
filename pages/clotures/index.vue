@@ -143,9 +143,20 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right">
-                  <Button variant="ghost" size="sm" @click="viewDetails(closure)">
-                    <Eye class="w-4 h-4" />
-                  </Button>
+                  <div class="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      :disabled="printingClosureId === closure.id"
+                      title="Imprimer le ticket Z"
+                      @click="printZ(closure)"
+                    >
+                      <Printer class="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" @click="viewDetails(closure)">
+                      <Eye class="w-4 h-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -248,7 +259,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { Eye, CalendarDays } from 'lucide-vue-next'
+import { Eye, CalendarDays, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -267,7 +278,10 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
 import RegisterSelect from '@/components/shared/RegisterSelect.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { usePrintDocument } from '@/composables/usePrintDocument'
+import { useToast } from '@/composables/useToast'
 import { formatPrice, formatDate, formatDateTime } from '@/utils/formatters'
+import { buildClosureZHtml, type ClosureZData } from '@/utils/closureDocuments'
 
 definePageMeta({
   layout: 'dashboard'
@@ -335,6 +349,29 @@ function resetFilters() {
 function viewDetails(closure: Closure) {
   selectedClosure.value = closure
   isDetailsDialogOpen.value = true
+}
+
+// Impression du ticket Z (récap journée NF525)
+const { printHtml } = usePrintDocument()
+const toast = useToast()
+const printingClosureId = ref<number | null>(null)
+
+async function printZ(closure: Closure) {
+  if (printingClosureId.value !== null) return // évite double-clic
+  printingClosureId.value = closure.id
+  try {
+    const response = await $fetch<{ success: boolean } & ClosureZData>(
+      `/api/closures/${closure.id}/document`,
+    )
+    await printHtml(buildClosureZHtml(response))
+  }
+  catch (error) {
+    console.error('Erreur impression Z', error)
+    toast.error('Erreur lors de la préparation du ticket Z')
+  }
+  finally {
+    printingClosureId.value = null
+  }
 }
 
 // Initialiser au montage
