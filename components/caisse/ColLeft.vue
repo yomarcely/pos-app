@@ -7,7 +7,8 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UserRoundPlus, X, User, List, ShoppingBag, Star, Sparkles } from 'lucide-vue-next'
+import { UserRoundPlus, X, User, List, ShoppingBag, Star, Sparkles, Ticket } from 'lucide-vue-next'
+import LoyaltyVouchersDialog from '@/components/caisse/LoyaltyVouchersDialog.vue'
 import { useCartStore } from '@/stores/cart'
 import { useCustomerStore } from '@/stores/customer'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
@@ -25,6 +26,35 @@ const cartStore = useCartStore()
 const customerStore = useCustomerStore()
 const { selectedEstablishmentId, selectedRegisterId } = useEstablishmentRegister()
 const { status: loyaltyStatus, isEligibleForReward, toggleReward } = useLoyaltyForCustomer()
+
+// Modale vouchers actifs du client (utilisation comme moyen de paiement)
+const vouchersDialogOpen = ref(false)
+const activeVouchers = computed(() => loyaltyStatus.value?.vouchers ?? [])
+const appliedVoucherIds = computed(() => cartStore.appliedVouchers.map(v => v.id))
+
+function toggleVoucher(voucherId: number) {
+  const voucher = activeVouchers.value.find(v => v.id === voucherId)
+  if (!voucher) return
+  if (appliedVoucherIds.value.includes(voucherId)) {
+    cartStore.removeAppliedVoucher(voucherId)
+    toast.info(`Bon ${voucher.code} retiré`)
+  }
+  else {
+    cartStore.addAppliedVoucher({
+      id: voucher.id,
+      code: voucher.code,
+      amount: voucher.amount,
+    })
+    toast.success(`Bon ${voucher.code} appliqué (${voucher.amount.toFixed(2)} €)`)
+  }
+}
+
+// Désélection client → reset des vouchers appliqués
+watch(() => customerStore.client, (client) => {
+  if (!client) {
+    cartStore.clearAppliedVouchers()
+  }
+})
 const toast = useToast()
 
 // Tooltip contextuel selon que l'avantage est appliqué ou pas
@@ -229,6 +259,19 @@ async function handleClientCreated(response: any) {
                   <Sparkles class="w-3 h-3" />
                   {{ loyaltyStatus.pointsCurrent ?? 0 }} pts
                 </span>
+                <span v-if="activeVouchers.length > 0" class="text-gray-300">•</span>
+                <button
+                  v-if="activeVouchers.length > 0"
+                  @click="vouchersDialogOpen = true"
+                  :title="`${activeVouchers.length} bon(s) d'achat actif(s) — cliquer pour gérer`"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
+                >
+                  <Ticket class="w-3 h-3" />
+                  {{ activeVouchers.length }} bon{{ activeVouchers.length > 1 ? 's' : '' }}
+                  <span v-if="cartStore.appliedVouchers.length > 0" class="text-emerald-600 dark:text-emerald-400">
+                    ({{ cartStore.appliedVouchers.length }} utilisé{{ cartStore.appliedVouchers.length > 1 ? 's' : '' }})
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -373,5 +416,15 @@ async function handleClientCreated(response: any) {
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
+
+    <!-- Modale de sélection des bons d'achat actifs -->
+    <LoyaltyVouchersDialog
+      :open="vouchersDialogOpen"
+      :vouchers="activeVouchers"
+      :applied-ids="appliedVoucherIds"
+      @update:open="(v) => (vouchersDialogOpen = v)"
+      @toggle="toggleVoucher"
+      @close="vouchersDialogOpen = false"
+    />
   </div>
 </template>

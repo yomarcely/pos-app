@@ -36,7 +36,14 @@ export function useCheckout() {
   const lastSaleDocument = ref<SaleDocumentData | null>(null)
   const showSuccessDialog = ref(false)
 
-  const totalPaid = computed(() => payments.value.reduce((sum, p) => sum + p.amount, 0))
+  // Total payé = paiements saisis (espèces/carte/autre) + montants des bons d'achat appliqués.
+  // Les vouchers réduisent la somme à payer manuellement.
+  const totalVouchers = computed(() =>
+    cartStore.appliedVouchers.reduce((sum, v) => sum + v.amount, 0),
+  )
+  const totalPaid = computed(() =>
+    payments.value.reduce((sum, p) => sum + p.amount, 0) + totalVouchers.value,
+  )
   const balance = computed(() => totalTTC.value - totalPaid.value)
 
   async function checkClosure() {
@@ -161,7 +168,15 @@ export function useCheckout() {
               lastName: customerStore.client.lastName,
             }
           : null,
-        payments: payments.value,
+        // Les vouchers actifs sont ajoutés comme paiements de mode "Bon d'achat #CODE".
+        // Le serveur valide leur statut/montant avant de les marquer 'used'.
+        payments: [
+          ...cartStore.appliedVouchers.map(v => ({
+            mode: `Bon d'achat #${v.code}`,
+            amount: v.amount,
+          })),
+          ...payments.value,
+        ],
         totals: {
           totalHT: totalHT.value,
           totalTVA: totalTVA.value,
@@ -180,6 +195,7 @@ export function useCheckout() {
               pointsToConsume: cartStore.loyaltyReward.pointsToConsume,
             }
           : null,
+        usedVoucherIds: cartStore.appliedVouchers.map(v => v.id),
       }
 
       const response = await cartStore.submitSale(saleData)
@@ -235,6 +251,14 @@ export function useCheckout() {
           totalTTC: totalTTC.value,
         },
         changeDue: balance.value < 0 ? Math.abs(balance.value) : 0,
+        loyalty: response.sale.loyalty
+          ? {
+              pointsEarned: response.sale.loyalty.pointsEarned,
+              pointsConsumed: response.sale.loyalty.pointsConsumed,
+              pointsTotalAfter: response.sale.loyalty.pointsTotalAfter,
+              generatedVoucher: response.sale.loyalty.generatedVoucher,
+            }
+          : null,
       }
 
       productsStore.loaded = false

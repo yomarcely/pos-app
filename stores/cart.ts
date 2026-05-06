@@ -35,6 +35,15 @@ export const useCartStore = defineStore('cart', () => {
   // Null pour reward type 'voucher' (le panier n'est pas modifié).
   const _itemsBackupBeforeLoyalty = ref<ProductInCart[] | null>(null)
 
+  // Vouchers déjà existants (générés sur des ventes précédentes) que le client souhaite consommer
+  // sur la vente courante. Chaque voucher applique son montant comme paiement (de mode "Bon d'achat").
+  interface AppliedVoucher {
+    id: number
+    code: string
+    amount: number
+  }
+  const appliedVouchers = ref<AppliedVoucher[]>([])
+
   // --- TICKETS EN ATTENTE ---
   // Persistés côté serveur (table pending_sales). Chargés via loadPendingCarts()
   // au montage de la caisse, rafraîchis à chaque add/recover/delete.
@@ -229,8 +238,25 @@ export const useCartStore = defineStore('cart', () => {
     globalDiscountType.value = '%'
     loyaltyReward.value = null
     _itemsBackupBeforeLoyalty.value = null
+    appliedVouchers.value = []
     const customerStore = useCustomerStore()
     customerStore.clearClient?.()
+  }
+
+  /** Active un voucher pour la vente courante. Idempotent. */
+  function addAppliedVoucher(voucher: AppliedVoucher): void {
+    if (appliedVouchers.value.some(v => v.id === voucher.id)) return
+    appliedVouchers.value.push({ id: voucher.id, code: voucher.code, amount: voucher.amount })
+  }
+
+  /** Retire un voucher préalablement activé. */
+  function removeAppliedVoucher(voucherId: number): void {
+    appliedVouchers.value = appliedVouchers.value.filter(v => v.id !== voucherId)
+  }
+
+  /** Vide la liste des vouchers actifs (ex: désélection du client). */
+  function clearAppliedVouchers(): void {
+    appliedVouchers.value = []
   }
 
   /**
@@ -467,6 +493,7 @@ export const useCartStore = defineStore('cart', () => {
     pendingCart,
     pendingSharedAcrossRegisters,
     loyaltyReward,
+    appliedVouchers,
 
     // getters
     getFinalPrice: (product: ProductInCart) =>
@@ -486,6 +513,9 @@ export const useCartStore = defineStore('cart', () => {
     applyGlobalDiscountToItems,
     applyLoyaltyReward,
     clearLoyaltyReward,
+    addAppliedVoucher,
+    removeAppliedVoucher,
+    clearAppliedVouchers,
     updateVariation,
     addPendingCart,
     recoverPendingCart,

@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, products, variations, productStocks } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, products, variations, productStocks, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -212,6 +212,81 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
+    // 3.bis FIDÉLITÉ : restituer les points + cancel voucher généré
+    // ==========================================
+    // Inverse de l'attribution faite à la création :
+    // - sale.pointsEarned > 0 : décrémenter customer_establishments.local_loyalty_points
+    // - sale.pointsConsumed > 0 : ré-incrémenter (restitution des points consommés)
+    // - sale.voucherUsedId NOT NULL : cancel le voucher généré (status='cancelled')
+    //   Note V1 : tout voucher_used_id correspond à un voucher GÉNÉRÉ (pas encore d'usage
+    //   de voucher comme paiement — D2.6 prévue). Quand D2.6 arrive, distinguer via pointsConsumed.
+    const pointsDelta = (sale.pointsConsumed ?? 0) - (sale.pointsEarned ?? 0)
+    if (pointsDelta !== 0 && sale.customerId) {
+      const [existingCE] = await db
+        .select({ id: customerEstablishments.id, current: customerEstablishments.localLoyaltyPoints })
+        .from(customerEstablishments)
+        .where(
+          and(
+            eq(customerEstablishments.tenantId, tenantId),
+            eq(customerEstablishments.customerId, sale.customerId),
+            eq(customerEstablishments.establishmentId, sale.establishmentId),
+          ),
+        )
+        .limit(1)
+
+      if (existingCE) {
+        await db
+          .update(customerEstablishments)
+          .set({
+            localLoyaltyPoints: (existingCE.current ?? 0) + pointsDelta,
+            updatedAt: new Date(),
+          })
+          .where(eq(customerEstablishments.id, existingCE.id))
+      }
+      else {
+        // Cas exotique : la liaison n'existe pas mais on doit restituer.
+        // On crée la ligne avec le delta (positif si consumed > earned).
+        await db
+          .insert(customerEstablishments)
+          .values({
+            tenantId,
+            customerId: sale.customerId,
+            establishmentId: sale.establishmentId,
+            localLoyaltyPoints: pointsDelta,
+          })
+      }
+    }
+
+    if (sale.voucherUsedId) {
+      // Voucher généré par cette vente : cancel pour empêcher toute utilisation future
+      await db
+        .update(loyaltyVouchers)
+        .set({ status: 'cancelled' })
+        .where(
+          and(
+            eq(loyaltyVouchers.id, sale.voucherUsedId),
+            eq(loyaltyVouchers.tenantId, tenantId),
+          ),
+        )
+    }
+
+    // Vouchers UTILISÉS comme paiement sur cette vente (D2.6) → réactiver pour utilisation future
+    await db
+      .update(loyaltyVouchers)
+      .set({
+        status: 'active',
+        usedAt: null,
+        usedSaleId: null,
+      })
+      .where(
+        and(
+          eq(loyaltyVouchers.usedSaleId, id),
+          eq(loyaltyVouchers.tenantId, tenantId),
+          eq(loyaltyVouchers.status, 'used'),
+        ),
+      )
+
+    // ==========================================
     // 4. MARQUER LA VENTE COMME ANNULÉE
     // ==========================================
     await db
@@ -245,6 +320,11 @@ export default defineEventHandler(async (event) => {
         reason: body.reason,
         status: 'cancelled',
         itemsCount: items.length,
+        loyalty: {
+          pointsEarnedReversed: sale.pointsEarned ?? 0,
+          pointsConsumedRestored: sale.pointsConsumed ?? 0,
+          voucherCancelledId: sale.voucherUsedId,
+        },
       },
       metadata: {
         originalSaleDate: sale.saleDate,

@@ -18,6 +18,10 @@ const cartStoreMock = {
   items: [] as any[],
   globalDiscount: 0,
   globalDiscountType: '%',
+  // Pinia storeToRefs accède .effect sur chaque propriété — null/undefined planterait.
+  // On utilise des valeurs falsy "compatibles" : `false` pour loyaltyReward, `[]` pour vouchers.
+  loyaltyReward: false as any,
+  appliedVouchers: [] as Array<{ id: number, code: string, amount: number }>,
   getFinalPrice: vi.fn((item) => item.price),
   clearCart: vi.fn(),
   totalTTC: ref(0),
@@ -102,6 +106,8 @@ describe('ColRight (caisse)', () => {
     cartStoreMock.items = []
     cartStoreMock.globalDiscount = 0
     cartStoreMock.globalDiscountType = '%'
+    cartStoreMock.loyaltyReward = false as any
+    cartStoreMock.appliedVouchers = []
     cartStoreMock.totalTTC = ref(20)
     cartStoreMock.totalHT = ref(16.67)
     cartStoreMock.totalTVA = ref(3.33)

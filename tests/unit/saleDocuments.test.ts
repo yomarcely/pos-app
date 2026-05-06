@@ -262,3 +262,91 @@ describe('buildInvoiceHtml', () => {
     expect(html).toContain('—')
   })
 })
+
+describe('Rendu fidélité — ticket', () => {
+  it('aucun bloc fidélité si loyalty absent ou sans activité', () => {
+    expect(buildReceiptHtml(makeData())).not.toContain('FIDÉLITÉ')
+    expect(buildReceiptHtml(makeData({ loyalty: null }))).not.toContain('FIDÉLITÉ')
+    expect(buildReceiptHtml(makeData({
+      loyalty: { pointsEarned: 0, pointsConsumed: 0, generatedVoucher: null },
+    }))).not.toContain('FIDÉLITÉ')
+  })
+
+  it('affiche les points gagnés', () => {
+    const html = buildReceiptHtml(makeData({
+      loyalty: { pointsEarned: 25, pointsConsumed: 0, pointsTotalAfter: 75 },
+    }))
+    expect(html).toContain('FIDÉLITÉ')
+    expect(html).toContain('Points gagnés')
+    expect(html).toContain('+25')
+    expect(html).toContain('75 pts')
+  })
+
+  it('affiche les points utilisés et le solde', () => {
+    const html = buildReceiptHtml(makeData({
+      loyalty: { pointsEarned: 10, pointsConsumed: 100, pointsTotalAfter: 0 },
+    }))
+    expect(html).toContain('-100')
+    expect(html).toContain('+10')
+    expect(html).toContain('0 pts')
+  })
+
+  it('affiche le bon d\'achat généré avec code et expiration', () => {
+    const html = buildReceiptHtml(makeData({
+      loyalty: {
+        pointsEarned: 0,
+        pointsConsumed: 100,
+        generatedVoucher: {
+          code: 'ABCD1234',
+          amount: 10,
+          expiresAt: new Date('2026-08-25T00:00:00Z'),
+        },
+      },
+    }))
+    expect(html).toContain('ABCD1234')
+    expect(html).toContain('10.00 €')
+    expect(html).toContain('Valable')
+  })
+})
+
+describe('Rendu fidélité — facture A4', () => {
+  it('aucun bloc fidélité si pas d\'activité', () => {
+    expect(buildInvoiceHtml(makeData())).not.toContain('Programme de fidélité')
+  })
+
+  it('affiche le bloc complet avec voucher', () => {
+    const html = buildInvoiceHtml(makeData({
+      loyalty: {
+        pointsEarned: 50,
+        pointsConsumed: 100,
+        pointsTotalAfter: 0,
+        generatedVoucher: {
+          code: 'XY99AB12',
+          amount: 5,
+          expiresAt: new Date('2026-12-31'),
+        },
+      },
+    }))
+    expect(html).toContain('Programme de fidélité')
+    expect(html).toContain('+50')
+    expect(html).toContain('-100')
+    expect(html).toContain('XY99AB12')
+    expect(html).toContain('5.00 €')
+  })
+
+  it('échappe le code voucher si malicieux', () => {
+    const html = buildInvoiceHtml(makeData({
+      loyalty: {
+        pointsEarned: 0,
+        pointsConsumed: 100,
+        generatedVoucher: {
+          code: '<script>x</script>',
+          amount: 10,
+          expiresAt: null,
+        },
+      },
+    }))
+    expect(html).not.toContain('<script>x</script>')
+    expect(html).toContain('&lt;script&gt;')
+  })
+})

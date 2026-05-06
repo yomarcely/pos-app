@@ -73,6 +73,18 @@ export interface SalePayload {
     value: number
     pointsToConsume: number
   } | null
+  usedVoucherIds?: number[]
+}
+
+export interface SaleLoyaltyResponse {
+  pointsEarned: number
+  pointsConsumed: number
+  pointsTotalAfter: number
+  generatedVoucher: {
+    code: string
+    amount: number
+    expiresAt: string | Date | null
+  } | null
 }
 
 export interface SaleRecord {
@@ -80,6 +92,7 @@ export interface SaleRecord {
   saleDate: string
   hash: string
   signature?: string
+  loyalty?: SaleLoyaltyResponse | null
 }
 
 export interface SaleResponse {

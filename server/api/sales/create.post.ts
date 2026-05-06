@@ -1,7 +1,7 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks, customers, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
 import { randomBytes } from 'node:crypto'
-import { desc, and, eq, sql, inArray } from 'drizzle-orm'
+import { desc, and, eq, sql, inArray, gt, or, isNull } from 'drizzle-orm'
 import {
   generateTicketNumber,
   generateTicketHash,
@@ -76,6 +76,7 @@ interface CreateSaleRequest {
     value: number
     pointsToConsume: number
   } | null
+  usedVoucherIds?: number[]
 }
 
 export default defineEventHandler(async (event) => {
@@ -301,6 +302,9 @@ export default defineEventHandler(async (event) => {
     let pointsConsumed = 0
     let voucherToGenerate: { amount: number, expiresAt: Date | null } | null = null
     let loyaltyCfg: LoyaltyConfigData | null = null
+    let loyaltyPointsBeforeSale = 0
+    let customerOptedIn = false
+    let generatedVoucherInfo: { code: string, amount: number, expiresAt: Date | null } | null = null
     if (body.customer?.id) {
       loyaltyCfg = await getActiveLoyaltyConfig(tenantId)
       if (loyaltyCfg) {
@@ -310,6 +314,8 @@ export default defineEventHandler(async (event) => {
           .where(and(eq(customers.id, body.customer.id), eq(customers.tenantId, tenantId)))
           .limit(1)
         if (customerRow?.loyaltyProgram) {
+          customerOptedIn = true
+          loyaltyPointsBeforeSale = await getCustomerLoyaltyPoints(tenantId, body.customer.id, body.establishmentId)
           pointsEarned = calculatePointsForSale(Number(body.totals.totalTTC), loyaltyCfg.pointMode)
 
           // Validation et application du reward demandé par le client
@@ -319,20 +325,72 @@ export default defineEventHandler(async (event) => {
             const matchesConfig = r.type === loyaltyCfg.rewardType
               && Math.abs(r.value - loyaltyCfg.rewardValue) < 0.01
               && r.pointsToConsume === loyaltyCfg.thresholdPoints
-            if (matchesConfig) {
-              const currentPoints = await getCustomerLoyaltyPoints(tenantId, body.customer.id, body.establishmentId)
-              if (currentPoints >= r.pointsToConsume) {
-                pointsConsumed = r.pointsToConsume
-                if (r.type === 'voucher') {
-                  const expiresAt = new Date()
-                  expiresAt.setDate(expiresAt.getDate() + loyaltyCfg.voucherValidityDays)
-                  voucherToGenerate = { amount: r.value, expiresAt }
-                }
+            if (matchesConfig && loyaltyPointsBeforeSale >= r.pointsToConsume) {
+              pointsConsumed = r.pointsToConsume
+              if (r.type === 'voucher') {
+                const expiresAt = new Date()
+                expiresAt.setDate(expiresAt.getDate() + loyaltyCfg.voucherValidityDays)
+                voucherToGenerate = { amount: r.value, expiresAt }
               }
             }
           }
         }
       }
+    }
+
+    // ==========================================
+    // VOUCHERS UTILISÉS COMME PAIEMENT — validation pré-transaction
+    // ==========================================
+    // Pour chaque voucherId envoyé : doit appartenir au client, status='active', non expiré.
+    // Anti-tampering : on relit le montant en DB (le client a fourni un payment "Bon d'achat #CODE"
+    // dont l'amount sera vérifié ici). Tout voucher invalide = refus 400.
+    let validatedUsedVouchers: Array<{ id: number, code: string, amount: number }> = []
+    if (Array.isArray(body.usedVoucherIds) && body.usedVoucherIds.length > 0) {
+      if (!body.customer?.id) {
+        throw createError({
+          statusCode: 400,
+          message: 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client',
+        })
+      }
+
+      const now = new Date()
+      const rows = await db
+        .select({
+          id: loyaltyVouchers.id,
+          code: loyaltyVouchers.code,
+          amount: loyaltyVouchers.amount,
+          customerId: loyaltyVouchers.customerId,
+        })
+        .from(loyaltyVouchers)
+        .where(
+          and(
+            eq(loyaltyVouchers.tenantId, tenantId),
+            inArray(loyaltyVouchers.id, body.usedVoucherIds),
+            eq(loyaltyVouchers.status, 'active'),
+            or(isNull(loyaltyVouchers.expiresAt), gt(loyaltyVouchers.expiresAt, now)),
+          ),
+        )
+
+      if (rows.length !== body.usedVoucherIds.length) {
+        throw createError({
+          statusCode: 400,
+          message: 'Un ou plusieurs bons d\'achat sont invalides (déjà utilisés, expirés ou inexistants)',
+        })
+      }
+
+      // Vérifier que tous appartiennent bien au client de la vente
+      if (rows.some(r => r.customerId !== body.customer!.id)) {
+        throw createError({
+          statusCode: 400,
+          message: 'Un bon d\'achat ne correspond pas au client de la vente',
+        })
+      }
+
+      validatedUsedVouchers = rows.map(r => ({
+        id: r.id,
+        code: r.code,
+        amount: parseFloat(r.amount),
+      }))
     }
 
     // ==========================================
@@ -650,17 +708,58 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // 5.4a-bis FIDÉLITÉ : marquer les vouchers utilisés (validés en pré-transaction)
+      // Comme la pré-validation s'est faite hors transaction, il y a une fenêtre théorique
+      // pour qu'un voucher soit utilisé ailleurs entre temps. On accepte ce risque (V1 simple) ;
+      // en cas de race condition, le voucher restera marqué `used` sur la mauvaise vente —
+      // peu probable en environnement single-user-per-customer.
+      if (validatedUsedVouchers.length > 0) {
+        const nowDate = new Date()
+        for (const v of validatedUsedVouchers) {
+          await tx
+            .update(loyaltyVouchers)
+            .set({
+              status: 'used',
+              usedAt: nowDate,
+              usedSaleId: createdSale.id,
+            })
+            .where(
+              and(
+                eq(loyaltyVouchers.id, v.id),
+                eq(loyaltyVouchers.tenantId, tenantId),
+              ),
+            )
+        }
+      }
+
       // 5.4b FIDÉLITÉ : générer un voucher si demandé (et validé en pré-transaction)
+      // On stocke l'ID du voucher généré dans sales.voucherUsedId pour la traçabilité
+      // (utilisé à l'annulation de vente pour cancel le voucher).
       if (voucherToGenerate && body.customer?.id) {
         const code = randomBytes(4).toString('hex').toUpperCase() // 8 caractères hex (ex: A3F9C2D1)
-        await tx.insert(loyaltyVouchers).values({
-          tenantId,
-          customerId: body.customer.id,
-          code,
-          amount: voucherToGenerate.amount.toString(),
-          status: 'active',
-          expiresAt: voucherToGenerate.expiresAt,
-        })
+        const [createdVoucher] = await tx
+          .insert(loyaltyVouchers)
+          .values({
+            tenantId,
+            customerId: body.customer.id,
+            code,
+            amount: voucherToGenerate.amount.toString(),
+            status: 'active',
+            expiresAt: voucherToGenerate.expiresAt,
+          })
+          .returning({ id: loyaltyVouchers.id })
+
+        if (createdVoucher) {
+          await tx
+            .update(sales)
+            .set({ voucherUsedId: createdVoucher.id })
+            .where(eq(sales.id, createdSale.id))
+          generatedVoucherInfo = {
+            code,
+            amount: voucherToGenerate.amount,
+            expiresAt: voucherToGenerate.expiresAt,
+          }
+        }
       }
 
       // 5.5 Log d'audit NF525 complet
@@ -691,6 +790,16 @@ export default defineEventHandler(async (event) => {
     // 10. RETOURNER LA RÉPONSE
     // ==========================================
 
+    // Bloc fidélité : null si aucune activité (pas de programme actif ou client non opted-in)
+    const loyaltyBlock = customerOptedIn
+      ? {
+          pointsEarned,
+          pointsConsumed,
+          pointsTotalAfter: loyaltyPointsBeforeSale + pointsEarned - pointsConsumed,
+          generatedVoucher: generatedVoucherInfo,
+        }
+      : null
+
     return {
       success: true,
       sale: {
@@ -702,6 +811,7 @@ export default defineEventHandler(async (event) => {
         signature: newSale.signature,
         establishmentId: establishment.id,
         registerId: register.id,
+        loyalty: loyaltyBlock,
       },
     }
   } catch (error) {

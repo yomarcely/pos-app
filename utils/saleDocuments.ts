@@ -36,6 +36,17 @@ export interface SaleDocumentCustomer {
   email?: string | null
 }
 
+export interface SaleDocumentLoyalty {
+  pointsEarned?: number // points gagnés sur cette vente
+  pointsConsumed?: number // points consommés (si avantage utilisé)
+  pointsTotalAfter?: number // total après cette vente — affiché au client
+  generatedVoucher?: {
+    code: string
+    amount: number
+    expiresAt?: Date | string | null
+  } | null
+}
+
 export interface SaleDocumentData {
   ticketNumber: string
   saleDate: Date | string
@@ -49,6 +60,7 @@ export interface SaleDocumentData {
   payments: { mode: string, amount: number }[]
   totals: { totalHT: number, totalTVA: number, totalTTC: number }
   changeDue?: number // rendu monnaie (si > 0)
+  loyalty?: SaleDocumentLoyalty | null
 }
 
 const EUR = (n: number) => `${n.toFixed(2)} €`
@@ -113,6 +125,30 @@ export function buildReceiptHtml(data: SaleDocumentData): string {
     data.establishment.tvaNumber ? `TVA : ${escape(data.establishment.tvaNumber)}` : '',
   ].filter(Boolean).join('<br>')
 
+  // Bloc fidélité : visible uniquement s'il y a de l'activité (gain, conso, ou voucher)
+  const loyalty = data.loyalty
+  const hasLoyaltyContent = loyalty
+    && ((loyalty.pointsEarned ?? 0) > 0
+      || (loyalty.pointsConsumed ?? 0) > 0
+      || loyalty.generatedVoucher)
+  const loyaltyHtml = hasLoyaltyContent && loyalty
+    ? `<hr>
+<div class="loyalty">
+  <div class="center bold">★ FIDÉLITÉ ★</div>
+  ${(loyalty.pointsEarned ?? 0) > 0 ? `<div class="row"><span>Points gagnés</span><span>+${loyalty.pointsEarned}</span></div>` : ''}
+  ${(loyalty.pointsConsumed ?? 0) > 0 ? `<div class="row"><span>Points utilisés</span><span>-${loyalty.pointsConsumed}</span></div>` : ''}
+  ${typeof loyalty.pointsTotalAfter === 'number' ? `<div class="row bold"><span>Total après vente</span><span>${loyalty.pointsTotalAfter} pts</span></div>` : ''}
+  ${loyalty.generatedVoucher
+    ? `<div style="margin-top:6px">
+  <div class="center small">Bon d'achat généré</div>
+  <div class="center bold" style="font-size:14px;letter-spacing:2px">${escape(loyalty.generatedVoucher.code)}</div>
+  <div class="center">Montant : ${EUR(loyalty.generatedVoucher.amount)}</div>
+  ${loyalty.generatedVoucher.expiresAt ? `<div class="center small">Valable jusqu'au ${escape(formatDate(loyalty.generatedVoucher.expiresAt))}</div>` : ''}
+</div>`
+    : ''}
+</div>`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -157,6 +193,7 @@ export function buildReceiptHtml(data: SaleDocumentData): string {
   <hr>
   ${paymentsHtml}
   ${changeHtml}
+  ${loyaltyHtml}
   <hr>
   ${legalHtml ? `<div class="center small">${legalHtml}</div><hr>` : ''}
   <div class="center small muted">
@@ -224,6 +261,31 @@ export function buildInvoiceHtml(data: SaleDocumentData): string {
         <div class="bold">${escape(`${data.customer.firstName ?? ''} ${data.customer.lastName ?? ''}`.trim() || '-')}</div>
         ${formatAddress(data.customer)}
         ${data.customer.email ? `<div>${escape(data.customer.email)}</div>` : ''}
+      </div>`
+    : ''
+
+  // Bloc fidélité dédié sur la facture (visible si activité)
+  const invoiceLoyalty = data.loyalty
+  const hasInvoiceLoyalty = invoiceLoyalty
+    && ((invoiceLoyalty.pointsEarned ?? 0) > 0
+      || (invoiceLoyalty.pointsConsumed ?? 0) > 0
+      || invoiceLoyalty.generatedVoucher)
+  const loyaltyBlock = hasInvoiceLoyalty && invoiceLoyalty
+    ? `
+      <div class="block" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px;margin-top:18px">
+        <div class="block-title" style="color:#b45309">Programme de fidélité</div>
+        <table style="width:100%">
+          ${(invoiceLoyalty.pointsEarned ?? 0) > 0 ? `<tr><td>Points gagnés sur cette vente</td><td class="right bold">+${invoiceLoyalty.pointsEarned}</td></tr>` : ''}
+          ${(invoiceLoyalty.pointsConsumed ?? 0) > 0 ? `<tr><td>Points utilisés pour l'avantage</td><td class="right bold">-${invoiceLoyalty.pointsConsumed}</td></tr>` : ''}
+          ${typeof invoiceLoyalty.pointsTotalAfter === 'number' ? `<tr><td>Solde après vente</td><td class="right bold">${invoiceLoyalty.pointsTotalAfter} pts</td></tr>` : ''}
+        </table>
+        ${invoiceLoyalty.generatedVoucher
+          ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #fcd34d">
+        <div class="muted">Bon d'achat généré :</div>
+        <div style="font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:3px;margin:4px 0">${escape(invoiceLoyalty.generatedVoucher.code)}</div>
+        <div>Montant : <span class="bold">${EUR(invoiceLoyalty.generatedVoucher.amount)}</span>${invoiceLoyalty.generatedVoucher.expiresAt ? ` — Valable jusqu'au ${escape(formatDate(invoiceLoyalty.generatedVoucher.expiresAt))}` : ''}</div>
+      </div>`
+          : ''}
       </div>`
     : ''
 
@@ -315,6 +377,8 @@ export function buildInvoiceHtml(data: SaleDocumentData): string {
     <tr><td>TVA</td><td class="right">${EUR(data.totals.totalTVA)}</td></tr>
     <tr class="ttc"><td>Total TTC</td><td class="right">${EUR(data.totals.totalTTC)}</td></tr>
   </table>
+
+  ${loyaltyBlock}
 
   <div class="footer">
     <div>

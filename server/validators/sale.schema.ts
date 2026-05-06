@@ -76,6 +76,7 @@ export const createSaleRequestSchema = z.object({
     value: z.number().positive(),
     pointsToConsume: z.number().int().positive(),
   }).optional().nullable(),
+  usedVoucherIds: z.array(z.number().int().positive()).optional().default([]),
 }).refine(
   (data) => {
     // Si le total est différent de 0, au moins un paiement est requis

@@ -24,11 +24,17 @@ const cartStoreMock = {
   items: [{ id: 1 }],
   globalDiscount: 0,
   globalDiscountType: '%',
+  // Pinia storeToRefs : éviter null sinon crash sur .effect
+  loyaltyReward: false as any,
+  appliedVouchers: [] as Array<{ id: number, code: string, amount: number }>,
   applyGlobalDiscountToItems: vi.fn(),
   addPendingCart: vi.fn().mockResolvedValue(undefined),
   loadPendingCarts: vi.fn().mockResolvedValue(undefined),
   pendingCart: [],
-  clearCart: vi.fn()
+  clearCart: vi.fn(),
+  addAppliedVoucher: vi.fn(),
+  removeAppliedVoucher: vi.fn(),
+  clearAppliedVouchers: vi.fn(),
 }
 
 const customerStoreMock = {
@@ -118,9 +124,13 @@ describe('ColLeft (caisse)', () => {
           User: IconStub,
           List: IconStub,
           ShoppingBag: IconStub,
+          Star: IconStub,
+          Sparkles: IconStub,
+          Ticket: IconStub,
           clientOnly: SimpleStub,
           CaisseAddClientForm: SimpleStub,
-          CaissePendingCartForm: SimpleStub
+          CaissePendingCartForm: SimpleStub,
+          LoyaltyVouchersDialog: SimpleStub,
         }
       }
     })
