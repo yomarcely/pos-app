@@ -4,20 +4,25 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineNuxtConfig({
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
+
   modules: [
     '@nuxt/image',
     '@nuxt/icon',
     '@nuxt/fonts',
     '@nuxtjs/color-mode',
     'shadcn-nuxt',
-    '@pinia/nuxt'
+    '@pinia/nuxt',
+    '@sentry/nuxt/module'
   ],
+
   colorMode: {
   classSuffix: '', // ✅ produit <html class="dark">
   preference: 'light',
   fallback: 'light'
 },
+
   css: ['~/assets/css/tailwind.css'],
+
   runtimeConfig: {
     // Variables serveur uniquement (privées)
     supabase: {
@@ -55,14 +60,22 @@ export default defineNuxtConfig({
       defaultTenantId: process.env.DEFAULT_TENANT_ID,
       baseUrl: process.env.BASE_URL || 'http://localhost:3000',
       nodeEnv: process.env.NODE_ENV || 'development',
+      sentry: {
+        // DSN public Sentry (visible dans les requêtes client — pas un secret).
+        // Vide = Sentry désactivé (utile en dev local).
+        dsn: process.env.NUXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN || '',
+        environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development',
+      },
     },
   },
+
   vite: {
     plugins: [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tailwindcss() as any,
     ],
   },
+
   nitro: {
     externals: {
       inline: ['@supabase/supabase-js'],
@@ -118,6 +131,7 @@ export default defineNuxtConfig({
       },
     },
   },
+
   shadcn: {
     /**
      * Prefix for all the imported component
@@ -129,4 +143,14 @@ export default defineNuxtConfig({
      */
     componentDir: './components/ui'
   },
+
+  sentry: {
+    org: 'fymsoft',
+    project: 'javascript-nuxt',
+    autoInjectServerSentry: 'top-level-import'
+  },
+
+  sourcemap: {
+    client: 'hidden'
+  }
 })

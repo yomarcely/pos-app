@@ -44,3 +44,6 @@ data/
 *.key
 
 docs/caisse.har
+
+# Sentry Config File
+.env.sentry-build-plugin
