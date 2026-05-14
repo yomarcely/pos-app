@@ -16,6 +16,11 @@ import { vi } from 'vitest'
 ;(globalThis as Record<string, unknown>).getCookie = () => undefined
 ;(globalThis as Record<string, unknown>).setCookie = () => undefined
 ;(globalThis as Record<string, unknown>).getRequestIP = () => null
+// Helpers h3 utilisés via auto-import Nuxt côté server/ — stubs minimaux pour les tests
+;(globalThis as Record<string, unknown>).getHeader = () => undefined
+;(globalThis as Record<string, unknown>).parseCookies = () => ({})
+;(globalThis as Record<string, unknown>).setResponseHeader = () => undefined
+;(globalThis as Record<string, unknown>).setResponseStatus = () => undefined
 
 // Fonctions auto-importées par Nuxt dans le dossier server/
 ;(globalThis as Record<string, unknown>).getTenantIdFromEvent = () => 'test-tenant-id'

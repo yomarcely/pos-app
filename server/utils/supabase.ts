@@ -1,5 +1,9 @@
 import { createClient, type User } from '@supabase/supabase-js'
-import { getHeader, parseCookies, createError, H3Event } from 'h3'
+
+// `getHeader`, `parseCookies`, `createError` sont auto-importés par Nuxt côté server/.
+// L'import explicite depuis 'h3' échoue en CI Linux car h3 est une dep transitive
+// non hoistée par pnpm. Pour le type H3Event on utilise un type inline (érasé par TS).
+type H3Event = import('h3').H3Event
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

@@ -1,15 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// `h3` n'est pas dans les deps directes du projet (transitive via Nuxt). En CI Linux,
-// pnpm hoist différemment et Vite échoue sur l'import statique. On utilise vi.hoisted
-// pour exposer la mock fn sans avoir besoin d'importer le module réel.
-const mockGetHeader = vi.hoisted(() => vi.fn())
-
-vi.mock('h3', () => ({
-  getHeader: mockGetHeader,
-  parseCookies: vi.fn(() => ({})),
-  createError: vi.fn((data: Record<string, unknown>) => ({ __isError: true, ...data })),
-}))
+// supabase.ts utilise `getHeader` via auto-import Nuxt → exposé sur globalThis
+// par tests/setup.ts. On override ici pour pouvoir contrôler la valeur retournée.
+const mockGetHeader = vi.fn()
+;(globalThis as Record<string, unknown>).getHeader = mockGetHeader
 
 // Éviter la création réelle du client Supabase (SUPABASE_SERVICE_ROLE_KEY absent en test)
 vi.mock('@supabase/supabase-js', () => ({
@@ -21,9 +15,10 @@ import type { User } from '@supabase/supabase-js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Type minimal H3Event (évite import depuis 'h3' qui ne se résout pas en CI)
-type H3Event = Record<string, unknown>
-const mockEvent = {} as H3Event
+// On évite `import type { H3Event } from 'h3'` (Vite essaie de résoudre 'h3' en CI).
+// Les fonctions testées n'inspectent pas event, on peut donc passer un objet vide
+// casté en `never` pour satisfaire la signature sans dépendre du vrai type h3.
+const mockEvent = {} as never
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
