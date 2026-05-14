@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mocker h3 avant l'import du module sous test (hoisting Vitest)
+// `h3` n'est pas dans les deps directes du projet (transitive via Nuxt). En CI Linux,
+// pnpm hoist différemment et Vite échoue sur l'import statique. On utilise vi.hoisted
+// pour exposer la mock fn sans avoir besoin d'importer le module réel.
+const mockGetHeader = vi.hoisted(() => vi.fn())
+
 vi.mock('h3', () => ({
-  getHeader: vi.fn(),
+  getHeader: mockGetHeader,
   parseCookies: vi.fn(() => ({})),
   createError: vi.fn((data: Record<string, unknown>) => ({ __isError: true, ...data })),
 }))
@@ -12,15 +16,14 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({ auth: {} })),
 }))
 
-import * as h3 from 'h3'
 import { getTenantFromUser } from '~/server/utils/supabase'
 import type { User } from '@supabase/supabase-js'
-import type { H3Event } from 'h3'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Type minimal H3Event (évite import depuis 'h3' qui ne se résout pas en CI)
+type H3Event = Record<string, unknown>
 const mockEvent = {} as H3Event
-const mockGetHeader = vi.mocked(h3.getHeader)
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
