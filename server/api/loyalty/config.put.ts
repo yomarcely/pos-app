@@ -6,7 +6,6 @@ import { validateBody } from '~/server/utils/validation'
 import { updateLoyaltyConfigSchema } from '~/server/validators/loyalty.schema'
 import { logger } from '~/server/utils/logger'
 import { logEntityCreation, logEntityUpdate } from '~/server/utils/audit'
-import { getRequestIP } from 'h3'
 
 /**
  * PUT /api/loyalty/config

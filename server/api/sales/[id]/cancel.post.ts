@@ -1,7 +1,6 @@
 import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, auditLogs, products, variations, productStocks, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
-import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { cancelSaleSchema, type CancelSaleInput } from '~/server/validators/sale.schema'

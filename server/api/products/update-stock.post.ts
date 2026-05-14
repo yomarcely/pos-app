@@ -1,7 +1,6 @@
 import { db } from '~/server/database/connection'
 import { products, stockMovements, auditLogs } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
-import { getRequestIP } from 'h3'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
 import { updateStockSchema, type UpdateStockInput } from '~/server/validators/product.schema'
