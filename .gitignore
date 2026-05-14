@@ -33,7 +33,10 @@ coverage
 *.db
 *.sqlite
 *.sqlite3
-server/database/migrations/
+# Migrations Drizzle : on versionne les .sql + snapshots (nécessaires pour déploiement)
+# mais on ignore les fichiers reverse-engineered (auto-générés à partir de la DB).
+server/database/migrations/relations.ts
+server/database/migrations/schema.ts
 
 # Archives NF525 (données sensibles) — anchored à la racine pour ne pas matcher server/api/archives/
 data/
