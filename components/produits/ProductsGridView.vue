@@ -31,7 +31,7 @@
 
           <!-- Badge catégorie -->
           <div v-if="product.categoryName" class="absolute top-1 left-1">
-            <span class="px-1.5 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+            <span class="px-1.5 py-0.5 text-xs rounded-full bg-secondary text-primary">
               {{ product.categoryName }}
             </span>
           </div>
