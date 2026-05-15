@@ -97,7 +97,10 @@ export default defineNuxtConfig({
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://geo.api.gouv.fr",
+            // connect-src : Supabase, geo.api.gouv.fr, et Sentry (envelope endpoint)
+            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://geo.api.gouv.fr https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
+            // worker-src : Sentry Session Replay utilise un Worker créé depuis un blob
+            "worker-src 'self' blob:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
