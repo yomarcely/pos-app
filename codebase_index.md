@@ -236,7 +236,7 @@ Regroupés par domaine. Fichiers `index.get.ts`, `create.post.ts`, `[id].get/put
 - **Autres** : apiHandlers, cartStore, cartUtils, formatters, productHelpers, productsStore, validateVariationPayload
 
 ### 1.5 Scripts & Docs
-- **scripts/** : `check-env.js`, `switch-env.sh`, `sync-sequences.ts`, `seed-tax-rates.ts`, `generate-full-schema.ts`, `full-schema.sql`, 2 MD (apply-migrations-manual, fix-supabase-connection)
+- **scripts/** : `check-env.js`, `switch-env.sh`, `sync-sequences.ts`, `seed-tax-rates.ts`, `generate-full-schema.ts`, `full-schema.sql`, 1 MD (apply-migrations-manual)
 - **docs/audit/** : 9 audits datés (cartographie, TS strict, Supabase/fetch, dead-code, migrations, composables, calculs financiers, NF525 tests, stores Pinia)
 - **docs/architecture/** : `supabase-vs-drizzle.md`
 - **docs/legacy-migrations/** : 11 scripts archivés de migration ad-hoc

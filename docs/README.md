@@ -35,4 +35,4 @@
 ## Autres
 
 - Logger Pino : voir `server/utils/LOGGER_USAGE.md`
-- Troubleshooting Supabase : voir `scripts/apply-migrations-manual.md` et `scripts/fix-supabase-connection.md`
+- Troubleshooting Supabase : voir `scripts/apply-migrations-manual.md`
