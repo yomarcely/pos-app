@@ -1,5 +1,5 @@
-import { getRequestIP } from 'h3'
 import { checkLimit } from '~/server/utils/rateLimiter'
+import { reportRateLimitExceeded } from '~/server/utils/rateLimitReporter'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -82,6 +82,20 @@ export default defineEventHandler(async (event) => {
       limit: config.limit,
       windowMs: config.windowMs,
     }, 'Rate limit exceeded')
+
+    reportRateLimitExceeded({
+      key,
+      category: config.category,
+      isPublic,
+      path,
+      method: event.method || 'GET',
+      limit: config.limit,
+      windowMs: config.windowMs,
+      retryAfterSec: result.retryAfterSec,
+      tenantId: event.context?.auth?.tenantId ?? null,
+      userId: event.context?.auth?.user?.id ?? null,
+      ip,
+    })
 
     throw createError({
       statusCode: 429,
