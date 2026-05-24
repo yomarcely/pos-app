@@ -3,8 +3,9 @@ export const description = 'An inset sidebar with secondary navigation.'
 export const iframeHeight = '800px'
 </script>
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import AppSidebar from '~/components/dashboard/AppSidebar.vue'
+import { useOnboardingStore } from '@/stores/onboarding'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -23,6 +24,15 @@ import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
 import SellerSelect from '@/components/shared/SellerSelect.vue'
 
 const route = useRoute()
+const onboarding = useOnboardingStore()
+
+// Charge le statut + seed silencieux (vendeur + 3 TVA FR par défaut)
+// au premier accès au dashboard. Rattrape aussi les comptes créés
+// avant la mise en place de l'onboarding.
+onMounted(async () => {
+  onboarding.readSkipped()
+  await onboarding.ensureSeeded()
+})
 
 // Mapping des routes vers des labels lisibles
 const routeLabels: Record<string, string> = {
@@ -70,9 +80,9 @@ const breadcrumbs = computed(() => {
 })
 </script>
 <template>
-  <SidebarProvider>
+  <SidebarProvider :style="{ '--sidebar-width': '19rem' }">
     <AppSidebar />
-    <SidebarInset>
+    <SidebarInset class="min-w-0 overflow-x-hidden">
       <header class="flex h-16 shrink-0 items-center justify-between gap-3 px-4">
         <div class="flex items-center gap-2">
           <SidebarTrigger class="-ml-1" />

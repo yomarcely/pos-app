@@ -77,7 +77,7 @@ const handleSubmit = async () => {
   try {
     await authStore.signUp(form.email, form.password, form.name)
     toast.success('Compte créé avec succès ! Bienvenue !')
-    await router.push('/dashboard')
+    await router.push('/onboarding')
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur lors de la création du compte'
     error.value = translateAuthError(message)

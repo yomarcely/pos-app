@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Session, User } from '@supabase/supabase-js'
 import { useSupabaseClient } from '@/composables/useSupabaseClient'
 import { useSellersStore } from '@/stores/sellers'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import type { Tenant, AuthError } from '@/types'
 
@@ -143,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
       useSellersStore().clearSeller()
       // Réinitialiser les données d'établissements pour le prochain utilisateur
       useEstablishmentRegister().reset()
+      useOnboardingStore().reset()
     }
   }
 

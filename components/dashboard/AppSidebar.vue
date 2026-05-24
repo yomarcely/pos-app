@@ -5,6 +5,7 @@ import NavMain from './NavMain.vue'
 import NavProjects from './NavProjects.vue'
 import NavSecondary from './NavSecondary.vue'
 import NavUser from './NavUser.vue'
+import OnboardingChecklist from './OnboardingChecklist.vue'
 import {
   Sidebar,
   SidebarContent,
@@ -28,7 +29,8 @@ import {
 } from 'lucide-vue-next'
 
 const props = withDefaults(defineProps<SidebarProps>(), {
-  variant: 'inset',
+  variant: 'floating',
+  collapsible: 'icon',
 })
 
 const authStore = useAuthStore()
@@ -262,6 +264,7 @@ const data = {
       <NavSecondary :items="data.navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
+      <OnboardingChecklist />
       <NavUser :user="user" />
     </SidebarFooter>
   </Sidebar>
