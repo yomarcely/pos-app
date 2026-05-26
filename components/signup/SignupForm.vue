@@ -48,6 +48,16 @@ const form = reactive({
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+const emailTouched = ref(false)
+
+// Regex pragmatique : présence d'un @ + domaine avec point. La vraie vérification
+// (existence de l'adresse) est faite par Supabase à l'inscription.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const emailValid = computed(() => {
+  if (!form.email) return true
+  return EMAIL_REGEX.test(form.email)
+})
 
 const passwordsMatch = computed(() => {
   if (!form.confirmPassword) return true
@@ -62,6 +72,12 @@ const handleSubmit = async () => {
   error.value = null
 
   // Validation
+  if (!form.email || !emailValid.value) {
+    error.value = 'Adresse email invalide'
+    emailTouched.value = true
+    return
+  }
+
   if (!passwordValid.value) {
     error.value = 'Le mot de passe doit contenir au moins 8 caractères'
     return
@@ -126,46 +142,56 @@ const handleSubmit = async () => {
                 type="email"
                 placeholder="m@exemple.com"
                 autocomplete="email"
+                :class="emailTouched && !emailValid ? 'border-destructive' : ''"
+                required
+                @blur="emailTouched = true"
+              />
+              <FieldDescription
+                v-if="emailTouched && form.email && !emailValid"
+                class="text-destructive"
+              >
+                Adresse email invalide.
+              </FieldDescription>
+            </Field>
+
+            <Field>
+              <FieldLabel for="password">
+                Mot de passe
+              </FieldLabel>
+              <Input
+                id="password"
+                v-model="form.password"
+                type="password"
+                autocomplete="new-password"
                 required
               />
-            </Field>
-            <Field>
-              <Field class="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel for="password">
-                    Mot de passe
-                  </FieldLabel>
-                  <Input
-                    id="password"
-                    v-model="form.password"
-                    type="password"
-                    autocomplete="new-password"
-                    required
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel for="confirm-password">
-                    Confirmer le mot de passe
-                  </FieldLabel>
-                  <Input
-                    id="confirm-password"
-                    v-model="form.confirmPassword"
-                    type="password"
-                    autocomplete="new-password"
-                    :class="!passwordsMatch ? 'border-destructive' : ''"
-                    required
-                  />
-                </Field>
-              </Field>
               <FieldDescription :class="!passwordValid && form.password ? 'text-destructive' : ''">
                 Doit contenir au moins 8 caractères.
               </FieldDescription>
-              <FieldDescription v-if="!passwordsMatch && form.confirmPassword" class="text-destructive">
+            </Field>
+
+            <Field>
+              <FieldLabel for="confirm-password">
+                Confirmer le mot de passe
+              </FieldLabel>
+              <Input
+                id="confirm-password"
+                v-model="form.confirmPassword"
+                type="password"
+                autocomplete="new-password"
+                :class="!passwordsMatch ? 'border-destructive' : ''"
+                required
+              />
+              <FieldDescription
+                v-if="!passwordsMatch && form.confirmPassword"
+                class="text-destructive"
+              >
                 Les mots de passe ne correspondent pas.
               </FieldDescription>
             </Field>
+
             <Field>
-              <Button type="submit" :disabled="loading || !passwordsMatch || !passwordValid">
+              <Button type="submit" :disabled="loading || !passwordsMatch || !passwordValid || !emailValid">
                 {{ loading ? 'Création en cours...' : 'Créer mon compte' }}
               </Button>
               <FieldDescription class="text-center">
