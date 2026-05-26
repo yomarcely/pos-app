@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, products, variations, registers, establishments, closures, productStocks, customers, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, products, productEstablishments, variations, registers, establishments, closures, productStocks, customers, customerEstablishments, loyaltyVouchers } from '~/server/database/schema'
 import { randomBytes } from 'node:crypto'
 import { desc, and, eq, sql, inArray, gt, or, isNull } from 'drizzle-orm'
 import {
@@ -15,6 +15,7 @@ import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/v
 import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
 import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
+import { resolvePurchasePriceAtSale } from '~/server/utils/purchasePriceSnapshot'
 
 /**
  * ==========================================
@@ -469,12 +470,56 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 500, message: 'Échec de l\'enregistrement de la vente' })
       }
 
+      // 5.1 bis Snapshot du prix d'achat (pour marge historique).
+      // Priorité : productEstablishments.purchasePriceOverride > products.purchasePrice > null.
+      const productIdsForPurchase = parsedItems.map(i => i.productId)
+
+      const basePurchasePrices = await tx
+        .select({
+          id: products.id,
+          purchasePrice: products.purchasePrice,
+        })
+        .from(products)
+        .where(
+          and(
+            inArray(products.id, productIdsForPurchase),
+            eq(products.tenantId, tenantId)
+          )
+        )
+
+      const overridePurchasePrices = await tx
+        .select({
+          productId: productEstablishments.productId,
+          purchasePriceOverride: productEstablishments.purchasePriceOverride,
+        })
+        .from(productEstablishments)
+        .where(
+          and(
+            inArray(productEstablishments.productId, productIdsForPurchase),
+            eq(productEstablishments.establishmentId, establishment.id),
+            eq(productEstablishments.tenantId, tenantId)
+          )
+        )
+
+      const basePurchaseById = new Map(
+        basePurchasePrices.map(p => [p.id, p.purchasePrice])
+      )
+      const overridePurchaseById = new Map(
+        overridePurchasePrices.map(p => [p.productId, p.purchasePriceOverride])
+      )
+
       // 5.2 Enregistrer les lignes de vente
       const saleItemsData = parsedItems.map(item => {
         const totalTTC = item.unitPrice * item.quantity
         const totalHT = totalTTC / (1 + item.tva / 100)
         const tvaRate = Number.isFinite(item.tva) ? item.tva : 0
         const tvaCode = `TVA${tvaRate.toFixed(2)}`
+
+        const purchasePriceAtSale = resolvePurchasePriceAtSale(
+          item.productId,
+          basePurchaseById,
+          overridePurchaseById
+        )
 
         return {
           tenantId,
@@ -485,6 +530,7 @@ export default defineEventHandler(async (event) => {
           quantity: item.quantity,
           originalPrice: null,
           unitPrice: item.unitPrice.toString(),
+          purchasePriceAtSale,
           discount: item.discount ? item.discount.toString() : '0',
           discountType: item.discountType || '%',
           tvaRate: tvaRate.toFixed(2),

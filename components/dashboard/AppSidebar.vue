@@ -170,24 +170,16 @@ const data = {
       icon: BarChart,
       items: [
         {
-          title: 'Chiffre d\'affaire',
-          url: '#',
-          disabled: true,
+          title: 'Chiffre d\'affaires',
+          url: '/statistiques/ca',
         },
         {
-          title: 'Catalogue',
-          url: '#',
-          disabled: true,
+          title: 'Vendeurs',
+          url: '/statistiques/vendeurs',
         },
         {
-          title: 'Vendeur',
-          url: '#',
-          disabled: true,
-        },
-        {
-          title: 'Analyse',
-          url: '#',
-          disabled: true,
+          title: 'Produits',
+          url: '/statistiques/produits',
         },
         {
           title: 'Rapports comptables',

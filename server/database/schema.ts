@@ -116,6 +116,10 @@ export const saleItems = pgTable('sale_items', {
   originalPrice: decimal('original_price', { precision: 10, scale: 2 }), // Prix d'origine avant remise
   unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).notNull(), // Prix final après remise
 
+  // Snapshot du prix d'achat au moment de la vente (pour calcul de marge historique).
+  // Nullable : ventes pré-migration n'ont pas la donnée → la marge est partielle.
+  purchasePriceAtSale: decimal('purchase_price_at_sale', { precision: 10, scale: 2 }),
+
   // Remise ligne
   discount: decimal('discount', { precision: 10, scale: 2 }).default('0'),
   discountType: varchar('discount_type', { length: 1 }).default('%'),
