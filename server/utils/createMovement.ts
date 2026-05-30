@@ -2,19 +2,28 @@ import { db } from '~/server/database/connection'
 import { movements } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 
+export interface CreateMovementOptions {
+  supplierId?: number | null
+  deliveryNoteNumber?: string | null
+  establishmentId?: number | null
+}
+
 /**
  * Crée un mouvement de stock avec son numéro unique
  *
  * @param type - Type de mouvement (reception, adjustment, loss, transfer)
  * @param comment - Commentaire optionnel
  * @param userId - ID de l'utilisateur
+ * @param tenantId - Tenant
+ * @param options - Champs additionnels (supplierId, deliveryNoteNumber, establishmentId)
  * @returns L'ID et le numéro du mouvement créé
  */
 export async function createMovement(
   type: 'reception' | 'adjustment' | 'loss' | 'transfer',
   comment?: string,
   userId?: number,
-  tenantId?: string
+  tenantId?: string,
+  options: CreateMovementOptions = {}
 ): Promise<{ id: number; movementNumber: string }> {
   if (!tenantId) {
     throw new Error('Tenant ID manquant pour la création du mouvement')
@@ -30,6 +39,9 @@ export async function createMovement(
       type,
       comment: comment || null,
       userId: userId || null,
+      supplierId: options.supplierId ?? null,
+      deliveryNoteNumber: options.deliveryNoteNumber ?? null,
+      establishmentId: options.establishmentId ?? null,
     })
     .returning()
 

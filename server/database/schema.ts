@@ -576,6 +576,15 @@ export const movements = pgTable('movements', {
   // Commentaire/motif optionnel
   comment: text('comment'),
 
+  // Fournisseur (uniquement pour type='reception')
+  supplierId: integer('supplier_id').references(() => suppliers.id),
+
+  // Numéro de bon de livraison fournisseur (uniquement pour type='reception')
+  deliveryNoteNumber: varchar('delivery_note_number', { length: 100 }),
+
+  // Établissement concerné (pour filtrage Historique)
+  establishmentId: integer('establishment_id').references(() => establishments.id),
+
   // Utilisateur
   userId: integer('user_id'), // Futur : références vers table users
 
@@ -585,6 +594,8 @@ export const movements = pgTable('movements', {
   typeIdx: index('movements_type_idx').on(table.type),
   createdAtIdx: index('movements_created_at_idx').on(table.createdAt),
   movementNumberIdx: index('movements_movement_number_idx').on(table.movementNumber),
+  supplierIdIdx: index('movements_supplier_id_idx').on(table.supplierId),
+  establishmentIdIdx: index('movements_establishment_id_idx').on(table.establishmentId),
 }))
 
 // Lignes de détail des mouvements de stock (par produit/variation)
@@ -1111,6 +1122,22 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
     fields: [stockMovements.establishmentId],
     references: [establishments.id],
   }),
+  movement: one(movements, {
+    fields: [stockMovements.movementId],
+    references: [movements.id],
+  }),
+}))
+
+export const movementsRelations = relations(movements, ({ one, many }) => ({
+  supplier: one(suppliers, {
+    fields: [movements.supplierId],
+    references: [suppliers.id],
+  }),
+  establishment: one(establishments, {
+    fields: [movements.establishmentId],
+    references: [establishments.id],
+  }),
+  stockMovements: many(stockMovements),
 }))
 
 export const sellersRelations = relations(sellers, ({ many }) => ({

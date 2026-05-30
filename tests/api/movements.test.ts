@@ -27,10 +27,12 @@ vi.mock('~/server/utils/validation', () => ({
   })
 }))
 
+const createMovementMock = vi.fn(async (type: string, comment: string) => ({
+  id: 1, movementNumber: 'MOV-001', type, comment,
+}))
+
 vi.mock('~/server/utils/createMovement', () => ({
-  createMovement: vi.fn(async (type: string, comment: string) => ({
-    id: 1, movementNumber: 'MOV-001', type, comment,
-  }))
+  createMovement: createMovementMock,
 }))
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,6 +176,59 @@ describe('API /api/movements', () => {
         statusCode: 404,
         message: 'Produit #999 non trouvé'
       })
+    })
+
+    it('propage supplierId, deliveryNoteNumber et establishmentId à createMovement pour une réception', async () => {
+      const product = { id: 1, name: 'Produit A', stock: 10, stockByVariation: null }
+      currentDb = createMovementTxChain(product)
+      createMovementMock.mockClear()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/movements/create.post')).default as any
+      const event = createMockEvent({
+        body: {
+          type: 'reception',
+          comment: 'Livraison du jour',
+          supplierId: 42,
+          deliveryNoteNumber: 'BL-2026-001',
+          establishmentId: 7,
+          items: [{ productId: 1, quantity: 5, adjustmentType: 'add' }]
+        }
+      })
+
+      const res = await handler(event)
+
+      expect(res.success).toBe(true)
+      expect(createMovementMock).toHaveBeenCalledWith(
+        'reception',
+        'Livraison du jour',
+        undefined,
+        'test-tenant-id',
+        { supplierId: 42, deliveryNoteNumber: 'BL-2026-001', establishmentId: 7 }
+      )
+    })
+
+    it('ne transmet ni supplierId ni deliveryNoteNumber pour un ajustement classique', async () => {
+      const product = { id: 1, name: 'Produit A', stock: 10, stockByVariation: null }
+      currentDb = createMovementTxChain(product)
+      createMovementMock.mockClear()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/movements/create.post')).default as any
+      const event = createMockEvent({
+        body: {
+          type: 'adjustment',
+          items: [{ productId: 1, quantity: 8, adjustmentType: 'set' }]
+        }
+      })
+
+      await handler(event)
+
+      expect(createMovementMock).toHaveBeenCalledWith(
+        'adjustment',
+        undefined,
+        undefined,
+        'test-tenant-id',
+        { supplierId: null, deliveryNoteNumber: null, establishmentId: null }
+      )
     })
   })
 })

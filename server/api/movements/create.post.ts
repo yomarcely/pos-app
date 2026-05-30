@@ -19,7 +19,12 @@ const createMovementSchema = z.object({
   comment: z.string().max(1000).optional(),
   items: z.array(movementItemSchema).min(1, 'Aucun article dans le mouvement'),
   establishmentId: z.number().int().positive().optional(),
-})
+  supplierId: z.number().int().positive().optional(),
+  deliveryNoteNumber: z.string().max(100).optional(),
+}).refine(
+  (data) => !((data.supplierId || data.deliveryNoteNumber) && data.type !== 'reception'),
+  { message: 'supplierId et deliveryNoteNumber ne sont autorisés que pour le type reception' }
+)
 
 /**
  * ==========================================
@@ -54,6 +59,8 @@ interface CreateMovementRequest {
   comment?: string
   items: MovementItem[]
   establishmentId?: number
+  supplierId?: number
+  deliveryNoteNumber?: string
 }
 
 export default defineEventHandler(async (event) => {
@@ -90,7 +97,11 @@ export default defineEventHandler(async (event) => {
 
     const result = await db.transaction(async (tx) => {
       // 1. Créer le mouvement principal
-      const movement = await createMovement(body.type, body.comment, undefined, tenantId)
+      const movement = await createMovement(body.type, body.comment, undefined, tenantId, {
+        supplierId: body.supplierId ?? null,
+        deliveryNoteNumber: body.deliveryNoteNumber ?? null,
+        establishmentId: body.establishmentId ?? null,
+      })
 
       // 2. Créer les lignes de stock_movements
       const stockMovementsData = []
