@@ -10,13 +10,22 @@ const TextareaStub = {
   props: ['modelValue'],
   template: `<textarea :value="modelValue" @input="$emit('update:modelValue', $event.target.value)"></textarea>`
 }
-const SelectStub = {
-  props: ['modelValue'],
-  template: `<select :value="modelValue" @change="$emit('update:modelValue', $event.target.value)"><slot /></select>`
-}
-const SelectItemStub = {
-  props: ['value'],
-  template: `<option :value="value"><slot /></option>`
+// SearchableSelect remplace Select/SelectItem : on l'expose comme une simple
+// liste de boutons cliquables pour simuler la sélection dans les tests.
+const SearchableSelectStub = {
+  props: ['modelValue', 'items'],
+  emits: ['update:modelValue'],
+  template: `
+    <div class="searchable-select">
+      <button
+        v-for="item in items"
+        :key="item.id"
+        :data-id="item.id"
+        type="button"
+        @click="$emit('update:modelValue', item.id)"
+      >{{ item.label }}</button>
+    </div>
+  `
 }
 const ButtonStub = { template: `<button @click="$emit('click', $event)"><slot /></button>` }
 const SimpleStub = { template: '<div><slot /></div>' }
@@ -47,11 +56,7 @@ describe('ProductFormGeneral', () => {
           Input: InputStub,
           Textarea: TextareaStub,
           Button: ButtonStub,
-          Select: SelectStub,
-          SelectTrigger: SimpleStub,
-          SelectContent: SimpleStub,
-          SelectItem: SelectItemStub,
-          SelectValue: SimpleStub,
+          SearchableSelect: SearchableSelectStub,
           Plus: IconStub,
           Upload: IconStub,
           X: IconStub,
@@ -82,11 +87,7 @@ describe('ProductFormGeneral', () => {
           Input: InputStub,
           Textarea: TextareaStub,
           Button: ButtonStub,
-          Select: SelectStub,
-          SelectTrigger: SimpleStub,
-          SelectContent: SimpleStub,
-          SelectItem: SelectItemStub,
-          SelectValue: SimpleStub,
+          SearchableSelect: SearchableSelectStub,
           Plus: IconStub,
           Upload: IconStub,
           X: IconStub,
@@ -95,14 +96,15 @@ describe('ProductFormGeneral', () => {
       }
     })
 
-    const selects = wrapper.findAll('select')
-    expect(selects.length).toBeGreaterThanOrEqual(2)
-    await selects[0]!.setValue('1')
-    await selects[1]!.setValue('2')
+    const dropdowns = wrapper.findAll('.searchable-select')
+    expect(dropdowns.length).toBeGreaterThanOrEqual(2)
+    // 1er dropdown = fournisseurs, 2e = marques
+    await dropdowns[0]!.find('button[data-id="1"]').trigger('click')
+    await dropdowns[1]!.find('button[data-id="2"]').trigger('click')
 
     const emits = (wrapper.emitted()['update:form'] as any[]) || []
-    expect(emits.some((e: any) => e[0]?.supplierId !== null)).toBe(true)
-    expect(emits.some((e: any) => e[0]?.brandId !== null)).toBe(true)
+    expect(emits.some((e: any) => e[0]?.supplierId === '1')).toBe(true)
+    expect(emits.some((e: any) => e[0]?.brandId === '2')).toBe(true)
   })
 
   it('supprime une image existante', async () => {
@@ -119,11 +121,7 @@ describe('ProductFormGeneral', () => {
           Input: InputStub,
           Textarea: TextareaStub,
           Button: ButtonStub,
-          Select: SelectStub,
-          SelectTrigger: SimpleStub,
-          SelectContent: SimpleStub,
-          SelectItem: SelectItemStub,
-          SelectValue: SimpleStub,
+          SearchableSelect: SearchableSelectStub,
           Plus: IconStub,
           Upload: IconStub,
           X: IconStub,

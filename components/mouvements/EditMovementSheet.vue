@@ -11,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import SupplierCombobox from '@/components/mouvements/SupplierCombobox.vue'
+import SearchableSelect from '@/components/shared/SearchableSelect.vue'
 import type { MovementHistoryEntry } from '@/composables/useMovementHistory'
 
 interface SupplierOption {
@@ -25,6 +25,10 @@ const props = defineProps<{
   suppliers: SupplierOption[]
   saving?: boolean
 }>()
+
+const supplierItems = computed(() =>
+  props.suppliers.map((s) => ({ id: s.id, label: s.name })),
+)
 
 export interface SavePayload {
   comment?: string | null
@@ -95,10 +99,12 @@ function handleSave() {
         <div v-if="isReception" class="space-y-3">
           <div>
             <Label class="mb-1 block">Fournisseur</Label>
-            <SupplierCombobox
+            <SearchableSelect
               v-model="supplierId"
-              :suppliers="suppliers"
+              :items="supplierItems"
               placeholder="Sélectionner un fournisseur..."
+              search-placeholder="Rechercher un fournisseur..."
+              empty-text="Aucun fournisseur trouvé"
             />
           </div>
           <div>

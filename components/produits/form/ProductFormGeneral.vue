@@ -25,16 +25,14 @@
           <div class="space-y-2">
             <Label for="supplier">Fournisseur</Label>
             <div class="flex gap-2">
-              <Select :model-value="form.supplierId" @update:model-value="$emit('update:form', { ...form, supplierId: String($event) })">
-                <SelectTrigger id="supplier" class="flex-1">
-                  <SelectValue placeholder="Sélectionner un fournisseur" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id.toString()">
-                    {{ supplier.name }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                :model-value="form.supplierId"
+                :items="supplierItems"
+                placeholder="Sélectionner un fournisseur"
+                search-placeholder="Rechercher un fournisseur..."
+                empty-text="Aucun fournisseur trouvé"
+                @update:model-value="$emit('update:form', { ...form, supplierId: $event === null ? null : String($event) })"
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -51,16 +49,14 @@
           <div class="space-y-2">
             <Label for="brand">Marque</Label>
             <div class="flex gap-2">
-              <Select :model-value="form.brandId" @update:model-value="$emit('update:form', { ...form, brandId: String($event) })">
-                <SelectTrigger id="brand" class="flex-1">
-                  <SelectValue placeholder="Sélectionner une marque" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="brand in brands" :key="brand.id" :value="brand.id.toString()">
-                    {{ brand.name }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                :model-value="form.brandId"
+                :items="brandItems"
+                placeholder="Sélectionner une marque"
+                search-placeholder="Rechercher une marque..."
+                empty-text="Aucune marque trouvée"
+                @update:model-value="$emit('update:form', { ...form, brandId: $event === null ? null : String($event) })"
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -159,13 +155,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import SearchableSelect from '@/components/shared/SearchableSelect.vue'
 import { Plus, Upload, X, Image as ImageIcon } from 'lucide-vue-next'
 
 interface ProductForm {
@@ -197,6 +193,13 @@ const emit = defineEmits<{
   'add-supplier': []
   'add-brand': []
 }>()
+
+const supplierItems = computed(() =>
+  props.suppliers.map((s) => ({ id: s.id, label: s.name })),
+)
+const brandItems = computed(() =>
+  props.brands.map((b) => ({ id: b.id, label: b.name })),
+)
 
 const isDragging = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)

@@ -14,10 +14,12 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label class="mb-2 block">Fournisseur <span class="text-destructive">*</span></Label>
-            <SupplierCombobox
+            <SearchableSelect
               v-model="selectedSupplierId"
-              :suppliers="supplierOptions"
+              :items="supplierItems"
               placeholder="Sélectionner un fournisseur..."
+              search-placeholder="Rechercher un fournisseur..."
+              empty-text="Aucun fournisseur trouvé"
             />
           </div>
           <div>
@@ -104,9 +106,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import PageHeader from '@/components/common/PageHeader.vue'
 import ProductSearchWithSuggestions from '@/components/shared/ProductSearchWithSuggestions.vue'
+import SearchableSelect from '@/components/shared/SearchableSelect.vue'
 import ProductCatalogDialog from '@/components/mouvements/ProductCatalogDialog.vue'
 import SelectedProductsTable from '@/components/mouvements/SelectedProductsTable.vue'
-import SupplierCombobox from '@/components/mouvements/SupplierCombobox.vue'
 import type { MovementType, Product } from '@/types/mouvements'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useMovementCatalog } from '@/composables/useMovementCatalog'
@@ -148,8 +150,8 @@ const {
   loadVariations,
 } = useMovementCatalog(selectedEstablishmentId, selectedSupplierId)
 
-const supplierOptions = computed(() =>
-  suppliers.value.map((s) => ({ id: s.id, name: s.name }))
+const supplierItems = computed(() =>
+  suppliers.value.map((s) => ({ id: s.id, label: s.name }))
 )
 
 const {

@@ -47,36 +47,24 @@
       <!-- Ligne 2 : filtres avancés -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <!-- Filtre marque -->
-        <Select
-          :model-value="selectedBrandId !== null ? String(selectedBrandId) : 'all'"
-          @update:model-value="(value) => { $emit('update:selectedBrandId', String(value) !== 'all' ? parseInt(String(value)) : null); $emit('filterChange') }"
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Toutes les marques" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toutes les marques</SelectItem>
-            <SelectItem v-for="brand in brands" :key="brand.id" :value="String(brand.id)">
-              {{ brand.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          :model-value="selectedBrandId"
+          :items="brandItems"
+          placeholder="Toutes les marques"
+          search-placeholder="Rechercher une marque..."
+          empty-text="Aucune marque trouvée"
+          @update:model-value="(value) => { $emit('update:selectedBrandId', value === null ? null : Number(value)); $emit('filterChange') }"
+        />
 
         <!-- Filtre fournisseur -->
-        <Select
-          :model-value="selectedSupplierId !== null ? String(selectedSupplierId) : 'all'"
-          @update:model-value="(value) => { $emit('update:selectedSupplierId', String(value) !== 'all' ? parseInt(String(value)) : null); $emit('filterChange') }"
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Tous les fournisseurs" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les fournisseurs</SelectItem>
-            <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">
-              {{ supplier.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          :model-value="selectedSupplierId"
+          :items="supplierItems"
+          placeholder="Tous les fournisseurs"
+          search-placeholder="Rechercher un fournisseur..."
+          empty-text="Aucun fournisseur trouvé"
+          @update:model-value="(value) => { $emit('update:selectedSupplierId', value === null ? null : Number(value)); $emit('filterChange') }"
+        />
 
         <!-- Toggle archivés -->
         <div class="flex items-center gap-2">
@@ -114,13 +102,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import SearchableSelect from '@/components/shared/SearchableSelect.vue'
 import CategorySelector from '@/components/produits/CategorySelector.vue'
 import type { Brand, Supplier } from '@/types'
 
@@ -155,6 +137,13 @@ defineEmits<{
   'filterChange': []
   'resetFilters': []
 }>()
+
+const brandItems = computed(() =>
+  props.brands.map((b) => ({ id: b.id, label: b.name })),
+)
+const supplierItems = computed(() =>
+  props.suppliers.map((s) => ({ id: s.id, label: s.name })),
+)
 
 const hasActiveFilters = computed(() =>
   props.searchQuery !== '' ||

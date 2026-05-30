@@ -11,11 +11,11 @@ const stubCategorySelector = {
   props: ['categories', 'modelValue', 'showLabel', 'clearable', 'placeholder'],
   emits: ['update:modelValue'],
 }
-const stubSelect = { template: '<div><slot /></div>' }
-const stubSelectTrigger = { template: '<div><slot /></div>' }
-const stubSelectValue = { template: '<span />' }
-const stubSelectContent = { template: '<div><slot /></div>' }
-const stubSelectItem = { template: '<div><slot /></div>' }
+const stubSearchableSelect = {
+  template: '<div class="searchable-select" />',
+  props: ['modelValue', 'items', 'placeholder', 'searchPlaceholder', 'emptyText'],
+  emits: ['update:modelValue'],
+}
 const stubCheckbox = { template: '<input type="checkbox" />' }
 
 describe('ProductsSearchBar', () => {
@@ -45,11 +45,7 @@ describe('ProductsSearchBar', () => {
           Button: stubButton,
           Input: stubInput,
           CategorySelector: stubCategorySelector,
-          Select: stubSelect,
-          SelectTrigger: stubSelectTrigger,
-          SelectValue: stubSelectValue,
-          SelectContent: stubSelectContent,
-          SelectItem: stubSelectItem,
+          SearchableSelect: stubSearchableSelect,
           Checkbox: stubCheckbox,
           Search: { template: '<span />' },
           List: { template: '<span />' },
