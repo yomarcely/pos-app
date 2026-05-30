@@ -154,8 +154,7 @@ const data = {
         },
         {
           title: 'Historique',
-          url: '#',
-          disabled: true,
+          url: '/mouvements/historique',
         },
         {
           title: 'État des stocks',
