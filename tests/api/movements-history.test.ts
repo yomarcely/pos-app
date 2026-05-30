@@ -241,4 +241,19 @@ describe('GET /api/movements/history', () => {
     const eqCount = flat.filter((c) => (c as { type?: string }).type === 'eq').length
     expect(eqCount).toBe(1)
   })
+
+  it('applique le filtre supplierId (eq supplier)', async () => {
+    movementsResult = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/movements/history.get')).default as any
+
+    await handler(createMockEvent({ query: { supplierId: '42' } }))
+
+    const flat = flattenConditions(whereConditions[0])
+    // tenant + supplierId → deux eq
+    const eqArgs = flat
+      .filter((c) => (c as { type?: string }).type === 'eq')
+      .flatMap((c) => (c as { args?: unknown[] }).args ?? [])
+    expect(eqArgs).toContain(42)
+  })
 })

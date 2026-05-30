@@ -48,6 +48,7 @@ export function useMovementHistory(
   period: Ref<Period>,
   typeFilter: Ref<MovementHistoryFilter>,
   establishmentId: Ref<number | null>,
+  supplierId?: Ref<number | null>,
 ) {
   const toast = useToast()
   const movements = ref<MovementHistoryEntry[]>([])
@@ -64,6 +65,7 @@ export function useMovementHistory(
       }
       if (typeFilter.value !== 'all') params.type = typeFilter.value
       if (establishmentId.value) params.establishmentId = establishmentId.value
+      if (supplierId?.value) params.supplierId = supplierId.value
 
       const response = await $fetch<{
         success: boolean

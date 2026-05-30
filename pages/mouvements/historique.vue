@@ -24,11 +24,22 @@
               size="sm"
               :variant="typeFilter === opt.value ? 'default' : 'outline'"
               :disabled="opt.disabled"
-              @click="typeFilter = opt.value"
+              @click="onTypeFilterChange(opt.value)"
             >
               {{ opt.label }}
             </Button>
           </div>
+        </div>
+
+        <div v-if="typeFilter === 'reception-supplier'" class="max-w-md">
+          <Label class="mb-2 block text-sm">Fournisseur</Label>
+          <SearchableSelect
+            v-model="supplierFilter"
+            :items="supplierItems"
+            placeholder="Tous les fournisseurs"
+            search-placeholder="Rechercher un fournisseur..."
+            empty-text="Aucun fournisseur trouvé"
+          />
         </div>
       </CardContent>
     </Card>
@@ -231,6 +242,7 @@ import { Label } from '@/components/ui/label'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PeriodPicker from '@/components/statistiques/PeriodPicker.vue'
 import EditMovementSheet, { type SavePayload } from '@/components/mouvements/EditMovementSheet.vue'
+import SearchableSelect from '@/components/shared/SearchableSelect.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import {
   useMovementHistory,
@@ -260,6 +272,7 @@ const period = ref({
 })
 
 const typeFilter = ref<MovementHistoryFilter>('all')
+const supplierFilter = ref<number | null>(null)
 
 const typeOptions: Array<{ value: MovementHistoryFilter; label: string; disabled?: boolean }> = [
   { value: 'all', label: 'Tous' },
@@ -269,9 +282,16 @@ const typeOptions: Array<{ value: MovementHistoryFilter; label: string; disabled
   { value: 'loss', label: 'Perte' },
 ]
 
-const { movements, loading, loadHistory, deleteMovement, updateMovement } = useMovementHistory(period, typeFilter, selectedEstablishmentId)
+function onTypeFilterChange(value: MovementHistoryFilter) {
+  typeFilter.value = value
+  // Reset du filtre fournisseur si on quitte le type "réception fournisseur"
+  if (value !== 'reception-supplier') supplierFilter.value = null
+}
+
+const { movements, loading, loadHistory, deleteMovement, updateMovement } = useMovementHistory(period, typeFilter, selectedEstablishmentId, supplierFilter)
 const { suppliers, loadSuppliers } = useSuppliers()
 const supplierOptions = computed(() => suppliers.value.map((s) => ({ id: s.id, name: s.name })))
+const supplierItems = computed(() => suppliers.value.map((s) => ({ id: s.id, label: s.name })))
 
 const expanded = ref<Set<number>>(new Set())
 function toggleExpanded(id: number) {
@@ -282,7 +302,7 @@ function toggleExpanded(id: number) {
 }
 
 function typeLabel(m: MovementHistoryEntry): string {
-  if (m.type === 'reception') return m.supplierId ? 'Réception fournisseur' : 'Entrée libre'
+  if (m.type === 'reception') return m.supplierId ? 'Réception fournisseur' : 'Entrée/Sortie libre'
   if (m.type === 'adjustment') return 'Ajustement'
   if (m.type === 'loss') return 'Perte'
   if (m.type === 'transfer') return 'Transfert'
@@ -360,7 +380,7 @@ function scheduleReload() {
   reloadTimer = setTimeout(loadHistory, 150)
 }
 
-watch([period, typeFilter, selectedEstablishmentId], scheduleReload, { deep: true })
+watch([period, typeFilter, supplierFilter, selectedEstablishmentId], scheduleReload, { deep: true })
 
 onMounted(async () => {
   await initializeEstablishments()

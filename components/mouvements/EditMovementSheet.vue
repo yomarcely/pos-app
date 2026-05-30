@@ -48,7 +48,11 @@ const supplierId = ref<number | null>(null)
 const deliveryNoteNumber = ref('')
 const lineQuantities = ref<Record<number, number>>({})
 
-const isReception = computed(() => props.movement?.type === 'reception')
+// Réception fournisseur uniquement (les entrées/sorties libres ont type='reception'
+// mais supplierId=null, et on ne veut pas leur permettre d'ajouter un fournisseur)
+const isReception = computed(
+  () => props.movement?.type === 'reception' && props.movement?.supplierId !== null,
+)
 
 watch(
   () => props.movement,

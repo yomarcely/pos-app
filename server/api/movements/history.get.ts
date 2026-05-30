@@ -23,6 +23,8 @@ import { logger } from '~/server/utils/logger'
  * - type     : 'reception' | 'reception-supplier' | 'reception-free' |
  *              'adjustment' | 'loss' | 'transfer'
  * - establishmentId : number
+ * - supplierId : number — restreint aux mouvements d'un fournisseur précis
+ *   (utile combiné avec type='reception-supplier')
  * - limit    : nombre max de mouvements (défaut 100, max 500)
  */
 export default defineEventHandler(async (event) => {
@@ -34,6 +36,7 @@ export default defineEventHandler(async (event) => {
     const dateTo = typeof query.dateTo === 'string' ? query.dateTo : undefined
     const typeParam = typeof query.type === 'string' ? query.type : undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+    const supplierId = query.supplierId ? Number(query.supplierId) : undefined
     const rawLimit = query.limit ? Number(query.limit) : 100
     const limit = Math.min(Math.max(rawLimit, 1), 500)
 
@@ -71,6 +74,10 @@ export default defineEventHandler(async (event) => {
 
     if (establishmentId) {
       conditions.push(eq(movements.establishmentId, establishmentId))
+    }
+
+    if (supplierId) {
+      conditions.push(eq(movements.supplierId, supplierId))
     }
 
     // 1. Mouvements + jointures fournisseur/établissement
