@@ -2,7 +2,10 @@ import { ref, watch, type Ref } from 'vue'
 import type { Product, Category, Supplier, Brand, Variation } from '@/types/mouvements'
 import { normalizeProduct } from '@/utils/productHelpers'
 
-export function useMovementCatalog(establishmentId: Ref<number | null>) {
+export function useMovementCatalog(
+  establishmentId: Ref<number | null>,
+  lockedSupplierId?: Ref<number | null>
+) {
   const isProductSelectorOpen = ref(false)
   const catalogSearchQuery = ref('')
   const selectedCategoryFilter = ref<number | null>(null)
@@ -28,7 +31,9 @@ export function useMovementCatalog(establishmentId: Ref<number | null>) {
       const params: Record<string, string | number> = {}
       if (catalogSearchQuery.value) params.search = catalogSearchQuery.value
       if (selectedCategoryFilter.value) params.categoryId = selectedCategoryFilter.value
-      if (selectedSupplierFilter.value) params.supplierId = selectedSupplierFilter.value
+      // Filtre fournisseur : verrouillé > sélection utilisateur
+      const effectiveSupplierId = lockedSupplierId?.value ?? selectedSupplierFilter.value
+      if (effectiveSupplierId) params.supplierId = effectiveSupplierId
       if (selectedBrandFilter.value) params.brandId = selectedBrandFilter.value
       if (establishmentId.value) params.establishmentId = establishmentId.value
       const response = await $fetch<{ products: Product[]; count: number }>('/api/products', { params })
@@ -106,6 +111,12 @@ export function useMovementCatalog(establishmentId: Ref<number | null>) {
   watch([selectedCategoryFilter, selectedSupplierFilter, selectedBrandFilter], () => {
     loadCatalogProducts()
   })
+
+  if (lockedSupplierId) {
+    watch(lockedSupplierId, () => {
+      loadCatalogProducts()
+    })
+  }
 
   return {
     isProductSelectorOpen,

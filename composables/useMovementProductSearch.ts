@@ -6,7 +6,8 @@ import { useToast } from '@/composables/useToast'
 export function useMovementProductSearch(
   establishmentId: Ref<number | null>,
   onProductSelected: (product: Product) => void,
-  onOpenCatalog: (products?: Product[]) => void
+  onOpenCatalog: (products?: Product[]) => void,
+  supplierId?: Ref<number | null>
 ) {
   const toast = useToast()
   const searchQuery = ref('')
@@ -25,7 +26,8 @@ export function useMovementProductSearch(
         const response = await $fetch<{ products: Product[]; count: number }>('/api/products', {
           params: {
             search: searchQuery.value.trim(),
-            ...(establishmentId.value ? { establishmentId: establishmentId.value } : {})
+            ...(establishmentId.value ? { establishmentId: establishmentId.value } : {}),
+            ...(supplierId?.value ? { supplierId: supplierId.value } : {}),
           }
         })
         searchSuggestions.value = response.products.map(normalizeProduct)
@@ -58,7 +60,10 @@ export function useMovementProductSearch(
     if (!searchQuery.value.trim()) return
     try {
       const response = await $fetch<{ products: Product[]; count: number }>('/api/products', {
-        params: { search: searchQuery.value.trim() }
+        params: {
+          search: searchQuery.value.trim(),
+          ...(supplierId?.value ? { supplierId: supplierId.value } : {}),
+        }
       })
       const products = response.products.map(normalizeProduct)
       if (products.length === 0) {

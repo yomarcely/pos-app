@@ -145,8 +145,7 @@ const data = {
         },
         {
           title: 'Réceptions fournisseurs',
-          url: '#',
-          disabled: true,
+          url: '/mouvements/reception',
         },
         {
           title: 'Inventaire',

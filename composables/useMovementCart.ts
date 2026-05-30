@@ -4,11 +4,17 @@ import { normalizeProduct } from '@/utils/productHelpers'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
 
+export interface MovementCartReceptionContext {
+  supplierId: Ref<number | null>
+  deliveryNoteNumber: Ref<string>
+}
+
 export function useMovementCart(
   movementType: Ref<MovementType>,
   allVariations: Ref<Variation[]>,
   onProductAdded?: () => void,
-  establishmentId?: Ref<number | null>
+  establishmentId?: Ref<number | null>,
+  receptionContext?: MovementCartReceptionContext
 ) {
   const toast = useToast()
   const selectedProducts = ref<SelectedProduct[]>([])
@@ -142,6 +148,13 @@ export function useMovementCart(
         toast.error('Aucune quantité à traiter')
         return
       }
+      const receptionFields = type === 'reception' && receptionContext
+        ? {
+            supplierId: receptionContext.supplierId.value ?? undefined,
+            deliveryNoteNumber: receptionContext.deliveryNoteNumber.value.trim() || undefined,
+          }
+        : {}
+
       const response = await $fetch<{ success: boolean; movement: { id: number; movementNumber: string } }>('/api/movements/create', {
         method: 'POST',
         body: {
@@ -149,6 +162,7 @@ export function useMovementCart(
           comment: comment.value || undefined,
           items,
           establishmentId: establishmentId?.value ?? undefined,
+          ...receptionFields,
         },
       })
       toast.success(`Mouvement ${response.movement.movementNumber} créé avec succès`)
