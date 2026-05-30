@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { brands, syncGroupEstablishments } from '~/server/database/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -43,13 +43,17 @@ export default defineEventHandler(async (event) => {
       }
 
       // Retourner les marques créées par l'établissement OU par les établissements du même groupe
+      // OU les marques globales (createdByEstablishmentId IS NULL)
       allBrands = await db
         .select()
         .from(brands)
         .where(
           and(
             eq(brands.tenantId, tenantId),
-            inArray(brands.createdByEstablishmentId, allowedEstablishmentIds),
+            or(
+              inArray(brands.createdByEstablishmentId, allowedEstablishmentIds),
+              sql`${brands.createdByEstablishmentId} IS NULL`,
+            ),
             eq(brands.isArchived, false)
           )
         )

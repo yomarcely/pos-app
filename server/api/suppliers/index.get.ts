@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { suppliers, syncGroupEstablishments } from '~/server/database/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
 
@@ -43,13 +43,17 @@ export default defineEventHandler(async (event) => {
       }
 
       // Retourner les fournisseurs créés par l'établissement OU par les établissements du même groupe
+      // OU les fournisseurs globaux (createdByEstablishmentId IS NULL)
       allSuppliers = await db
         .select()
         .from(suppliers)
         .where(
           and(
             eq(suppliers.tenantId, tenantId),
-            inArray(suppliers.createdByEstablishmentId, allowedEstablishmentIds),
+            or(
+              inArray(suppliers.createdByEstablishmentId, allowedEstablishmentIds),
+              sql`${suppliers.createdByEstablishmentId} IS NULL`,
+            ),
             eq(suppliers.isArchived, false)
           )
         )
