@@ -16,4 +16,4 @@ export interface SelectedProduct {
   quantitiesByVariation?: Record<string, number>
 }
 
-export type MovementType = 'entry' | 'adjustment' | 'loss'
+export type MovementType = 'entry' | 'adjustment' | 'loss' | 'inventory-prep'

@@ -4,7 +4,7 @@
       <CardTitle>Type de mouvement</CardTitle>
     </CardHeader>
     <CardContent>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Button
           :variant="modelValue === 'entry' ? 'default' : 'outline'"
           size="lg"
@@ -32,13 +32,22 @@
           <AlertTriangle class="w-6 h-6" />
           <span>Pertes</span>
         </Button>
+        <Button
+          :variant="modelValue === 'inventory-prep' ? 'default' : 'outline'"
+          size="lg"
+          @click="$emit('update:modelValue', 'inventory-prep')"
+          class="h-20 flex flex-col gap-2"
+        >
+          <ClipboardList class="w-6 h-6" />
+          <span>Préparation inventaire</span>
+        </Button>
       </div>
     </CardContent>
   </Card>
 </template>
 
 <script setup lang="ts">
-import { PackagePlus, Settings, AlertTriangle } from 'lucide-vue-next'
+import { PackagePlus, Settings, AlertTriangle, ClipboardList } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { MovementType } from '@/types/mouvements'
