@@ -280,6 +280,7 @@ const typeOptions: Array<{ value: MovementHistoryFilter; label: string; disabled
   { value: 'reception-free', label: 'Entrée/Sortie libre' },
   { value: 'adjustment', label: 'Ajustement' },
   { value: 'loss', label: 'Perte' },
+  { value: 'inventory', label: 'Inventaire' },
 ]
 
 function onTypeFilterChange(value: MovementHistoryFilter) {
@@ -306,6 +307,7 @@ function typeLabel(m: MovementHistoryEntry): string {
   if (m.type === 'adjustment') return 'Ajustement'
   if (m.type === 'loss') return 'Perte'
   if (m.type === 'transfer') return 'Transfert'
+  if (m.type === 'inventory') return 'Inventaire'
   return m.type
 }
 
@@ -318,6 +320,8 @@ function typeBadgeClass(m: MovementHistoryEntry): string {
     return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
   if (m.type === 'loss')
     return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+  if (m.type === 'inventory')
+    return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
   return 'bg-muted text-muted-foreground'
 }
 

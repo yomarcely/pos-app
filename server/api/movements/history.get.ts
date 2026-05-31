@@ -21,7 +21,7 @@ import { logger } from '~/server/utils/logger'
  * - dateFrom : ISO date (YYYY-MM-DD), inclusif
  * - dateTo   : ISO date (YYYY-MM-DD), inclusif (fin de journée)
  * - type     : 'reception' | 'reception-supplier' | 'reception-free' |
- *              'adjustment' | 'loss' | 'transfer'
+ *              'adjustment' | 'loss' | 'transfer' | 'inventory'
  * - establishmentId : number
  * - supplierId : number — restreint aux mouvements d'un fournisseur précis
  *   (utile combiné avec type='reception-supplier')
@@ -65,6 +65,7 @@ export default defineEventHandler(async (event) => {
       case 'adjustment':
       case 'loss':
       case 'transfer':
+      case 'inventory':
         conditions.push(eq(movements.type, typeParam))
         break
       default:

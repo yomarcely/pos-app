@@ -10,6 +10,7 @@ export type MovementHistoryFilter =
   | 'adjustment'
   | 'loss'
   | 'transfer'
+  | 'inventory'
 
 export interface MovementHistoryItem {
   id: number
@@ -25,7 +26,7 @@ export interface MovementHistoryItem {
 export interface MovementHistoryEntry {
   id: number
   movementNumber: string
-  type: 'reception' | 'adjustment' | 'loss' | 'transfer'
+  type: 'reception' | 'adjustment' | 'loss' | 'transfer' | 'inventory'
   comment: string | null
   supplierId: number | null
   supplierName: string | null
