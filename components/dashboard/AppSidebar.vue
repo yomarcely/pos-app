@@ -149,8 +149,7 @@ const data = {
         },
         {
           title: 'Inventaire',
-          url: '#',
-          disabled: true,
+          url: '/mouvements/inventaire',
         },
         {
           title: 'Historique',
