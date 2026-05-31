@@ -635,6 +635,69 @@ export const stockMovements = pgTable('stock_movements', {
 }))
 
 // ==========================================
+// 11b. PRÉPARATIONS D'INVENTAIRE
+// ==========================================
+// Workflow en 2 étapes :
+//  1. Sur /mouvements, l'utilisateur crée une "préparation d'inventaire"
+//     (status=draft). Aucun impact sur le stock.
+//  2. Sur /mouvements/inventaire, il sélectionne une ou plusieurs
+//     préparations et déclenche la validation : un mouvement parent
+//     type='inventory' est créé avec les deltas, les préparations
+//     consommées passent en status=validated et pointent vers ce mouvement.
+export const inventoryPreparations = pgTable('inventory_preparations', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Numéro unique (PREP-INV-000001)
+  preparationNumber: varchar('preparation_number', { length: 50 }).notNull().unique(),
+
+  // Métadonnées
+  name: varchar('name', { length: 255 }),
+  comment: text('comment'),
+
+  // Établissement figé à la création
+  establishmentId: integer('establishment_id').references(() => establishments.id),
+
+  // Cycle de vie
+  status: varchar('status', { length: 20 }).notNull().default('draft'), // draft | validated
+  validatedAt: timestamp('validated_at', { withTimezone: true }),
+  validatedMovementId: integer('validated_movement_id').references(() => movements.id),
+
+  userId: integer('user_id'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('inventory_preparations_tenant_id_idx').on(table.tenantId),
+  statusIdx: index('inventory_preparations_status_idx').on(table.status),
+  establishmentIdIdx: index('inventory_preparations_establishment_id_idx').on(table.establishmentId),
+  createdAtIdx: index('inventory_preparations_created_at_idx').on(table.createdAt),
+  preparationNumberIdx: index('inventory_preparations_preparation_number_idx').on(table.preparationNumber),
+}))
+
+// Lignes d'une préparation : produit/variation à compter
+export const inventoryPreparationItems = pgTable('inventory_preparation_items', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  preparationId: integer('preparation_id').notNull().references(() => inventoryPreparations.id, { onDelete: 'cascade' }),
+
+  productId: integer('product_id').notNull().references(() => products.id),
+  variation: varchar('variation', { length: 100 }),
+
+  // Stock système au moment de la création de la préparation (info historique)
+  expectedStock: integer('expected_stock').notNull(),
+  // Stock compté physiquement par l'utilisateur
+  countedStock: integer('counted_stock').notNull(),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('inventory_preparation_items_tenant_id_idx').on(table.tenantId),
+  preparationIdIdx: index('inventory_preparation_items_preparation_id_idx').on(table.preparationId),
+  productIdIdx: index('inventory_preparation_items_product_id_idx').on(table.productId),
+}))
+
+// ==========================================
 // 12. LOGS D'AUDIT (NF525 + RGPD)
 // ==========================================
 export const auditLogs = pgTable('audit_logs', {
@@ -1138,6 +1201,29 @@ export const movementsRelations = relations(movements, ({ one, many }) => ({
     references: [establishments.id],
   }),
   stockMovements: many(stockMovements),
+}))
+
+export const inventoryPreparationsRelations = relations(inventoryPreparations, ({ one, many }) => ({
+  establishment: one(establishments, {
+    fields: [inventoryPreparations.establishmentId],
+    references: [establishments.id],
+  }),
+  validatedMovement: one(movements, {
+    fields: [inventoryPreparations.validatedMovementId],
+    references: [movements.id],
+  }),
+  items: many(inventoryPreparationItems),
+}))
+
+export const inventoryPreparationItemsRelations = relations(inventoryPreparationItems, ({ one }) => ({
+  preparation: one(inventoryPreparations, {
+    fields: [inventoryPreparationItems.preparationId],
+    references: [inventoryPreparations.id],
+  }),
+  product: one(products, {
+    fields: [inventoryPreparationItems.productId],
+    references: [products.id],
+  }),
 }))
 
 export const sellersRelations = relations(sellers, ({ many }) => ({
