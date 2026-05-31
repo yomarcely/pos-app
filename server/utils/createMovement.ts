@@ -19,7 +19,7 @@ export interface CreateMovementOptions {
  * @returns L'ID et le numéro du mouvement créé
  */
 export async function createMovement(
-  type: 'reception' | 'adjustment' | 'loss' | 'transfer',
+  type: 'reception' | 'adjustment' | 'loss' | 'transfer' | 'inventory',
   comment?: string,
   userId?: number,
   tenantId?: string,

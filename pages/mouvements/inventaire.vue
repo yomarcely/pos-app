@@ -240,19 +240,69 @@
         </CardContent>
       </Card>
 
+      <!-- Erreurs archivage (réponse 409) -->
+      <Card v-if="archiveErrors && archiveErrors.length > 0" class="border-destructive">
+        <CardHeader>
+          <CardTitle class="text-destructive flex items-center gap-2">
+            <AlertTriangle class="w-5 h-5" />
+            Archivage refusé
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-sm mb-3">
+            Ces articles n'ont plus un stock à 0 au moment de la validation.
+            Recalcule l'aperçu avant de réessayer.
+          </p>
+          <ul class="text-sm space-y-1">
+            <li v-for="e in archiveErrors" :key="e.productId" class="border rounded p-2">
+              <span class="font-medium">{{ e.name }}</span>
+              — stock actuel :
+              <span class="font-mono">{{ e.currentStock }}</span>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
       <!-- Validation finale -->
       <Card>
         <CardContent class="py-4 flex justify-between items-center">
           <div class="text-sm text-muted-foreground">
-            <span class="font-medium text-foreground">{{ preview.inventoried.length }}</span> ajustements
+            <span class="font-medium text-foreground">{{ adjustmentCount }}</span> ajustements
             · <span class="font-medium text-foreground">{{ setToZeroKeys.size }}</span> mises à zéro
             · <span class="font-medium text-foreground">{{ archiveKeys.size }}</span> archivages
           </div>
-          <Button disabled>
-            Valider l'inventaire (à venir)
+          <Button
+            :disabled="validating || (adjustmentCount + setToZeroKeys.size + archiveKeys.size) === 0"
+            @click="confirmDialogOpen = true"
+          >
+            {{ validating ? 'Validation...' : "Valider l'inventaire" }}
           </Button>
         </CardContent>
       </Card>
+
+      <!-- Dialog confirmation -->
+      <AlertDialog v-model:open="confirmDialogOpen">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Valider l'inventaire ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est définitive :
+              <ul class="list-disc ml-5 mt-2 space-y-0.5">
+                <li>{{ adjustmentCount }} ajustement(s) de stock seront appliqué(s)</li>
+                <li v-if="setToZeroKeys.size > 0">{{ setToZeroKeys.size }} article(s) passeront à 0 (perte)</li>
+                <li v-if="archiveKeys.size > 0">{{ archiveKeys.size }} article(s) seront archivé(s)</li>
+                <li>Les préparations sélectionnées seront marquées comme validées</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel @click="confirmDialogOpen = false">Annuler</AlertDialogCancel>
+            <AlertDialogAction :disabled="validating" @click="handleValidate">
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </template>
   </div>
 </template>
@@ -260,6 +310,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { AlertTriangle, RefreshCcw } from 'lucide-vue-next'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -278,10 +338,13 @@ const {
   preview,
   previewing,
   conflicts,
+  validating,
+  archiveErrors,
   loadPreparations,
   toggleSelected,
   clearSelection,
   loadPreview,
+  validate,
 } = useInventoryValidation()
 
 const draftPreparations = computed(() =>
@@ -350,6 +413,34 @@ function toggleAllArchive() {
 function deltaClass(delta: number): string {
   if (delta === 0) return 'text-muted-foreground'
   return delta > 0 ? 'text-green-600' : 'text-red-600'
+}
+
+// Compte les ajustements qui généreront un mouvement (delta != 0)
+const adjustmentCount = computed(() =>
+  preview.value?.inventoried.filter((r) => r.delta !== 0).length || 0,
+)
+
+// Confirmation + validation finale
+const confirmDialogOpen = ref(false)
+
+async function handleValidate() {
+  if (!preview.value) return
+  const setToZeroItems = preview.value.notInventoriedPositive
+    .filter((r) => setToZeroKeys.value.has(rowKey(r)))
+    .map((r) => ({ productId: r.productId, variation: r.variation }))
+  const archiveProductIds = Array.from(
+    new Set(
+      preview.value.notInventoriedNonPositive
+        .filter((r) => r.stock === 0 && archiveKeys.value.has(rowKey(r)))
+        .map((r) => r.productId),
+    ),
+  )
+  confirmDialogOpen.value = false
+  const result = await validate({ setToZeroItems, archiveProductIds })
+  if (result.success) {
+    setToZeroKeys.value = new Set()
+    archiveKeys.value = new Set()
+  }
 }
 
 onMounted(loadPreparations)

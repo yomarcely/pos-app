@@ -47,6 +47,12 @@ export interface ConflictDetail {
   counts: Array<{ preparationNumber: string; countedStock: number }>
 }
 
+export interface ArchiveError {
+  productId: number
+  name: string
+  currentStock: number
+}
+
 export function useInventoryValidation() {
   const toast = useToast()
 
@@ -58,6 +64,9 @@ export function useInventoryValidation() {
   const preview = ref<PreviewResult | null>(null)
   const previewing = ref(false)
   const conflicts = ref<ConflictDetail[] | null>(null)
+
+  const validating = ref(false)
+  const archiveErrors = ref<ArchiveError[] | null>(null)
 
   async function loadPreparations(): Promise<void> {
     loadingList.value = true
@@ -126,6 +135,58 @@ export function useInventoryValidation() {
     }
   }
 
+  interface ValidatePayload {
+    setToZeroItems: Array<{ productId: number; variation: string | null }>
+    archiveProductIds: number[]
+  }
+
+  async function validate(payload: ValidatePayload): Promise<{ success: boolean; movementNumber?: string }> {
+    if (selectedIds.value.size === 0) {
+      toast.error('Sélectionnez au moins une préparation')
+      return { success: false }
+    }
+    validating.value = true
+    archiveErrors.value = null
+    try {
+      const result = await $fetch<{
+        success: boolean
+        movement: { id: number; movementNumber: string }
+        adjustmentCount: number
+        archivedCount: number
+      }>('/api/inventory-preparations/validate', {
+        method: 'POST',
+        body: {
+          preparationIds: Array.from(selectedIds.value),
+          setToZeroItems: payload.setToZeroItems,
+          archiveProductIds: payload.archiveProductIds,
+        },
+      })
+      toast.success(
+        `Inventaire validé : ${result.movement.movementNumber} ` +
+        `(${result.adjustmentCount} ajustements, ${result.archivedCount} archivés)`,
+      )
+      // Reset complet pour permettre une nouvelle validation
+      clearSelection()
+      await loadPreparations()
+      return { success: true, movementNumber: result.movement.movementNumber }
+    } catch (error: unknown) {
+      const err = error as { statusCode?: number; data?: { archiveErrors?: ArchiveError[]; conflicts?: ConflictDetail[] }; message?: string }
+      if (err.statusCode === 409 && err.data?.archiveErrors) {
+        archiveErrors.value = err.data.archiveErrors
+        toast.error("Certains articles à archiver n'ont plus un stock à 0")
+      } else if (err.statusCode === 409 && err.data?.conflicts) {
+        conflicts.value = err.data.conflicts
+        preview.value = null
+        toast.error('Conflit de comptage détecté lors de la validation')
+      } else {
+        toast.error(extractFetchError(error, "Erreur lors de la validation de l'inventaire"))
+      }
+      return { success: false }
+    } finally {
+      validating.value = false
+    }
+  }
+
   return {
     preparations,
     loadingList,
@@ -133,9 +194,12 @@ export function useInventoryValidation() {
     preview,
     previewing,
     conflicts,
+    validating,
+    archiveErrors,
     loadPreparations,
     toggleSelected,
     clearSelection,
     loadPreview,
+    validate,
   }
 }
