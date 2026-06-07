@@ -58,15 +58,15 @@ watch(selectedEstablishmentId, async (newId, oldId) => {
 
     <!-- 🧩 Grille principale -->
     <div class="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 p-4 overflow-hidden">
-      <aside class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
+      <aside class="h-full rounded-lg shadow-sm border border-border bg-card p-4 overflow-hidden">
         <CaisseColLeft />
       </aside>
 
-      <main class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
+      <main class="h-full rounded-lg shadow-sm border border-border bg-card p-4 overflow-hidden">
         <CaisseColMiddle />
       </main>
 
-      <aside class="h-full rounded-lg shadow bg-muted/50 p-4 overflow-hidden">
+      <aside class="h-full rounded-lg shadow-sm border border-border bg-card p-4 overflow-hidden">
         <CaisseColRight @payments-changed="hasPayments = $event" />
       </aside>
     </div>

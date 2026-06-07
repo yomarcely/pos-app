@@ -29,7 +29,7 @@ const productImage = computed(() => {
 })
 
 const bgClass = computed(() => {
-  if (!props.shortcut) return 'bg-muted/60 hover:bg-muted border-dashed'
+  if (!props.shortcut) return 'bg-muted/40 hover:bg-muted/70 border-2 border-dashed border-muted-foreground/25'
   return 'hover:opacity-80 border-transparent shadow-sm'
 })
 

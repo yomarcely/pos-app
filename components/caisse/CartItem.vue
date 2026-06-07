@@ -170,7 +170,7 @@ watch(variationGroups, (newGroups) => {
 </script>
 
 <template>
-    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border" :class="{
+    <div class="relative flex gap-4 p-4 mb-2 rounded-lg shadow-sm border bg-background" :class="{
         'opacity-50 pointer-events-none select-none': isLocked,
         'border-2 border-orange-400 bg-orange-400/5': product.quantity < 0
     }">
