@@ -1075,6 +1075,39 @@ export const loyaltyVouchers = pgTable('loyalty_vouchers', {
 }))
 
 // ==========================================
+// 23. NOTES & RAPPELS (partagés entre vendeurs)
+// ==========================================
+export const notes = pgTable('notes', {
+  id: serial('id').primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull(),
+
+  // Rattachement établissement (null = visible sur tout le tenant)
+  establishmentId: integer('establishment_id').references(() => establishments.id, { onDelete: 'cascade' }),
+
+  // Contenu de la note / du rappel
+  content: text('content').notNull(),
+
+  // Catégorie : 'general' | 'client' | 'tache'
+  type: varchar('type', { length: 20 }).notNull().default('general'),
+
+  // Lien optionnel vers un client
+  customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+
+  // Date limite optionnelle
+  dueDate: timestamp('due_date', { withTimezone: true }),
+
+  // Statut fait / à faire
+  done: boolean('done').notNull().default(false),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tenantIdIdx: index('notes_tenant_id_idx').on(table.tenantId),
+  tenantDoneIdx: index('notes_tenant_done_idx').on(table.tenantId, table.done),
+  dueDateIdx: index('notes_due_date_idx').on(table.dueDate),
+}))
+
+// ==========================================
 // RELATIONS
 // ==========================================
 
