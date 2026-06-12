@@ -41,9 +41,15 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 - `server/utils/sync.ts` (800 l.) — propagation multi-établissement
 - `server/api/sync-groups/[id]/resync.post.ts` (562 l.) — opération destructive
 
-### Risques ouverts
-- **Signature NF525 temporaire** (`nf525.ts:157`) : `TEMP_SIGNATURE_*` tant que `INFOCERT_PRIVATE_KEY` absente — bloquant certification
-- **Numérotation NF525 basée sur position `isActive`** (`sales/create.post.ts:175`) : désactiver un établ. décale les numéros suivants
+### Risques ouverts (audit 2026-06-12 — plan : [docs/audit/11-plan-corrections.md](docs/audit/11-plan-corrections.md))
+- 🔴 **Header `x-tenant-id` non validé** (`server/utils/supabase.ts:32`) : accepté sans vérification contre les tenants autorisés — rupture d'isolation multi-tenant (P1.1)
+- 🔴 **Hash NF525 invérifiable** (`sales/create.post.ts:416` vs `:449`) : deux `new Date()` distincts entre le hash et la `saleDate` stockée → `verify-chain` signale tous les tickets corrompus (P1.2)
+- 🔴 **Signature NF525 temporaire** (`nf525.ts:157`) : `TEMP_SIGNATURE_*` tant que `INFOCERT_PRIVATE_KEY` absente — bloquant ; l'auto-attestation éditeur n'est plus admise (loi de finances 2025), certification organisme accrédité requise
+- 🔴 **Stock négatif silencieux** (`sales/create.post.ts:626,648`) : aucune borne sur `newStock` (P1.3)
+- 🟠 **Annulations non chaînées NF525** (`sales/[id]/cancel.post.ts`) : pas de ticket d'avoir dans la chaîne (P3.2)
+- 🟠 **Panier non persisté** (`stores/cart.ts`) : perdu au F5 / expiration session (P2.1)
+- 🟠 **Double source de stock** : `products.stock` vs `productStocks` — la vente n'écrit que `productStocks` (P3.5)
+- ✅ ~~Numérotation NF525 basée sur position `isActive`~~ : résolu par migration 0013 (colonnes immuables `establishmentNumber`/`registerNumber`)
 
 ---
 
@@ -90,7 +96,7 @@ event.context.auth = {
 **Jamais** lire `event.context.auth.tenantId` directement.
 
 ### Ordre de résolution `getTenantFromUser`
-1. Header `x-tenant-id`
+1. Header `x-tenant-id` (⚠️ actuellement accepté sans validation — doit être vérifié contre les tenants autorisés, voir P1.1 du plan de corrections)
 2. `user.app_metadata.tenant_id` (ou `tenantId`, `user_metadata`)
 3. `user.app_metadata.tenants[0]`
 4. `user.id` (fallback SaaS self-serve)
@@ -120,4 +126,4 @@ pnpm env:switch           # bascule d'environnement (dev/staging/prod)
 - Checklist pré-déploiement : [docs/pre-deploy-checklist.md](docs/pre-deploy-checklist.md)
 - Index structurel : [codebase_index.md](codebase_index.md)
 
-*Dernière mise à jour : 2026-04-22 — version stricte (invariants + zones critiques uniquement)*
+*Dernière mise à jour : 2026-06-12 — risques ouverts actualisés suite audit complet (voir docs/audit/11-plan-corrections.md)*
