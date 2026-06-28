@@ -40,23 +40,48 @@ describe('getTenantFromUser', () => {
     mockGetHeader.mockReturnValue(undefined)
   })
 
-  // ── Priorité 1 : header x-tenant-id ────────────────────────────────────────
+  // ── Priorité 1 : header x-tenant-id (validé contre les tenants autorisés) ────
+  // Sécurité : le header n'est accepté que s'il fait partie des tenants de
+  // l'utilisateur. Un header forgé vers un autre tenant est rejeté (→ null).
 
   describe('Priorité 1 — header x-tenant-id', () => {
-    it('retourne la valeur du header si présent', () => {
-      mockGetHeader.mockReturnValue('tenant-from-header')
-      expect(getTenantFromUser(makeUser(), mockEvent)).toBe('tenant-from-header')
+    it('accepte le header s\'il figure dans app_metadata.tenant_id', () => {
+      mockGetHeader.mockReturnValue('tenant-autorise')
+      const user = makeUser({ app_metadata: { tenant_id: 'tenant-autorise' } })
+      expect(getTenantFromUser(user, mockEvent)).toBe('tenant-autorise')
     })
 
-    it('prend la priorité sur app_metadata', () => {
-      mockGetHeader.mockReturnValue('header-wins')
-      const user = makeUser({ app_metadata: { tenant_id: 'meta-should-lose' } })
-      expect(getTenantFromUser(user, mockEvent)).toBe('header-wins')
+    it('accepte le header s\'il figure dans le tableau tenants[]', () => {
+      mockGetHeader.mockReturnValue('tenant-b')
+      const user = makeUser({
+        app_metadata: { tenants: [{ id: 'tenant-a' }, { id: 'tenant-b' }] },
+      })
+      expect(getTenantFromUser(user, mockEvent)).toBe('tenant-b')
     })
 
-    it('prend la priorité même si user est null', () => {
+    it('accepte le header égal à user.id (convention 1 user = 1 tenant)', () => {
+      mockGetHeader.mockReturnValue('user-id-123')
+      expect(getTenantFromUser(makeUser({ id: 'user-id-123' }), mockEvent)).toBe('user-id-123')
+    })
+
+    it('REJETTE un header forgé absent des tenants autorisés (→ null)', () => {
+      mockGetHeader.mockReturnValue('tenant-dun-autre')
+      const user = makeUser({ id: 'user-id-123', app_metadata: { tenant_id: 'mon-tenant' } })
+      expect(getTenantFromUser(user, mockEvent)).toBeNull()
+    })
+
+    it('REJETTE le header si user est null (aucun tenant autorisé)', () => {
       mockGetHeader.mockReturnValue('header-no-user')
-      expect(getTenantFromUser(null, mockEvent)).toBe('header-no-user')
+      expect(getTenantFromUser(null, mockEvent)).toBeNull()
+    })
+
+    it('prend la priorité sur app_metadata quand il est autorisé', () => {
+      // L'utilisateur a droit aux deux tenants ; le header départage.
+      mockGetHeader.mockReturnValue('tenant-b')
+      const user = makeUser({
+        app_metadata: { tenant_id: 'tenant-a', tenants: [{ id: 'tenant-b' }] },
+      })
+      expect(getTenantFromUser(user, mockEvent)).toBe('tenant-b')
     })
   })
 

@@ -23,9 +23,7 @@ const KNOWN_PUBLIC = [
 ]
 
 // Fichiers exclus de l'audit (exemples tiers, code de wizard, etc.)
-const EXCLUDED = [
-  'sentry-example-api', // ajouté par le wizard Sentry, pas notre code
-]
+const EXCLUDED: string[] = []
 
 interface AuditResult {
   path: string

@@ -280,7 +280,7 @@ describe('Isolation tenant — audit statique', () => {
       for (const entry of readdirSync(dir)) {
         const full = join(dir, entry)
         if (statSync(full).isDirectory()) out.push(...listFiles(full))
-        else if (full.endsWith('.ts') && !full.includes('sentry-example')) out.push(full)
+        else if (full.endsWith('.ts')) out.push(full)
       }
       return out
     }
@@ -305,7 +305,7 @@ describe('Isolation tenant — audit statique', () => {
       for (const entry of readdirSync(dir)) {
         const full = join(dir, entry)
         if (statSync(full).isDirectory()) out.push(...listFiles(full))
-        else if (full.endsWith('.ts') && !full.includes('sentry-example')) out.push(full)
+        else if (full.endsWith('.ts')) out.push(full)
       }
       return out
     }
