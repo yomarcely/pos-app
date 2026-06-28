@@ -3,6 +3,9 @@ import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart, SalePayload, SaleResponse } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
 import { useProductsStore } from '@/stores/products'
+import { useAuthStore } from '@/stores/auth'
+import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { useToast } from '@/composables/useToast'
 
 import {
   getFinalPrice,
@@ -10,6 +13,12 @@ import {
   totalHT,
   totalTVA
 } from '@/utils/cartUtils'
+import {
+  cartStorageKey,
+  readPersisted,
+  writePersisted,
+  purgePersisted,
+} from '@/utils/cartPersistence'
 
 export const useCartStore = defineStore('cart', () => {
 
@@ -18,6 +27,20 @@ export const useCartStore = defineStore('cart', () => {
   const selectedProduct = ref<Product | null>(null)
   const globalDiscount = ref(0)
   const globalDiscountType = ref<'%' | '€'>('%')
+
+  // --- IDEMPOTENCE ---
+  // UUID identifiant la vente en cours côté client, généré au premier article ajouté.
+  // Envoyé dans le payload de création : le serveur ignore un rejeu (double-submit,
+  // mode offline) du même (tenantId, clientSaleId). Régénéré après vente réussie
+  // ou panier vidé (clearCart), persisté avec le panier.
+  const clientSaleId = ref<string | null>(null)
+
+  function ensureClientSaleId(): string {
+    if (!clientSaleId.value) {
+      clientSaleId.value = crypto.randomUUID()
+    }
+    return clientSaleId.value
+  }
 
   // --- FIDÉLITÉ ---
   // Avantage en attente d'être consommé sur cette vente.
@@ -43,6 +66,126 @@ export const useCartStore = defineStore('cart', () => {
     amount: number
   }
   const appliedVouchers = ref<AppliedVoucher[]>([])
+
+  // --- PERSISTANCE LOCALE (anti-perte F5 / crash / expiration session) ---
+  // Snapshot du panier en cours dans localStorage, clé scopée tenant + caisse.
+  // Les paiements en cours sont persistés séparément par useCheckout (même pattern de clé).
+  interface PersistedCart {
+    v: 1
+    items: ProductInCart[]
+    globalDiscount: number
+    globalDiscountType: '%' | '€'
+    customerId: number | null
+    appliedVouchers: AppliedVoucher[]
+    clientSaleId?: string | null
+  }
+
+  // Résout la clé de stockage courante. Null si tenant/caisse indisponibles
+  // (SSR, session non restaurée, environnement de test) → persistance désactivée.
+  function getPersistenceKey(): string | null {
+    try {
+      const tenantId = useAuthStore().tenantId
+      const registerId = useEstablishmentRegister().selectedRegisterId.value
+      if (!tenantId || !registerId) return null
+      return cartStorageKey(tenantId, registerId)
+    } catch {
+      return null
+    }
+  }
+
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null
+  let _suspendPersistence = false
+
+  function persistCartNow(): void {
+    if (_suspendPersistence) return
+    const key = getPersistenceKey()
+    if (!key) return
+
+    // Panier vide = rien à restaurer : on purge plutôt que d'écrire un snapshot vide
+    if (items.value.length === 0 && appliedVouchers.value.length === 0) {
+      purgePersisted(key)
+      return
+    }
+
+    const snapshot: PersistedCart = {
+      v: 1,
+      items: JSON.parse(JSON.stringify(items.value)),
+      globalDiscount: globalDiscount.value,
+      globalDiscountType: globalDiscountType.value,
+      customerId: useCustomerStore().client?.id != null
+        ? Number(useCustomerStore().client!.id)
+        : null,
+      appliedVouchers: JSON.parse(JSON.stringify(appliedVouchers.value)),
+      clientSaleId: clientSaleId.value,
+    }
+    writePersisted(key, snapshot)
+  }
+
+  // Débounce 300ms pour éviter le thrashing localStorage pendant la saisie
+  function schedulePersist(): void {
+    if (_suspendPersistence) return
+    if (_saveTimer) clearTimeout(_saveTimer)
+    _saveTimer = setTimeout(persistCartNow, 300)
+  }
+
+  watch(
+    [items, globalDiscount, globalDiscountType, appliedVouchers, () => useCustomerStore().client?.id],
+    schedulePersist,
+    { deep: true }
+  )
+
+  /**
+   * Restaure le panier persisté pour le tenant/caisse courants (appelé au montage de la caisse).
+   * Retourne true si un panier a été restauré. JSON corrompu ou > 500 Ko → purge silencieuse.
+   */
+  function restorePersistedCart(): boolean {
+    const key = getPersistenceKey()
+    if (!key) return false
+
+    const snapshot = readPersisted<PersistedCart>(key)
+    if (!snapshot || snapshot.v !== 1 || !Array.isArray(snapshot.items) || snapshot.items.length === 0) {
+      if (snapshot) purgePersisted(key) // forme inattendue : purge
+      return false
+    }
+
+    _suspendPersistence = true
+    try {
+      items.value = snapshot.items
+      globalDiscount.value = Number(snapshot.globalDiscount) || 0
+      globalDiscountType.value = snapshot.globalDiscountType === '€' ? '€' : '%'
+      appliedVouchers.value = Array.isArray(snapshot.appliedVouchers) ? snapshot.appliedVouchers : []
+      // Restaurer l'identifiant d'idempotence : un rejeu après F5 reste protégé.
+      // Snapshot pré-feature sans clientSaleId → régénéré au prochain accès.
+      clientSaleId.value = typeof snapshot.clientSaleId === 'string' ? snapshot.clientSaleId : null
+
+      if (snapshot.customerId != null) {
+        const customerStore = useCustomerStore()
+        const client = customerStore.clients.find(c => Number(c.id) === snapshot.customerId)
+        if (client) {
+          customerStore.selectClient(client)
+        } else {
+          // Clients pas encore chargés : sélection différée au premier chargement
+          const stop = watch(() => customerStore.clients, (clients) => {
+            const found = clients.find(c => Number(c.id) === snapshot.customerId)
+            if (found) customerStore.selectClient(found)
+            stop()
+          })
+        }
+      }
+    } finally {
+      _suspendPersistence = false
+    }
+
+    useToast().info('Panier restauré')
+    return true
+  }
+
+  /** Purge le snapshot persisté du panier courant. */
+  function purgePersistedCart(): void {
+    if (_saveTimer) clearTimeout(_saveTimer)
+    const key = getPersistenceKey()
+    if (key) purgePersisted(key)
+  }
 
   // --- TICKETS EN ATTENTE ---
   // Persistés côté serveur (table pending_sales). Chargés via loadPendingCarts()
@@ -108,6 +251,7 @@ export const useCartStore = defineStore('cart', () => {
     items.value = cartData.items
     globalDiscount.value = Number(cartData.globalDiscount) || 0
     globalDiscountType.value = cartData.globalDiscountType
+    ensureClientSaleId()
 
     // Gérer le client
     const customerStore = useCustomerStore()
@@ -216,6 +360,9 @@ export const useCartStore = defineStore('cart', () => {
       items.value.push(cartItem)
     }
 
+    // Identifiant d'idempotence de la vente en cours (généré au premier article)
+    ensureClientSaleId()
+
     // Si une remise loyalty %/€ est active, la (ré)appliquer maintenant que les items ont changé.
     // Cas typique : l'utilisateur a sélectionné le client (et activé l'étoile) AVANT d'ajouter
     // les produits — la remise n'avait pas pu s'appliquer (panier vide) et doit l'être ici.
@@ -234,6 +381,7 @@ export const useCartStore = defineStore('cart', () => {
 
   function clearCart(): void {
     items.value = []
+    clientSaleId.value = null // régénéré au prochain ajout (nouvelle vente = nouvel UUID)
     globalDiscount.value = 0
     globalDiscountType.value = '%'
     loyaltyReward.value = null
@@ -241,6 +389,7 @@ export const useCartStore = defineStore('cart', () => {
     appliedVouchers.value = []
     const customerStore = useCustomerStore()
     customerStore.clearClient?.()
+    purgePersistedCart()
   }
 
   /** Active un voucher pour la vente courante. Idempotent. */
@@ -494,6 +643,7 @@ export const useCartStore = defineStore('cart', () => {
     pendingSharedAcrossRegisters,
     loyaltyReward,
     appliedVouchers,
+    clientSaleId,
 
     // getters
     getFinalPrice: (product: ProductInCart) =>
@@ -524,5 +674,7 @@ export const useCartStore = defineStore('cart', () => {
     validateStock,
     checkDayClosure,
     submitSale,
+    restorePersistedCart,
+    purgePersistedCart,
   }
 })

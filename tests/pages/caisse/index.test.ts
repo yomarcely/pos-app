@@ -31,17 +31,23 @@ const variationStoreMock = {
   loading: false
 }
 
+const cartStoreMock = {
+  restorePersistedCart: vi.fn(() => false)
+}
+
 // Mock du composable useEstablishmentRegister
 const selectedEstablishmentId = ref<number | null>(1)
+const selectedRegisterId = ref<number | null>(null)
 vi.mock('@/composables/useEstablishmentRegister', () => ({
   useEstablishmentRegister: () => ({
     selectedEstablishmentId,
-    selectedRegisterId: ref(null),
+    selectedRegisterId,
     establishments: ref([]),
     registers: ref([])
   })
 }))
 
+vi.mock('@/stores/cart', () => ({ useCartStore: () => cartStoreMock }))
 vi.mock('@/stores/products', () => ({ useProductsStore: () => productsStoreMock }))
 vi.mock('@/stores/customer', () => ({ useCustomerStore: () => customerStoreMock }))
 vi.mock('@/stores/sellers', () => ({ useSellersStore: () => sellersStoreMock }))
@@ -57,6 +63,8 @@ describe('Page caisse', () => {
     sellersStoreMock.initialize.mockClear()
     sellersStoreMock.loadSellers.mockClear()
     variationStoreMock.loadGroups.mockClear()
+    cartStoreMock.restorePersistedCart.mockClear()
+    selectedRegisterId.value = null
   })
 
   it('charge produits/clients/vendeurs/variations au montage', async () => {
@@ -77,5 +85,17 @@ describe('Page caisse', () => {
     // Le store sellers utilise initialize() au montage, pas loadSellers() directement
     expect(sellersStoreMock.initialize).toHaveBeenCalled()
     expect(variationStoreMock.loadGroups).toHaveBeenCalled()
+
+    // Caisse pas encore résolue au montage : pas de restauration tentée
+    expect(cartStoreMock.restorePersistedCart).not.toHaveBeenCalled()
+
+    // Dès que la caisse est connue, une (et une seule) restauration est tentée
+    selectedRegisterId.value = 3
+    await wrapper.vm.$nextTick()
+    expect(cartStoreMock.restorePersistedCart).toHaveBeenCalledTimes(1)
+
+    selectedRegisterId.value = 4
+    await wrapper.vm.$nextTick()
+    expect(cartStoreMock.restorePersistedCart).toHaveBeenCalledTimes(1)
   })
 })

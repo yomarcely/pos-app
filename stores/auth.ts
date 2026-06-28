@@ -4,11 +4,12 @@ import type { Session, User } from '@supabase/supabase-js'
 import { useSupabaseClient } from '@/composables/useSupabaseClient'
 import { useSellersStore } from '@/stores/sellers'
 import { useOnboardingStore } from '@/stores/onboarding'
-import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
+import { useEstablishmentRegisterStore } from '@/stores/establishmentRegister'
+import { purgeAllPersistedCarts } from '@/utils/cartPersistence'
 import type { Tenant, AuthError } from '@/types'
 
 const extractTenants = (user: User | null, fallbackTenant?: string) => {
-  const meta = (user?.app_metadata || user?.user_metadata || {}) as Record<string, any>
+  const meta = (user?.app_metadata || user?.user_metadata || {}) as Record<string, unknown>
 
   const tenants: Tenant[] = Array.isArray(meta.tenants)
     ? meta.tenants.map((tenant) => ({
@@ -121,7 +122,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const signOut = async () => {
+  /**
+   * @param options.sessionExpired true = déconnexion subie (token expiré, 401).
+   *   Dans ce cas on conserve le panier persisté pour que le même caissier le
+   *   retrouve après re-login (P2.1). Par défaut (déconnexion volontaire) :
+   *   purge totale, pas de fuite vers le prochain utilisateur.
+   */
+  const signOut = async (options: { sessionExpired?: boolean } = {}) => {
     loading.value = true
     error.value = null
     try {
@@ -142,9 +149,36 @@ export const useAuthStore = defineStore('auth', () => {
       tenants.value = []
       loading.value = false
       useSellersStore().clearSeller()
-      // Réinitialiser les données d'établissements pour le prochain utilisateur
-      useEstablishmentRegister().reset()
+      // Réinitialiser les données d'établissements pour le prochain utilisateur (mécanique Pinia $reset)
+      useEstablishmentRegisterStore().$reset()
       useOnboardingStore().reset()
+      // Purge des paniers/paiements persistés (tous tenants) — pas de fuite vers le
+      // prochain user. Sautée si la session a simplement expiré : on garde le panier.
+      if (!options.sessionExpired) {
+        purgeAllPersistedCarts()
+      }
+    }
+  }
+
+  /**
+   * Tente de rafraîchir le token via Supabase. Retourne true si une nouvelle
+   * session valide a été obtenue, false sinon (refresh token expiré/réseau).
+   * Ne lève jamais : l'appelant (plugin api-fetch) décide quoi faire de l'échec.
+   */
+  const refreshSession = async (): Promise<boolean> => {
+    if (!supabase) return false
+    try {
+      const { data, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError || !data.session) {
+        console.warn('[Auth] refreshSession failed', refreshError)
+        return false
+      }
+      session.value = data.session
+      setUserContext(data.session.user ?? null)
+      return true
+    } catch (err: unknown) {
+      console.error('[Auth] refreshSession threw', err)
+      return false
     }
   }
 
@@ -199,6 +233,7 @@ export const useAuthStore = defineStore('auth', () => {
     signUp,
     signIn,
     signOut,
+    refreshSession,
     restoreSession,
     selectTenant,
     getAuthHeaders,
