@@ -32,6 +32,7 @@ const cartStoreMock = {
   validateStock: vi.fn(() => ({ valid: true, errors: [] as string[] })),
   submitSale: vi.fn(async (_payload: unknown) => ({
     success: true,
+    stockWarnings: [] as Array<{ productId: number; productName: string; variation: string | null; remainingStock: number }>,
     sale: {
       id: 1,
       ticketNumber: 'T-001',
@@ -125,6 +126,7 @@ describe('ColRight (caisse)', () => {
     cartStoreMock.submitSale.mockReset()
     cartStoreMock.submitSale.mockImplementation(async () => ({
       success: true,
+      stockWarnings: [],
       sale: {
         id: 1,
         ticketNumber: 'T-001',
@@ -361,15 +363,23 @@ describe('ColRight (caisse)', () => {
     expect(toastMock.success).toHaveBeenCalledWith(expect.stringContaining('Vente'))
   })
 
-  it('validerVente — stock insuffisant déclenche un warning mais continue', async () => {
+  it('validerVente — survente : warning listant les articles concernés, la vente passe', async () => {
     setupHappyPath()
-    cartStoreMock.validateStock.mockReturnValue({ valid: false, errors: ['Produit A: 2/1'] })
+    cartStoreMock.submitSale.mockResolvedValue({
+      success: true,
+      stockWarnings: [
+        { productId: 10, productName: 'Produit A', variation: null, remainingStock: -1 },
+      ],
+      sale: { id: 1, ticketNumber: 'T-001', hash: 'x', signature: 'y', saleDate: new Date() },
+    })
     const wrapper = mountComponent()
     await (wrapper.vm as any).addPayment('Espèces')
     await (wrapper.vm as any).validerVente()
 
-    expect(toastMock.warning).toHaveBeenCalledWith(expect.stringContaining('Stock'))
+    expect(toastMock.warning).toHaveBeenCalledWith(expect.stringContaining('Produit A'))
+    expect(toastMock.warning).toHaveBeenCalledWith(expect.stringContaining('-1'))
     expect(cartStoreMock.submitSale).toHaveBeenCalledTimes(1)
+    expect(cartStoreMock.clearCart).toHaveBeenCalledTimes(1)
   })
 
   it('validerVente — double-soumission bloquée par isSubmitting', async () => {
@@ -387,14 +397,18 @@ describe('ColRight (caisse)', () => {
     expect(cartStoreMock.submitSale).toHaveBeenCalledTimes(1)
   })
 
-  it('validerVente — erreur API : toast erreur sans clear cart', async () => {
+  it('validerVente — erreur API 4xx : dialog d\'erreur sans clear cart', async () => {
     setupHappyPath()
-    cartStoreMock.submitSale.mockRejectedValue(new Error('API down'))
+    // 400 : non retryable → échec immédiat, pas de backoff à attendre
+    cartStoreMock.submitSale.mockRejectedValue({ statusCode: 400, message: 'API down' })
     const wrapper = mountComponent()
     await (wrapper.vm as any).addPayment('Espèces')
     await (wrapper.vm as any).validerVente()
 
-    expect(toastMock.error).toHaveBeenCalled()
+    expect((wrapper.vm as any).showErrorDialog).toBe(true)
+    // extractFetchError est mocké pour retourner le fallback
+    expect((wrapper.vm as any).errorDialogMessage).toBe('Erreur lors de la validation de la vente')
+    expect(cartStoreMock.submitSale).toHaveBeenCalledTimes(1)
     expect(cartStoreMock.clearCart).not.toHaveBeenCalled()
   })
 
@@ -428,9 +442,9 @@ describe('ColRight (caisse)', () => {
     expect(doc.payments).toEqual([{ mode: 'Espèces', amount: 20 }])
   })
 
-  it('validerVente — erreur API : dialog NE s\'ouvre PAS', async () => {
+  it('validerVente — erreur API : dialog succès NE s\'ouvre PAS', async () => {
     setupHappyPath()
-    cartStoreMock.submitSale.mockRejectedValue(new Error('API down'))
+    cartStoreMock.submitSale.mockRejectedValue({ statusCode: 400, message: 'API down' })
     const wrapper = mountComponent()
     await (wrapper.vm as any).addPayment('Espèces')
     await (wrapper.vm as any).validerVente()
