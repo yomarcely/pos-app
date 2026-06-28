@@ -201,6 +201,24 @@ import ProductFormPricing from '@/components/produits/form/ProductFormPricing.vu
 import ProductFormStock from '@/components/produits/form/ProductFormStock.vue'
 import ProductFormBarcode from '@/components/produits/form/ProductFormBarcode.vue'
 import CategorySelector from '@/components/produits/CategorySelector.vue'
+import type { Supplier, Brand } from '@/types'
+import type { CategoryNode, VariationOption, VariationGroupOption } from '@/composables/useProductCatalogData'
+
+interface GeneralFormUpdate {
+  name: string
+  description: string
+  supplierId: string | null
+  brandId: string | null
+  image: string | null
+}
+
+interface PricingFormUpdate {
+  price: string
+  purchasePrice: string
+  tva: string
+  tvaId: number | null
+  categoryId: string | null
+}
 
 const toast = useToast()
 const { selectedEstablishmentId } = useEstablishmentRegister()
@@ -230,10 +248,10 @@ const form = ref({
 })
 
 // Data
-const suppliers = ref<any[]>([])
-const brands = ref<any[]>([])
-const categories = ref<any[]>([])
-const variationGroups = ref<any[]>([])
+const suppliers = ref<Supplier[]>([])
+const brands = ref<Brand[]>([])
+const categories = ref<CategoryNode[]>([])
+const variationGroups = ref<VariationGroupOption[]>([])
 const selectedGroupId = ref<number | null>(null)
 
 // Dialogs
@@ -246,7 +264,7 @@ const newBrandName = ref('')
 
 // Computed
 const selectedVariationsList = computed(() => {
-  const variations: any[] = []
+  const variations: VariationOption[] = []
   for (const group of variationGroups.value) {
     for (const variation of group.variations) {
       if (form.value.variationGroupIds.includes(variation.id)) {
@@ -258,7 +276,7 @@ const selectedVariationsList = computed(() => {
 })
 
 // Update handlers
-function updateGeneralForm(updatedForm: any) {
+function updateGeneralForm(updatedForm: GeneralFormUpdate) {
   form.value.name = updatedForm.name
   form.value.description = updatedForm.description
   form.value.supplierId = updatedForm.supplierId
@@ -266,7 +284,7 @@ function updateGeneralForm(updatedForm: any) {
   form.value.image = updatedForm.image
 }
 
-function updatePricingForm(updatedForm: any) {
+function updatePricingForm(updatedForm: PricingFormUpdate) {
   form.value.price = updatedForm.price
   form.value.purchasePrice = updatedForm.purchasePrice
   form.value.tva = updatedForm.tva
@@ -308,7 +326,7 @@ async function saveNewSupplier() {
   if (!newSupplierName.value.trim()) return
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/suppliers/create', {
+    const response = await $fetch<{ supplier?: { id: number }; id?: number }>('/api/suppliers/create', {
       method: 'POST',
       body: { name: newSupplierName.value },
       params
@@ -329,7 +347,7 @@ async function saveNewBrand() {
   if (!newBrandName.value.trim()) return
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/brands/create', {
+    const response = await $fetch<{ brand?: { id: number }; id?: number }>('/api/brands/create', {
       method: 'POST',
       body: { name: newBrandName.value },
       params
@@ -350,7 +368,7 @@ async function saveNewBrand() {
 async function loadSuppliers() {
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/suppliers', { params })
+    const response = await $fetch<Supplier[] | { suppliers?: Supplier[] }>('/api/suppliers', { params })
     suppliers.value = Array.isArray(response) ? response : (response.suppliers || [])
   } catch (error) {
     console.error('Erreur lors du chargement des fournisseurs:', error)
@@ -360,7 +378,7 @@ async function loadSuppliers() {
 async function loadBrands() {
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response: any = await $fetch('/api/brands', { params })
+    const response = await $fetch<Brand[] | { brands?: Brand[] }>('/api/brands', { params })
     brands.value = Array.isArray(response) ? response : (response.brands || [])
   } catch (error) {
     console.error('Erreur lors du chargement des marques:', error)
@@ -370,7 +388,7 @@ async function loadBrands() {
 async function loadCategories() {
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response = await $fetch('/api/categories', { params })
+    const response = await $fetch<{ categories?: CategoryNode[] }>('/api/categories', { params })
     categories.value = response.categories || []
   } catch (error) {
     console.error('Erreur lors du chargement des catégories:', error)
@@ -380,7 +398,7 @@ async function loadCategories() {
 async function loadVariationGroups() {
   try {
     const params = selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : {}
-    const response = await $fetch('/api/variations/groups', { params })
+    const response = await $fetch<{ groups?: VariationGroupOption[] }>('/api/variations/groups', { params })
     variationGroups.value = response.groups || []
   } catch (error) {
     console.error('Erreur lors du chargement des variations:', error)

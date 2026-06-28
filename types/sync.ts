@@ -133,7 +133,7 @@ export interface SyncLog {
   entityId: number
   sourceEstablishmentId?: number
   action: SyncAction
-  syncedFields?: Record<string, any>
+  syncedFields?: Record<string, unknown>
   createdAt: Date
 }
 

@@ -10,8 +10,8 @@ interface StockHistoryItem {
   quantity: number
   previousStock: number | null
   newStock: number | null
-  reason: string | null
-  createdAt: string | null
+  reason: string
+  createdAt: string
   saleId: number | null
   movementId: number | null
   movementNumber: string | null
@@ -23,8 +23,8 @@ interface StockHistoryItem {
 export function useProductStockMovement(
   productId: Ref<number>,
   form: Ref<{ hasVariations: boolean }>,
-  selectedVariationsList: Ref<any[]>,
-  originalProduct: Ref<any>,
+  selectedVariationsList: Ref<Array<{ id: number | string }>>,
+  originalProduct: Ref<{ stockByVariation?: Record<string, number> | null } | null>,
   loadProduct: () => Promise<void>,
   establishmentId?: Ref<number | null | undefined>
 ) {
@@ -35,7 +35,7 @@ export function useProductStockMovement(
   const movementQuantities = ref<Record<string | number, number | null>>({})
   const historyDialogOpen = ref(false)
   const loadingHistory = ref(false)
-  const stockHistory = ref<any[]>([])
+  const stockHistory = ref<StockHistoryItem[]>([])
   const savingMovement = ref(false)
 
   function getStockByVariation(variationId: number): number {
@@ -70,7 +70,7 @@ export function useProductStockMovement(
   }
 
   async function submitStockMovement() {
-    const items: any[] = []
+    const items: Array<{ productId: number; variation?: string; quantity: number; adjustmentType: string }> = []
     const adjustmentType = movementType.value === 'reception' ? 'add' : 'set'
 
     if (form.value.hasVariations) {

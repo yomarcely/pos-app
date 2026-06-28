@@ -50,7 +50,7 @@ export function useMovementProductSearch(
     }
   }
 
-  function selectProductFromSuggestion(product: any) {
+  function selectProductFromSuggestion(product: unknown) {
     onProductSelected(normalizeProduct(product))
     searchQuery.value = ''
     searchSuggestions.value = []

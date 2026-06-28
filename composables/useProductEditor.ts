@@ -16,6 +16,22 @@ type ProductApiResponse = {
   product: ProductApi
 }
 
+interface GeneralFormUpdate {
+  name: string
+  description: string
+  supplierId: string | null
+  brandId: string | null
+  image: string | null
+}
+
+interface PricingFormUpdate {
+  price: string
+  purchasePrice: string
+  tva: string
+  tvaId: number | null
+  categoryId: string | null
+}
+
 export function useProductEditor(
   productId: Ref<number>,
   selectedEstablishmentId: Ref<number | null>,
@@ -23,7 +39,7 @@ export function useProductEditor(
 ) {
   const toast = useToast()
 
-  const originalProduct = ref<any>(null)
+  const originalProduct = ref<ProductApi | null>(null)
   const loading = ref(false)
   const loadingProduct = ref(true)
 
@@ -87,7 +103,7 @@ export function useProductEditor(
     }
   }
 
-  async function saveProduct(originalProductRef: Ref<any>) {
+  async function saveProduct(originalProductRef: Ref<ProductApi | null>) {
     if (!form.value.name.trim()) {
       toast.error('Le nom du produit est obligatoire')
       return
@@ -158,7 +174,7 @@ export function useProductEditor(
     }
   }
 
-  function updateGeneralForm(updatedForm: any) {
+  function updateGeneralForm(updatedForm: GeneralFormUpdate) {
     form.value.name = updatedForm.name
     form.value.description = updatedForm.description
     form.value.supplierId = updatedForm.supplierId
@@ -166,7 +182,7 @@ export function useProductEditor(
     form.value.image = updatedForm.image
   }
 
-  function updatePricingForm(updatedForm: any) {
+  function updatePricingForm(updatedForm: PricingFormUpdate) {
     form.value.price = updatedForm.price
     form.value.purchasePrice = updatedForm.purchasePrice
     form.value.tva = updatedForm.tva

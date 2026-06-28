@@ -422,7 +422,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Badge } from '@/components/ui/badge'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useProductEditor } from '@/composables/useProductEditor'
-import { useProductCatalogData } from '@/composables/useProductCatalogData'
+import { useProductCatalogData, type VariationOption } from '@/composables/useProductCatalogData'
 import { useProductStockMovement } from '@/composables/useProductStockMovement'
 
 const route = useRoute()
@@ -474,7 +474,7 @@ const selectedGroupId = ref<number | null>(null)
 
 // Computed
 const selectedVariationsList = computed(() => {
-  const variations: any[] = []
+  const variations: VariationOption[] = []
   for (const group of variationGroups.value) {
     for (const variation of group.variations) {
       if (form.value.variationGroupIds.includes(variation.id)) {
@@ -489,8 +489,8 @@ const selectedVariationsList = computed(() => {
 function ensureSelectedGroupFromVariations() {
   if (selectedGroupId.value) return
   if (!form.value.variationGroupIds.length) return
-  const group = variationGroups.value.find((g: any) =>
-    g.variations?.some((v: any) => form.value.variationGroupIds.includes(v.id))
+  const group = variationGroups.value.find(g =>
+    g.variations?.some(v => form.value.variationGroupIds.includes(v.id))
   )
   if (group) {
     selectedGroupId.value = group.id

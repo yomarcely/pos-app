@@ -36,7 +36,6 @@ export default defineConfig({
         'pages/rapports/**/*',
         'pages/tva/**/*',
         'pages/vendeurs/**/*',
-        'pages/sentry-example-page.vue',
         'pages/index.vue', // landing
         // Composants purement UI sans logique métier
         'components/ui/**/*',

@@ -130,12 +130,12 @@ import { Package, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import type { SelectedProduct, Variation, MovementType } from '@/types/mouvements'
-import { hasVariations as _hasVariations } from '@/utils/productHelpers'
+import type { SelectedProduct, Variation, MovementType, Product } from '@/types/mouvements'
+import { hasVariations as _hasVariations, type Product as HelperProduct } from '@/utils/productHelpers'
 
 // Adaptateur : délègue à productHelpers (source de vérité unique)
-function hasVariations(product: any): boolean {
-  return _hasVariations(product)
+function hasVariations(product: Product): boolean {
+  return _hasVariations(product as HelperProduct)
 }
 
 const props = defineProps<{
@@ -151,9 +151,9 @@ defineEmits<{
   'validate': []
 }>()
 
-function getProductVariations(product: any): Variation[] {
+function getProductVariations(product: Product): Variation[] {
   const idsFromProduct = Array.isArray(product.variationGroupIds)
-    ? product.variationGroupIds.map((id: any) => {
+    ? product.variationGroupIds.map((id: number | string) => {
         const numericId = Number(id)
         return Number.isFinite(numericId) ? numericId : String(id)
       })

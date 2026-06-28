@@ -8,6 +8,10 @@
  */
 export function extractFetchError(err: unknown, fallback = 'Une erreur est survenue'): string {
   if (typeof err !== 'object' || err === null) return fallback
-  const e = err as Record<string, any>
+  const e = err as {
+    data?: { message?: string; statusMessage?: string }
+    statusMessage?: string
+    message?: string
+  }
   return e?.data?.message ?? e?.data?.statusMessage ?? e?.statusMessage ?? e?.message ?? fallback
 }

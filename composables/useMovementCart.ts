@@ -126,7 +126,7 @@ export function useMovementCart(
         type = 'loss'
         adjustmentType = 'add'
       }
-      const items: any[] = []
+      const items: Array<{ productId: number; variation?: string; quantity: number; adjustmentType: string }> = []
       for (const item of selectedProducts.value) {
         if (hasVariations(item.product) && item.quantitiesByVariation) {
           for (const [varId, quantity] of Object.entries(item.quantitiesByVariation)) {

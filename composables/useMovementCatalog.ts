@@ -2,6 +2,12 @@ import { ref, watch, type Ref } from 'vue'
 import type { Product, Category, Supplier, Brand, Variation } from '@/types/mouvements'
 import { normalizeProduct } from '@/utils/productHelpers'
 
+interface RawCategory {
+  id: number
+  name: string
+  children?: RawCategory[]
+}
+
 export function useMovementCatalog(
   establishmentId: Ref<number | null>,
   lockedSupplierId?: Ref<number | null>
@@ -47,10 +53,10 @@ export function useMovementCatalog(
 
   async function loadCategories() {
     try {
-      const response = await $fetch<{ categories: any[] }>('/api/categories', {
+      const response = await $fetch<{ categories: RawCategory[] }>('/api/categories', {
         params: establishmentId.value ? { establishmentId: establishmentId.value } : undefined,
       })
-      const flattenCategories = (cats: any[], level = 0): Category[] => {
+      const flattenCategories = (cats: RawCategory[], level = 0): Category[] => {
         let result: Category[] = []
         for (const cat of cats) {
           result.push({ id: cat.id, name: '  '.repeat(level) + cat.name })
@@ -77,7 +83,7 @@ export function useMovementCatalog(
 
   async function loadBrands() {
     try {
-      const response = await $fetch<any>('/api/brands')
+      const response = await $fetch<Brand[]>('/api/brands')
       brands.value = Array.isArray(response) ? response : []
     } catch (error) {
       console.error('Erreur lors du chargement des marques:', error)

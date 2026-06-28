@@ -209,7 +209,7 @@ function handleCoefChange(value: string | number) {
   coef.value = value
 }
 
-function handleTaxRateChange(rateValue: any) {
+function handleTaxRateChange(rateValue: unknown) {
   if (!rateValue || typeof rateValue === 'boolean' || typeof rateValue === 'object') return
 
   const normalizedValue = normalizeRate(String(rateValue))

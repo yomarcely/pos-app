@@ -38,7 +38,7 @@ export function useRegisters(establishments: Ref<Establishment[]>) {
 
   async function loadRegisters() {
     try {
-      const response = await $fetch<{ registers: any[] }>('/api/registers')
+      const response = await $fetch<{ registers: ApiRegister[] }>('/api/registers')
       registers.value = response.registers.map(
         (register): Register => ({
           id: register.id,

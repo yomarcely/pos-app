@@ -15,12 +15,14 @@ import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister
 import { useLoyaltyForCustomer } from '@/composables/useLoyaltyForCustomer'
 import { useToast } from '@/composables/useToast'
 import { extractFetchError } from '@/composables/useFetchError'
+import type { PurchaseHistoryEntry } from '@/composables/useClientPurchaseHistory'
+import type { Customer } from '@/types'
 
 const isPendingDialogOpen = ref(false)
 const isAddClientDialogOpen = ref(false)
 const isHistoryDrawerOpen = ref(false)
 const loadingPurchases = ref(false)
-const purchases = ref<any[]>([])
+const purchases = ref<PurchaseHistoryEntry[]>([])
 
 const cartStore = useCartStore()
 const customerStore = useCustomerStore()
@@ -129,7 +131,7 @@ async function loadPurchaseHistory() {
 
   try {
     loadingPurchases.value = true
-    const response = await $fetch(`/api/clients/${selectedClient.value.id}/purchases`)
+    const response = await $fetch<{ purchases: PurchaseHistoryEntry[] }>(`/api/clients/${selectedClient.value.id}/purchases`)
     purchases.value = response.purchases || []
   } catch (error) {
     console.error('Erreur lors du chargement de l\'historique:', error)
@@ -152,8 +154,8 @@ function formatDateTime(date: string) {
   }).format(new Date(date))
 }
 
-async function handleClientCreated(response: any) {
-  const client = response.client || response
+async function handleClientCreated(response: { client?: Customer }) {
+  const client = (response.client || response) as Customer
 
   // Ajouter le client à la liste des clients dans le store
   customerStore.clients.push(client)
@@ -164,6 +166,26 @@ async function handleClientCreated(response: any) {
   // Fermer le dialog
   isAddClientDialogOpen.value = false
 }
+
+// ===========================================
+// Raccourcis clavier (useCaisseShortcuts, monté sur la page) :
+// - Ctrl+S → mise en attente (putOnHold)
+// - Échap  → ferme un overlay de cette colonne s'il est ouvert (closeOverlay)
+// ===========================================
+function putOnHold() {
+  return handleAddPending()
+}
+
+/** Ferme le premier overlay ouvert de la colonne. Retourne true si quelque chose était ouvert. */
+function closeOverlay(): boolean {
+  if (isAddClientDialogOpen.value) { isAddClientDialogOpen.value = false; return true }
+  if (vouchersDialogOpen.value) { vouchersDialogOpen.value = false; return true }
+  if (isPendingDialogOpen.value) { isPendingDialogOpen.value = false; return true }
+  if (isHistoryDrawerOpen.value) { isHistoryDrawerOpen.value = false; return true }
+  return false
+}
+
+defineExpose({ putOnHold, closeOverlay })
 </script>
 
 <template>
@@ -303,6 +325,7 @@ async function handleClientCreated(response: any) {
         <!-- Bouton Mise en attente -->
         <Button variant="outline" class="flex-1" @click="handleAddPending">
           Mise en attente
+          <kbd class="ml-1.5 text-[10px] font-normal text-muted-foreground">Ctrl+S</kbd>
         </Button>
 
         <!-- Dialog de reprise -->

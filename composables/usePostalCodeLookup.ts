@@ -1,6 +1,11 @@
 import { ref, type Ref } from 'vue'
 
-export function usePostalCodeLookup(form: Ref<any>) {
+interface PostalCodeForm {
+  city: string
+  postalCode: string
+}
+
+export function usePostalCodeLookup(form: Ref<PostalCodeForm>) {
   const loadingPostalCode = ref(false)
   const postalCodeError = ref('')
   const availableCities = ref<Array<{ nom: string; code: string }>>([])

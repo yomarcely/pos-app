@@ -1,9 +1,13 @@
 import { ref, type Ref } from 'vue'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
-import type { Supplier, Brand, VariationGroup } from '@/types'
+import type { Supplier, Brand } from '@/types'
 
-type CategoryNode = { id: number; name: string; children?: CategoryNode[] }
+export type CategoryNode = { id: number; name: string; parentId: number | null; children?: CategoryNode[] }
+
+// Formes attendues par les composants de formulaire (ids numériques en base).
+export interface VariationOption { id: number; name: string }
+export interface VariationGroupOption { id: number; name: string; variations: VariationOption[] }
 
 export function useProductCatalogData(
   selectedEstablishmentId: Ref<number | null>,
@@ -11,10 +15,10 @@ export function useProductCatalogData(
 ) {
   const toast = useToast()
 
-  const suppliers = ref<any[]>([])
-  const brands = ref<any[]>([])
-  const categories = ref<any[]>([])
-  const variationGroups = ref<any[]>([])
+  const suppliers = ref<Supplier[]>([])
+  const brands = ref<Brand[]>([])
+  const categories = ref<CategoryNode[]>([])
+  const variationGroups = ref<VariationGroupOption[]>([])
 
   const showAddCategoryDialog = ref(false)
   const showAddSupplierDialog = ref(false)
@@ -56,7 +60,7 @@ export function useProductCatalogData(
 
   async function loadVariationGroups() {
     try {
-      const response = await $fetch<{ success: boolean; groups: VariationGroup[] }>('/api/variations/groups', {
+      const response = await $fetch<{ success: boolean; groups: VariationGroupOption[] }>('/api/variations/groups', {
         params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       })
       variationGroups.value = response.groups || []

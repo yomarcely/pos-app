@@ -10,7 +10,7 @@ export type Product = Omit<BaseProduct, 'variationGroupIds' | 'stockByVariation'
   variationGroupIds?: Array<number | string>
   minStock?: number
   minStockByVariation?: Record<string, number>
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -43,26 +43,27 @@ export function hasVariations(product: Product): boolean {
  * @param raw - Données brutes du produit
  * @returns Produit normalisé
  */
-export function normalizeProduct(raw: any): Product {
-  const normalizedVariationIds = Array.isArray(raw.variationGroupIds)
-    ? raw.variationGroupIds.map((id: any) => {
+export function normalizeProduct(raw: unknown): Product {
+  const data = (raw ?? {}) as Record<string, unknown>
+  const normalizedVariationIds = Array.isArray(data.variationGroupIds)
+    ? data.variationGroupIds.map((id: unknown) => {
         const numericId = Number(id)
         return Number.isFinite(numericId) ? numericId : String(id)
       })
     : []
 
-  const normalizedStockByVariation = raw.stockByVariation
+  const normalizedStockByVariation = data.stockByVariation
     ? Object.fromEntries(
-        Object.entries(raw.stockByVariation as Record<string, number | string>).map(([key, value]) => [
+        Object.entries(data.stockByVariation as Record<string, number | string>).map(([key, value]) => [
           key.toString(),
           Number(value) || 0,
         ]),
       )
     : undefined
 
-  const normalizedMinStockByVariation = raw.minStockByVariation
+  const normalizedMinStockByVariation = data.minStockByVariation
     ? Object.fromEntries(
-        Object.entries(raw.minStockByVariation as Record<string, number | string>).map(([key, value]) => [
+        Object.entries(data.minStockByVariation as Record<string, number | string>).map(([key, value]) => [
           key.toString(),
           Number(value) || 0,
         ]),
@@ -70,17 +71,18 @@ export function normalizeProduct(raw: any): Product {
     : undefined
 
   return {
-    ...raw,
-    id: Number(raw.id),
-    name: String(raw.name ?? ''),
-    barcode: String(raw.barcode ?? ''),
-    stock: Number(raw.stock ?? 0),
-    price: Number(raw.price ?? 0),
-    tva: Number.isFinite(Number(raw.tva)) ? Number(raw.tva) : 20,
+    ...data,
+    id: Number(data.id),
+    name: String(data.name ?? ''),
+    image: (data.image ?? null) as string | null,
+    barcode: String(data.barcode ?? ''),
+    stock: Number(data.stock ?? 0),
+    price: Number(data.price ?? 0),
+    tva: Number.isFinite(Number(data.tva)) ? Number(data.tva) : 20,
     variationGroupIds: normalizedVariationIds,
     stockByVariation: normalizedStockByVariation,
     minStockByVariation: normalizedMinStockByVariation,
-    minStock: Number(raw.minStock ?? 0),
+    minStock: Number(data.minStock ?? 0),
   }
 }
 

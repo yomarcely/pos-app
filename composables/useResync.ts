@@ -1,7 +1,7 @@
 import { reactive, ref } from 'vue'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
-import type { SyncGroup } from '@/composables/useSyncGroups'
+import type { SyncGroup, SyncGroupEstablishment } from '@/composables/useSyncGroups'
 
 export function useResync(loadSyncGroups: () => Promise<void>) {
   const toast = useToast()
@@ -14,7 +14,7 @@ export function useResync(loadSyncGroups: () => Promise<void>) {
     entityType: 'product' as 'product' | 'customer',
     fields: [] as string[],
     sourceEstablishmentId: null as number | null,
-    establishments: [] as any[],
+    establishments: [] as SyncGroupEstablishment[],
   })
 
   // Labels pour les champs
@@ -63,7 +63,7 @@ export function useResync(loadSyncGroups: () => Promise<void>) {
     }
 
     try {
-      const response: any = await $fetch(`/api/sync-groups/${resyncData.groupId}/resync`, {
+      const response = await $fetch<{ message?: string }>(`/api/sync-groups/${resyncData.groupId}/resync`, {
         method: 'POST',
         body: {
           sourceEstablishmentId: resyncData.sourceEstablishmentId,

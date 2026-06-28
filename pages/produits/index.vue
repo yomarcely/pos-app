@@ -266,7 +266,7 @@ async function deleteProduct(product: Product) {
 
   try {
     await $fetch(`/api/products/${product.id}/delete`, {
-      method: 'DELETE' as any,
+      method: 'DELETE',
     })
 
     toast.success('Produit supprimé avec succès')

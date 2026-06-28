@@ -44,7 +44,18 @@ function updateDateTime() {
 // ──────────────────────────────────────────────
 // KPI du jour (endpoint daily-summary existant)
 // ──────────────────────────────────────────────
-const summary = ref<any>(null)
+interface DailySummary {
+  totalTTC: number
+  totalHT: number
+  totalTVA: number
+  ticketCount: number
+  returnCount: number
+  avgBasketValue: number
+  avgBasketQuantity: number
+  totalQuantity: number
+}
+
+const summary = ref<DailySummary | null>(null)
 const loadingSummary = ref(true)
 
 const eur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -58,7 +69,7 @@ async function loadSummary() {
         if (selectedEstablishmentId.value) {
             params.append('establishmentId', String(selectedEstablishmentId.value))
         }
-        const res: any = await $fetch(`/api/sales/daily-summary?${params.toString()}`)
+        const res = await $fetch<{ success: boolean; summary: DailySummary }>(`/api/sales/daily-summary?${params.toString()}`)
         summary.value = res?.success ? res.summary : null
     } catch {
         summary.value = null

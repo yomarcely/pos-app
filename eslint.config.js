@@ -9,7 +9,7 @@ const tsRecommendedRules = tsPlugin.configs.recommended?.rules ?? {}
 
 export default [
   {
-    ignores: ['node_modules', '.nuxt', '.output', 'dist']
+    ignores: ['node_modules', '.nuxt', '.output', 'dist', 'coverage']
   },
   {
     files: ['**/*.{js,ts,vue}'],
@@ -36,7 +36,7 @@ export default [
     },
     rules: {
       ...tsRecommendedRules,
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-unused-vars': 'off'
     }
@@ -58,6 +58,7 @@ export default [
     },
     rules: {
       ...vueRecommendedRules,
+      '@typescript-eslint/no-explicit-any': 'warn',
       'vue/multi-word-component-names': 'off',
       'vue/attributes-order': 'off'
     }

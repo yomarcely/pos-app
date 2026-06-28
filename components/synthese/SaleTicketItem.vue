@@ -148,7 +148,7 @@ interface Payment {
   amount: number
 }
 
-interface Sale {
+export interface Sale {
   id: number
   ticketNumber: string
   saleDate: string

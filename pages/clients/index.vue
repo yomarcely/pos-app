@@ -201,7 +201,7 @@ interface Customer {
   email: string | null
   phone: string | null
   address: string | null
-  metadata: any
+  metadata: Record<string, unknown> | null
   gdprConsent: boolean | null
   gdprConsentDate: string | null
   marketingConsent: boolean | null

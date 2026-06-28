@@ -49,6 +49,15 @@ export default defineNuxtConfig({
       path: process.env.ARCHIVE_PATH,
       schedule: process.env.ARCHIVE_SCHEDULE,
     },
+    // Cloudflare R2 (S3-compatible) — réutilise les credentials du workflow de backup
+    // (cf .github/workflows/backup.yml). Si absents, l'export d'archive bascule en
+    // statut 'pending_export' et l'archive reste ré-exportable via l'endpoint dédié.
+    r2: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      bucket: process.env.R2_BUCKET,
+      endpoint: process.env.R2_ENDPOINT,
+    },
     rgpd: {
       dpoEmail: process.env.DPO_EMAIL,
       customerDataRetention: process.env.CUSTOMER_DATA_RETENTION,

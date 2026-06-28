@@ -5,7 +5,7 @@ export interface Customer {
   email?: string | null
   phone?: string | null
   address?: string | null
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   gdprConsent?: boolean
   gdprConsentDate?: Date | string | null
   marketingConsent?: boolean

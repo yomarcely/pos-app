@@ -13,14 +13,21 @@ import { useCustomerStore } from '@/stores/customer'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { fetchCommunesByPostalCode } from '@/composables/useGeoApi'
 import type { Commune } from '@/types/geo'
+import type { Customer } from '@/types'
 import { Loader2 } from 'lucide-vue-next'
+
+interface CreateClientResponse {
+  success: boolean
+  client: Customer
+  message: string
+}
 
 const { success, error: showError } = useToast()
 const customerStore = useCustomerStore()
 const { selectedEstablishmentId } = useEstablishmentRegister()
 
 const emit = defineEmits<{
-  success: [customer: any]
+  success: [customer: CreateClientResponse]
 }>()
 
 const form = ref({
@@ -121,7 +128,7 @@ async function submitClient() {
   loading.value = true
 
   try {
-    const client = await $fetch('/api/clients', {
+    const client = await $fetch<CreateClientResponse>('/api/clients', {
       method: 'POST',
       params: selectedEstablishmentId.value ? { establishmentId: selectedEstablishmentId.value } : undefined,
       body: {

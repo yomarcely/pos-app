@@ -2,10 +2,53 @@ import { ref, computed, type Ref } from 'vue'
 import { extractFetchError } from '@/composables/useFetchError'
 import { useToast } from '@/composables/useToast'
 
+interface ClientMetadata {
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
+  authorizeSms?: boolean
+}
+
+interface LoadedClient {
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  metadata?: ClientMetadata | null
+  isAnonymized?: boolean
+  loyaltyProgram?: boolean
+  discount?: string | null
+  gdprConsent?: boolean
+  marketingConsent?: boolean
+  notes?: string | null
+  alerts?: string | null
+}
+
+interface ClientForm {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  address: string
+  postalCode: string
+  city: string
+  country: string
+  loyaltyProgram: boolean
+  discount: number
+  gdprConsent: boolean
+  marketingConsent: boolean
+  authorizeSms: boolean
+  notes: string
+  alerts: string
+}
+
 export function useClientEditor(clientId: Ref<number>) {
   const toast = useToast()
 
-  const form = ref<any>(null)
+  // Le formulaire est null jusqu'au chargement ; les consommateurs (template,
+  // tests) y accèdent toujours après loadClient(), d'où le type non-nullable.
+  const form = ref<ClientForm>(null as unknown as ClientForm)
   const loading = ref(false)
   const loadingClient = ref(true)
   const isAnonymized = ref(false)
@@ -35,9 +78,9 @@ export function useClientEditor(clientId: Ref<number>) {
   async function loadClient() {
     try {
       loadingClient.value = true
-      const response = await $fetch<{ client: any }>(`/api/clients/${clientId.value}`)
+      const response = await $fetch<{ client: LoadedClient }>(`/api/clients/${clientId.value}`)
       const client = response.client
-      const metadata = (client.metadata as any) || {}
+      const metadata: ClientMetadata = client.metadata || {}
       isAnonymized.value = !!client.isAnonymized
       form.value = {
         firstName: client.firstName || '',

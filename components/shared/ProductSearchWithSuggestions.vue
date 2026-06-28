@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { Search, Package } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,6 +48,20 @@ function handleInput(value: string | number) {
   emit('update:searchQuery', String(value))
 }
 
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') emit('selectFirst')
+  else if (event.key === 'Escape') emit('clearSuggestions')
+}
+
+// Permet aux raccourcis clavier de la caisse (touche "/" et Échap) de placer
+// le focus sur le champ de recherche. L'input natif est rendu par <Input> ; on le
+// récupère via le conteneur racine plutôt que d'exposer un ref depuis le composant UI.
+const rootEl = ref<HTMLElement | null>(null)
+function focus() {
+  rootEl.value?.querySelector('input')?.focus()
+}
+defineExpose({ focus })
+
 function getTotalStock(product: Suggestion): number {
   if (product.stockByVariation && Object.keys(product.stockByVariation).length > 0) {
     return Object.values(product.stockByVariation).reduce<number>(
@@ -59,7 +74,7 @@ function getTotalStock(product: Suggestion): number {
 </script>
 
 <template>
-  <div class="w-full">
+  <div ref="rootEl" class="w-full">
     <div
       :class="[
         'w-full',
@@ -84,8 +99,7 @@ function getTotalStock(product: Suggestion): number {
                       :model-value="props.searchQuery"
                       placeholder="Nom du produit ou code-barres..."
                       @update:model-value="handleInput"
-                      @keydown.enter="$emit('selectFirst')"
-                      @keydown.esc="$emit('clearSuggestions')"
+                      @keydown="handleKeydown"
                       @focus="$emit('focus')"
                     />
                     <!-- Suggestions dropdown -->
@@ -145,8 +159,7 @@ function getTotalStock(product: Suggestion): number {
                     :model-value="props.searchQuery"
                     placeholder="Nom du produit ou code-barres..."
                     @update:model-value="handleInput"
-                    @keydown.enter="$emit('selectFirst')"
-                    @keydown.esc="$emit('clearSuggestions')"
+                    @keydown="handleKeydown"
                     @focus="$emit('focus')"
                   />
                   <!-- Suggestions dropdown -->

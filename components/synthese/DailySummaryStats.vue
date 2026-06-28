@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { Euro, Receipt, ShoppingCart, TrendingUp, TrendingDown } from 'lucide-vue-next'
 
-interface Summary {
+export interface Summary {
   totalTTC: number
   totalHT: number
   totalTVA: number

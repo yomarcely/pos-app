@@ -47,7 +47,8 @@ describe('LoginForm', () => {
 
   it('affiche le formulaire de connexion', () => {
     const wrapper = mountForm()
-    expect(wrapper.find('h1').text()).toContain('Connectez-vous')
+    expect(wrapper.text()).toContain('Bon retour parmi nous')
+    expect(wrapper.text()).toContain('Connectez-vous')
     expect(wrapper.find('input[type="email"]').exists()).toBe(true)
     expect(wrapper.find('input[type="password"]').exists()).toBe(true)
   })
