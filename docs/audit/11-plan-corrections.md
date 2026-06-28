@@ -519,27 +519,27 @@ caractérisation d'abord.
 
 | # | Prompt | Statut |
 |---|--------|--------|
-| P1.1 | Validation x-tenant-id | ☐ |
-| P1.2 | Fix saleDate hash NF525 | ☐ |
-| P1.3 | Stock négatif explicite | ☐ |
-| P1.4 | Erreurs génériques + Zod query | ☐ |
-| P1.5 | Migration hygiène DB | ☐ |
-| P2.1 | Persistance panier | ☐ |
-| P2.2 | Idempotence clientSaleId | ☐ |
-| P2.3 | Verrou UI + modal + retry | ☐ |
-| P2.4 | 401 refresh token | ☐ |
-| P2.5 | Raccourcis clavier | ☐ |
-| P2.6 | Retours + impression auto | ☐ |
-| P3.1 | Vouchers FOR UPDATE | ☐ |
-| P3.2 | Avoirs chaînés | ☐ |
-| P3.3 | Clôture bloquante | ☐ |
-| P3.4 | RBAC minimal | ☐ |
-| P3.5 | Source unique stock | ☐ |
-| P3.6 | Archives R2 | ☐ |
-| P4.1 | Purge any | ☐ |
-| P4.2 | Code mort | ☐ |
-| P4.3 | N+1 + agrégats SQL | ☐ |
-| P4.4 | Singletons → Pinia | ☐ |
+| P1.1 | Validation x-tenant-id | ☑ |
+| P1.2 | Fix saleDate hash NF525 | ☑ |
+| P1.3 | Stock négatif explicite | ☑ |
+| P1.4 | Erreurs génériques + Zod query | ☑ |
+| P1.5 | Migration hygiène DB | ☑ |
+| P2.1 | Persistance panier | ☑ |
+| P2.2 | Idempotence clientSaleId | ☑ |
+| P2.3 | Verrou UI + modal + retry | ☑ |
+| P2.4 | 401 refresh token | ☑ |
+| P2.5 | Raccourcis clavier | ☑ |
+| P2.6 | Retours + impression auto | ☑ |
+| P3.1 | Vouchers FOR UPDATE | ☑ |
+| P3.2 | Avoirs chaînés | ☑ |
+| P3.3 | Clôture bloquante | ☑ |
+| P3.4 | RBAC minimal | ☑ |
+| P3.5 | Source unique stock | ☑ |
+| P3.6 | Archives R2 | ☑ |
+| P4.1 | Purge any | ☑ |
+| P4.2 | Code mort | ☑ |
+| P4.3 | N+1 + agrégats SQL | ☑ (N+1 cancel via P3.2, agrégats close-day via P3.3) |
+| P4.4 | Singletons → Pinia | ☑ |
 
 *Généré à partir de l'audit complet du 2026-06-12 (voir conversation d'audit). Chaque finding
 cité a été vérifié dans le code (fichier:ligne) avant d'entrer dans ce plan.*
