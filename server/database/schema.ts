@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, decimal, boolean, jsonb, index, uniqueIndex, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, serial, text, timestamp, integer, decimal, boolean, jsonb, index, uniqueIndex, varchar, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 /**
@@ -21,7 +21,12 @@ export const sales = pgTable('sales', {
   tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   // Numéro de ticket unique et séquentiel (obligatoire NF525)
-  ticketNumber: varchar('ticket_number', { length: 50 }).notNull().unique(),
+  ticketNumber: varchar('ticket_number', { length: 50 }).notNull(),
+
+  // Idempotence : UUID généré par la caisse cliente. Nullable (rétro-compat ventes
+  // existantes / clients anciens). Unique par tenant → rejeu du même payload
+  // (double-submit, mode offline) ne crée pas de doublon.
+  clientSaleId: uuid('client_sale_id'),
 
   // Date et heure de la vente (horodatage certifié)
   saleDate: timestamp('sale_date', { withTimezone: true }).notNull().defaultNow(),
@@ -64,6 +69,17 @@ export const sales = pgTable('sales', {
   // Statut de la vente
   status: varchar('status', { length: 20 }).notNull().default('completed'), // completed, cancelled, archived
 
+  // Type de document fiscal : 'sale' (vente normale) ou 'credit_note' (avoir NF525).
+  // L'avoir est une vente à montants NÉGATIFS qui matérialise une annulation dans la
+  // chaîne (cf. cancel.post.ts). Discriminé par 'type' plutôt que par 'status' afin que
+  // l'avoir reste 'completed' et soit compté (en négatif) dans la clôture.
+  type: varchar('type', { length: 20 }).notNull().default('sale'), // sale | credit_note
+
+  // Avoir → vente d'origine (porté par le credit_note).
+  originalSaleId: integer('original_sale_id').references((): AnyPgColumn => sales.id),
+  // Vente d'origine → son avoir (lien retour, posé à l'annulation).
+  creditNoteId: integer('credit_note_id').references((): AnyPgColumn => sales.id),
+
   // Raison d'annulation (si annulée)
   cancellationReason: text('cancellation_reason'),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -95,6 +111,11 @@ export const sales = pgTable('sales', {
   registerIdIdx: index('sales_register_id_idx').on(table.registerId),
   statusIdx: index('sales_status_idx').on(table.status),
   voucherUsedIdIdx: index('sales_voucher_used_id_idx').on(table.voucherUsedId),
+  originalSaleIdIdx: index('sales_original_sale_id_idx').on(table.originalSaleId),
+  ticketNumberTenantUnique: uniqueIndex('sales_tenant_ticket_number_unique').on(table.tenantId, table.ticketNumber),
+  clientSaleIdTenantUnique: uniqueIndex('sales_tenant_client_sale_id_unique').on(table.tenantId, table.clientSaleId),
+  tenantRegisterStatusIdx: index('sales_tenant_register_status_idx').on(table.tenantId, table.registerId, table.status),
+  tenantEstablishmentSaleDateIdx: index('sales_tenant_establishment_sale_date_idx').on(table.tenantId, table.establishmentId, table.saleDate),
 }))
 
 // ==========================================
@@ -342,7 +363,9 @@ export const products = pgTable('products', {
   // Ancienne colonne TVA (deprecated - à supprimer après migration)
   tva: decimal('tva', { precision: 5, scale: 2 }),
 
-  // Stock
+  // Stock — @deprecated : source de vérité = productStocks (par établissement).
+  // Le code n'écrit plus ces colonnes (gelées) ; les lectures « stock global » sont
+  // un agrégat SUM sur productStocks. Suppression prévue en migration séparée (2 temps).
   stock: integer('stock').default(0),
   stockByVariation: jsonb('stock_by_variation'), // { "variation_id": stock_count }
   minStock: integer('min_stock').default(5), // Stock minimum pour alerte
@@ -421,7 +444,7 @@ export const sellers = pgTable('sellers', {
   tenantId: varchar('tenant_id', { length: 64 }).notNull(),
 
   name: varchar('name', { length: 100 }).notNull(),
-  code: varchar('code', { length: 20 }).unique(),
+  code: varchar('code', { length: 20 }),
 
   isActive: boolean('is_active').default(true),
 
@@ -429,6 +452,7 @@ export const sellers = pgTable('sellers', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tenantIdIdx: index('sellers_tenant_id_idx').on(table.tenantId),
+  codeTenantUnique: uniqueIndex('sellers_tenant_code_unique').on(table.tenantId, table.code),
 }))
 
 // ==========================================
@@ -620,6 +644,9 @@ export const stockMovements = pgTable('stock_movements', {
   // Raison
   reason: varchar('reason', { length: 50 }).notNull(), // sale, reception, inventory_adjustment, loss, return, sale_cancellation
 
+  // Survente : la vente a fait passer le stock en négatif (autorisée mais tracée)
+  oversell: boolean('oversell').notNull().default(false),
+
   // Références
   saleId: integer('sale_id').references(() => sales.id),
   userId: integer('user_id'), // Futur : références vers table users
@@ -756,7 +783,7 @@ export const closures = pgTable('closures', {
   paymentMethods: jsonb('payment_methods').notNull(), // { "Espèces": 150.00, "Carte": 250.00 }
 
   // Hash NF525 de clôture
-  closureHash: varchar('closure_hash', { length: 64 }).notNull().unique(),
+  closureHash: varchar('closure_hash', { length: 64 }).notNull(),
 
   // Premier et dernier ticket de la journée
   firstTicketNumber: varchar('first_ticket_number', { length: 50 }),
@@ -774,6 +801,8 @@ export const closures = pgTable('closures', {
   closureHashIdx: index('closures_closure_hash_idx').on(table.closureHash),
   registerIdIdx: index('closures_register_id_idx').on(table.registerId),
   establishmentIdIdx: index('closures_establishment_id_idx').on(table.establishmentId),
+  closureHashTenantUnique: uniqueIndex('closures_tenant_closure_hash_unique').on(table.tenantId, table.closureHash),
+  tenantRegisterClosureDateIdx: index('closures_tenant_register_closure_date_idx').on(table.tenantId, table.registerId, table.closureDate),
 }))
 
 // ==========================================
@@ -800,13 +829,23 @@ export const archives = pgTable('archives', {
   archiveHash: varchar('archive_hash', { length: 64 }).notNull(),
   archiveSignature: varchar('archive_signature', { length: 64 }),
 
+  // Export immuable (Cloudflare R2). Tant que l'archive n'est pas poussée dans le
+  // bucket avec Object Lock, le hash stocké en DB n'a pas de valeur probante (modifiable
+  // + re-signable par quiconque a accès à la base). Voir docs/runbooks/nf525-archive-export.md.
+  exportStatus: varchar('export_status', { length: 20 }).notNull().default('pending_export'), // 'exported' | 'pending_export'
+  storageKey: text('storage_key'), // clé de l'objet R2 (archives/{tenantId}/...)
+  exportedAt: timestamp('exported_at', { withTimezone: true }),
+  // Contenu JSON conservé en DB UNIQUEMENT tant que l'export R2 n'a pas réussi
+  // (permet le ré-export avec un hash identique). Effacé une fois exporté.
+  content: text('content'),
+
   // Statistiques
   salesCount: integer('sales_count').notNull(),
   closuresCount: integer('closures_count').notNull().default(0),
   totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
 
   // Métadonnées supplémentaires
-  metadata: jsonb('metadata').$type<Record<string, any>>().default({}),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
@@ -909,6 +948,7 @@ export const productStocks = pgTable('product_stocks', {
   tenantIdIdx: index('product_stocks_tenant_id_idx').on(table.tenantId),
   productIdIdx: index('product_stocks_product_id_idx').on(table.productId),
   establishmentIdIdx: index('product_stocks_establishment_id_idx').on(table.establishmentId),
+  tenantEstablishmentProductIdx: index('product_stocks_tenant_establishment_product_idx').on(table.tenantId, table.establishmentId, table.productId),
 }))
 
 // ==========================================
@@ -1123,6 +1163,18 @@ export const salesRelations = relations(sales, ({ one, many }) => ({
   closure: one(closures, {
     fields: [sales.closureId],
     references: [closures.id],
+  }),
+  // Avoir → vente d'origine
+  originalSale: one(sales, {
+    fields: [sales.originalSaleId],
+    references: [sales.id],
+    relationName: 'saleCreditNote',
+  }),
+  // Vente d'origine → son avoir
+  creditNote: one(sales, {
+    fields: [sales.creditNoteId],
+    references: [sales.id],
+    relationName: 'creditNoteSale',
   }),
   items: many(saleItems),
 }))

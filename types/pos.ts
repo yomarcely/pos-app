@@ -68,6 +68,7 @@ export interface SalePayload {
   globalDiscount: { value: number; type: '%' | '€' }
   establishmentId: number
   registerId: number
+  clientSaleId?: string | null
   loyaltyReward?: {
     type: 'percent_discount' | 'euro_discount' | 'voucher'
     value: number
@@ -95,7 +96,19 @@ export interface SaleRecord {
   loyalty?: SaleLoyaltyResponse | null
 }
 
+// Article vendu en survente : le stock est passé en négatif (la vente reste valide)
+export interface StockWarning {
+  productId: number
+  productName: string
+  variation: string | null
+  remainingStock: number
+}
+
 export interface SaleResponse {
   success: boolean
+  // true si le serveur a reconnu un clientSaleId déjà enregistré (rejeu) :
+  // la vente retournée est celle d'origine, aucune nouvelle vente créée
+  duplicate?: boolean
+  stockWarnings?: StockWarning[]
   sale: SaleRecord
 }

@@ -127,6 +127,41 @@
       "when": 1780863170399,
       "tag": "0017_productive_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781291089478,
+      "tag": "0018_dry_psylocke",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781291841633,
+      "tag": "0019_mushy_outlaw_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781300779479,
+      "tag": "0020_fuzzy_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781470658130,
+      "tag": "0021_old_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782643353114,
+      "tag": "0022_famous_the_leader",
+      "breakpoints": true
     }
   ]
 }
