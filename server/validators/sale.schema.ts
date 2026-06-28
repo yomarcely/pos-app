@@ -42,9 +42,20 @@ export const cancelSaleSchema = z.object({
   reason: z.string().min(1, 'La raison d\'annulation est requise').max(500),
 })
 
+export const reprintTicketSchema = z.object({
+  ticketNumber: z.string().min(1, 'Numéro de ticket requis'),
+  documentType: z.enum(['receipt', 'invoice']).default('receipt'),
+  establishmentId: z.number().int().positive().optional(),
+  registerId: z.number().int().positive().optional(),
+})
+
 export const closeDaySchema = z.object({
   date: z.string().min(8, 'Date de clôture manquante'), // format YYYY-MM-DD attendu
   registerId: z.number().int().positive('Caisse requise'),
+  // Force la clôture malgré une anomalie bloquante (incohérence HT+TVA≠TTC,
+  // tickets en attente). L'anomalie est alors journalisée dans l'audit log
+  // NF525 (traçabilité). Par défaut false → la clôture est refusée (409).
+  force: z.boolean().optional().default(false),
 })
 
 // Variante alignée sur le payload existant (totals + globalDiscount)
@@ -71,6 +82,8 @@ export const createSaleRequestSchema = z.object({
   }),
   establishmentId: z.number().int().positive('Établissement requis'),
   registerId: z.number().int().positive('Caisse requise'),
+  // Idempotence : UUID généré par la caisse cliente. Optionnel (rétro-compatible).
+  clientSaleId: z.string().uuid().optional().nullable(),
   loyaltyReward: z.object({
     type: z.enum(['percent_discount', 'euro_discount', 'voucher']),
     value: z.number().positive(),
@@ -93,5 +106,6 @@ export const createSaleRequestSchema = z.object({
 
 export type CreateSaleInput = z.infer<typeof createSaleSchema>
 export type CancelSaleInput = z.infer<typeof cancelSaleSchema>
+export type ReprintTicketInput = z.infer<typeof reprintTicketSchema>
 export type CreateSaleRequestInput = z.infer<typeof createSaleRequestSchema>
 export type CloseDayInput = z.infer<typeof closeDaySchema>
