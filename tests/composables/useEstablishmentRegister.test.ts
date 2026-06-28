@@ -7,6 +7,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => mockAuth,
 }))
 
+// Depuis le refactor, l'état vit dans `stores/establishmentRegister.ts` ; le composable
+// `useEstablishmentRegister` n'est plus qu'un wrapper d'API (refs via storeToRefs + actions).
+// Ces tests s'exécutent donc à travers le wrapper, qui doit rester iso-comportemental.
 describe('useEstablishmentRegister — localStorage scoping', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -101,5 +104,51 @@ describe('useEstablishmentRegister — localStorage scoping', () => {
     await nextTick()
 
     expect(localStorage.length).toBe(0)
+  })
+
+  it('deux appels partagent le même état (singleton via store Pinia)', async () => {
+    mockAuth.tenantId = 'tenant-a'
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      establishments: [
+        { id: 1, name: 'X', city: null, isActive: true },
+        { id: 2, name: 'Y', city: null, isActive: true },
+      ],
+      registers: [],
+      success: true,
+      establishment: null,
+    }))
+
+    const { useEstablishmentRegister } = await import('@/composables/useEstablishmentRegister')
+    const a = useEstablishmentRegister()
+    const b = useEstablishmentRegister()
+    await a.initialize()
+
+    a.selectedEstablishmentId.value = 2
+    await nextTick()
+
+    expect(b.selectedEstablishmentId.value).toBe(2)
+  })
+
+  it('reset() (= $reset) vide les données chargées et permet une ré-initialisation', async () => {
+    mockAuth.tenantId = 'tenant-a'
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      establishments: [{ id: 1, name: 'X', city: null, isActive: true }],
+      registers: [{ id: 10, establishmentId: 1, name: 'C1', isActive: true }],
+      success: true,
+      establishment: null,
+    }))
+
+    const { useEstablishmentRegister } = await import('@/composables/useEstablishmentRegister')
+    const composable = useEstablishmentRegister()
+    await composable.initialize()
+    expect(composable.establishments.value).toHaveLength(1)
+
+    composable.reset()
+
+    // Les listes chargées sont purgées ; un nouvel initialize() recharge les données.
+    expect(composable.establishments.value).toHaveLength(0)
+    expect(composable.selectedEstablishmentDetail.value).toBeNull()
+    await composable.initialize()
+    expect(composable.establishments.value).toHaveLength(1)
   })
 })
