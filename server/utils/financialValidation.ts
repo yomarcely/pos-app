@@ -61,6 +61,21 @@ export function recomputeHTandTVA(items: Array<{
 }
 
 /**
+ * Écart (en centimes signés) entre HT + TVA et TTC.
+ * 0 = parfaitement cohérent ; > 1 centime en valeur absolue = incohérence
+ * comptable bloquante pour la clôture NF525.
+ */
+export function htPlusTVADiffCents(
+  totalHT: number,
+  totalTVA: number,
+  totalTTC: number
+): number {
+  const sumCents = Math.round(totalHT * 100) + Math.round(totalTVA * 100)
+  const ttcCents = Math.round(totalTTC * 100)
+  return sumCents - ttcCents
+}
+
+/**
  * Vérifie que HT + TVA = TTC à 1 centime près.
  * Logue un warning (pas un throw) — la clôture continue,
  * l'anomalie est tracée pour investigation.

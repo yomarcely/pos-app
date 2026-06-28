@@ -3,11 +3,12 @@ import { sales, closures, registers, pendingSales } from '~/server/database/sche
 import { desc, gte, lt, and, eq, inArray, sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
 import { logClosure, logSystemError } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
-import { assertHTplusTVAequalsTTC } from '~/server/utils/financialValidation'
+import { assertHTplusTVAequalsTTC, htPlusTVADiffCents } from '~/server/utils/financialValidation'
 
 /**
  * ==========================================
@@ -32,6 +33,7 @@ interface CloseDayRequest {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const auth = event.context.auth
     const userId = auth?.user?.id || null
     const userName = auth?.user?.email || auth?.user?.user_metadata?.name || 'Utilisateur'
@@ -92,8 +94,16 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 1b. VÉRIFIER QU'AUCUN TICKET N'EST EN ATTENTE SUR CETTE CAISSE
     // ==========================================
-    const [pendingCount] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    // Bloquant (409) sauf si force=true. En cas de force, les tickets en attente
+    // restants sont journalisés dans l'audit log de clôture (traçabilité NF525
+    // des paniers abandonnés) — cf. étape 6.
+    const pendingRows = await db
+      .select({
+        id: pendingSales.id,
+        items: pendingSales.items,
+        createdAt: pendingSales.createdAt,
+        createdByEmail: pendingSales.createdByEmail,
+      })
       .from(pendingSales)
       .where(
         and(
@@ -102,10 +112,22 @@ export default defineEventHandler(async (event) => {
         )
       )
 
-    if ((pendingCount?.count ?? 0) > 0) {
+    const pendingSummary = pendingRows.map(p => ({
+      id: p.id,
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+      createdByEmail: p.createdByEmail ?? null,
+      itemCount: Array.isArray(p.items) ? p.items.length : 0,
+    }))
+
+    if (pendingSummary.length > 0 && !body.force) {
       throw createError({
-        statusCode: 400,
-        message: `Impossible de clôturer : ${pendingCount?.count} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les avant la clôture.`,
+        statusCode: 409,
+        message: `Impossible de clôturer : ${pendingSummary.length} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les, ou forcez la clôture.`,
+        data: {
+          reason: 'pending_sales',
+          pendingCount: pendingSummary.length,
+          pendingSales: pendingSummary,
+        },
       })
     }
 
@@ -125,31 +147,125 @@ export default defineEventHandler(async (event) => {
       )
       .orderBy(desc(sales.saleDate))
 
-    // Ventes actives uniquement
-    const activeSales = dailySales.filter(s => s.status === 'completed')
+    // ==========================================
+    // REGISTRE IMMUABLE (NF525) — quelles ventes comptent dans les totaux
+    // ==========================================
+    // Une annulation NF525 ne retire PAS la vente des totaux : elle émet un avoir
+    // (type='credit_note', négatif) qui la compense. Les totaux somment donc :
+    //  - les ventes normales 'completed',
+    //  - les avoirs (négatifs),
+    //  - les ventes annulées AYANT un avoir lié (creditNoteId) → restent comptées
+    //    pour que l'avoir les annule (net 0 si l'avoir tombe le même jour).
+    // Les anciennes ventes annulées SANS avoir (legacy) restent exclues.
+    const completedSales = dailySales.filter(s => s.status === 'completed' && s.type !== 'credit_note')
+    const creditNotes = dailySales.filter(s => s.type === 'credit_note')
+    const offsetCancelledSales = dailySales.filter(s => s.status === 'cancelled' && s.creditNoteId != null)
     const cancelledSales = dailySales.filter(s => s.status === 'cancelled')
+
+    const salesForTotals = [...completedSales, ...creditNotes, ...offsetCancelledSales]
 
     // ==========================================
     // 3. CALCULER LES TOTAUX
     // ==========================================
-    const totalTTCCents = activeSales.reduce(
+    const totalTTCCents = salesForTotals.reduce(
       (sum, s) => sum + Math.round(Number(s.totalTTC) * 100), 0
     )
-    const totalHtCents = activeSales.reduce(
+    const totalHtCents = salesForTotals.reduce(
       (sum, s) => sum + Math.round(Number(s.totalHT) * 100), 0
     )
-    const totalTVACents = activeSales.reduce(
+    const totalTVACents = salesForTotals.reduce(
       (sum, s) => sum + Math.round(Number(s.totalTVA) * 100), 0
     )
     const totalTTC = totalTTCCents / 100
     const totalHT = totalHtCents / 100
     const totalTVA = totalTVACents / 100
-    const ticketCount = activeSales.length
+    const ticketCount = completedSales.length
+    const creditNoteCount = creditNotes.length
 
+    // ==========================================
+    // 3a. CONTRÔLE TRANSITOIRE — TOTAUX VIA AGRÉGAT SQL
+    // ==========================================
+    // Aujourd'hui les totaux sont sommés en JS sur TOUTES les ventes du jour
+    // chargées en mémoire (sans LIMIT) → ne passe pas à l'échelle. On calcule les
+    // mêmes totaux via un agrégat SQL (SUM en centimes) sur le MÊME périmètre que
+    // `salesForTotals`. Pendant la période de transition, le JS reste la source de
+    // vérité ; tout écart JS↔SQL est remonté (logger.warn) pour investigation avant
+    // de basculer définitivement sur le calcul SQL (et d'abandonner le chargement
+    // intégral pour les totaux).
+    const [sqlTotals] = await db
+      .select({
+        totalTTCCents: sql<string>`COALESCE(SUM(ROUND(${sales.totalTTC} * 100)), 0)`,
+        totalHTCents: sql<string>`COALESCE(SUM(ROUND(${sales.totalHT} * 100)), 0)`,
+        totalTVACents: sql<string>`COALESCE(SUM(ROUND(${sales.totalTVA} * 100)), 0)`,
+      })
+      .from(sales)
+      .where(
+        and(
+          gte(sales.saleDate, startOfDay),
+          lt(sales.saleDate, endOfDay),
+          eq(sales.tenantId, tenantId),
+          eq(sales.registerId, body.registerId),
+          // Miroir exact de `salesForTotals` : ventes 'completed' hors avoir,
+          // avoirs (négatifs), et ventes annulées compensées par un avoir.
+          // `IS DISTINCT FROM` reproduit le `!==` JS même si `type` était NULL.
+          sql`(
+            (${sales.status} = 'completed' AND ${sales.type} IS DISTINCT FROM 'credit_note')
+            OR ${sales.type} = 'credit_note'
+            OR (${sales.status} = 'cancelled' AND ${sales.creditNoteId} IS NOT NULL)
+          )`,
+        )
+      )
+
+    const sqlTotalTTCCents = Number(sqlTotals?.totalTTCCents ?? 0)
+    const sqlTotalHtCents = Number(sqlTotals?.totalHTCents ?? 0)
+    const sqlTotalTVACents = Number(sqlTotals?.totalTVACents ?? 0)
+
+    if (
+      sqlTotalTTCCents !== totalTTCCents ||
+      sqlTotalHtCents !== totalHtCents ||
+      sqlTotalTVACents !== totalTVACents
+    ) {
+      logger.warn(
+        {
+          registerId: body.registerId,
+          date: body.date,
+          js: { totalTTCCents, totalHtCents, totalTVACents },
+          sql: { totalTTCCents: sqlTotalTTCCents, totalHtCents: sqlTotalHtCents, totalTVACents: sqlTotalTVACents },
+        },
+        'Écart totaux clôture JS vs agrégat SQL (période de transition)'
+      )
+    }
+
+    // ==========================================
+    // 3b. CONTRÔLE DE COHÉRENCE HT + TVA = TTC (NF525)
+    // ==========================================
+    // Bloquant (409) si l'écart dépasse 1 centime, sauf si force=true. En cas
+    // de force, l'incohérence est journalisée dans l'audit log de clôture.
     assertHTplusTVAequalsTTC(totalHT, totalTVA, totalTTC, 'close-day')
+    const totalsDiffCents = htPlusTVADiffCents(totalHT, totalTVA, totalTTC)
+    const totalsDiscrepancy =
+      Math.abs(totalsDiffCents) > 1
+        ? { totalHT, totalTVA, totalTTC, diffCents: totalsDiffCents }
+        : null
+
+    if (totalsDiscrepancy && !body.force) {
+      throw createError({
+        statusCode: 409,
+        message: `Impossible de clôturer : incohérence comptable HT + TVA ≠ TTC (écart de ${(totalsDiffCents / 100).toFixed(2)} €). Vérifiez les ventes ou forcez la clôture.`,
+        data: {
+          reason: 'totals_mismatch',
+          totalHT,
+          totalTVA,
+          totalTTC,
+          diffCents: totalsDiffCents,
+          diff: totalsDiffCents / 100,
+        },
+      })
+    }
+
     const cancelledCount = cancelledSales.length
 
-    // Totaux par mode de paiement
+    // Totaux par mode de paiement (sur le même ensemble → l'avoir négatif compense l'origine)
     interface PaymentEntry {
       mode: string
       amount: number
@@ -157,7 +273,7 @@ export default defineEventHandler(async (event) => {
 
     const paymentMethods: Record<string, number> = {}
 
-    activeSales.forEach(sale => {
+    salesForTotals.forEach(sale => {
       const payments = sale.payments as PaymentEntry[]
       payments.forEach(payment => {
         paymentMethods[payment.mode] = (paymentMethods[payment.mode] ?? 0) + payment.amount
@@ -167,13 +283,16 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 4. GÉNÉRER LE HASH DE CLÔTURE (NF525)
     // ==========================================
-    const lastTicketHash = activeSales.length > 0 ? (activeSales[0]?.currentHash ?? 'INITIAL') : 'INITIAL'
-    const firstTicketNumber = activeSales.length > 0 ? (activeSales[activeSales.length - 1]?.ticketNumber ?? null) : null
-    const lastTicketNumber = activeSales.length > 0 ? (activeSales[0]?.ticketNumber ?? null) : null
+    // dailySales est trié desc(saleDate) ; on restreint aux documents fiscaux comptés.
+    const fiscalDocs = dailySales.filter(s => s.status === 'completed' || s.type === 'credit_note')
+    const lastTicketHash = fiscalDocs.length > 0 ? (fiscalDocs[0]?.currentHash ?? 'INITIAL') : 'INITIAL'
+    const firstTicketNumber = fiscalDocs.length > 0 ? (fiscalDocs[fiscalDocs.length - 1]?.ticketNumber ?? null) : null
+    const lastTicketNumber = fiscalDocs.length > 0 ? (fiscalDocs[0]?.ticketNumber ?? null) : null
 
     const closureData = {
       date: body.date,
       ticketCount,
+      creditNoteCount,
       cancelledCount,
       totalHT: totalHT.toFixed(2),
       totalTVA: totalTVA.toFixed(2),
@@ -225,6 +344,12 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // 6. ENREGISTRER LA CLÔTURE DANS L'AUDIT LOG (NF525)
     // ==========================================
+    // Anomalies contournées par une clôture forcée (force=true) — consignées
+    // pour la traçabilité NF525 (cf. étapes 1b et 3b).
+    const forcedPending = body.force && pendingSummary.length > 0 ? pendingSummary : undefined
+    const forcedDiscrepancy = body.force && totalsDiscrepancy ? totalsDiscrepancy : undefined
+    const wasForced = Boolean(forcedPending || forcedDiscrepancy)
+
     await logClosure({
       tenantId,
       userId: null,
@@ -236,6 +361,13 @@ export default defineEventHandler(async (event) => {
       ticketCount,
       totalTTC,
       closureHash,
+      forced: wasForced,
+      anomalies: wasForced
+        ? {
+            ...(forcedDiscrepancy ? { totalsDiscrepancy: forcedDiscrepancy } : {}),
+            ...(forcedPending ? { pendingSales: forcedPending } : {}),
+          }
+        : null,
       ipAddress: getRequestIP(event) || null,
     })
 
@@ -275,12 +407,16 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     return {
       success: true,
-      message: 'Journée clôturée avec succès',
+      message: wasForced
+        ? 'Journée clôturée (forcée — anomalie consignée dans l\'audit log)'
+        : 'Journée clôturée avec succès',
+      forced: wasForced,
       closure: {
         id: newClosure.id,
         date: body.date,
         closureHash,
         ticketCount,
+        creditNoteCount,
         cancelledCount,
         totalHT,
         totalTVA,
@@ -301,9 +437,13 @@ export default defineEventHandler(async (event) => {
       ipAddress: getRequestIP(event) || null,
     })
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

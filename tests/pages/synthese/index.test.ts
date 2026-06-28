@@ -22,6 +22,15 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => toastMock
 }))
 
+vi.mock('@/composables/useUserRole', () => ({
+  useUserRole: () => ({
+    role: ref('admin'),
+    isAdmin: ref(true),
+    isManager: ref(true),
+    canAccess: () => true
+  })
+}))
+
 const fetchMock = vi.fn()
 
 describe('Page synthese', () => {
