@@ -16,6 +16,7 @@ import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
 import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
 import { resolvePurchasePriceAtSale } from '~/server/utils/purchasePriceSnapshot'
+import { findExistingSaleByClientSaleId, buildDuplicateSaleResponse } from '~/server/utils/saleIdempotency'
 
 /**
  * ==========================================
@@ -72,6 +73,7 @@ interface CreateSaleRequest {
   }
   establishmentId: number
   registerId: number
+  clientSaleId?: string | null
   loyaltyReward?: {
     type: 'percent_discount' | 'euro_discount' | 'voucher'
     value: number
@@ -84,6 +86,19 @@ export default defineEventHandler(async (event) => {
   try {
     const body = await validateBody<CreateSaleRequestInput>(event, createSaleRequestSchema)
     const tenantId = getTenantIdFromEvent(event)
+
+    // ==========================================
+    // IDEMPOTENCE (double-submit / rejeu offline)
+    // ==========================================
+    // Rejeu du même (tenantId, clientSaleId) → retourner la vente existante
+    // (duplicate: true) au lieu d'en créer une nouvelle. Cf. server/utils/saleIdempotency.ts
+    if (body.clientSaleId) {
+      const existingSale = await findExistingSaleByClientSaleId(tenantId, body.clientSaleId)
+      if (existingSale) {
+        logger.info({ clientSaleId: body.clientSaleId, saleId: existingSale.id }, 'Vente dupliquée détectée (idempotence) — retour de la vente existante')
+        return buildDuplicateSaleResponse(existingSale)
+      }
+    }
 
     // Validation des données
     if (!body.items || body.items.length === 0) {
@@ -309,12 +324,14 @@ export default defineEventHandler(async (event) => {
     }
 
     // ==========================================
-    // VOUCHERS UTILISÉS COMME PAIEMENT — validation pré-transaction
+    // VOUCHERS UTILISÉS COMME PAIEMENT — pré-validation (FAST-FAIL UX uniquement)
     // ==========================================
     // Pour chaque voucherId envoyé : doit appartenir au client, status='active', non expiré.
     // Anti-tampering : on relit le montant en DB (le client a fourni un payment "Bon d'achat #CODE"
     // dont l'amount sera vérifié ici). Tout voucher invalide = refus 400.
-    let validatedUsedVouchers: Array<{ id: number, code: string, amount: number }> = []
+    // ⚠️ Cette validation est HORS transaction et SANS lock : c'est un simple fast-fail UX.
+    // La SOURCE DE VÉRITÉ anti-double-dépense est la re-vérification verrouillée
+    // (SELECT ... FOR UPDATE) effectuée DANS la transaction, plus bas (étape 5.4a-bis).
     if (Array.isArray(body.usedVoucherIds) && body.usedVoucherIds.length > 0) {
       if (!body.customer?.id) {
         throw createError({
@@ -355,19 +372,14 @@ export default defineEventHandler(async (event) => {
           message: 'Un bon d\'achat ne correspond pas au client de la vente',
         })
       }
-
-      validatedUsedVouchers = rows.map(r => ({
-        id: r.id,
-        code: r.code,
-        amount: parseFloat(r.amount),
-      }))
+      // Pas de persistance ici : la liste validée est reconstruite sous lock dans la transaction.
     }
 
     // ==========================================
     // TRANSACTION: NUMÉROTATION + HASH + VENTE + STOCK
     // ==========================================
 
-    const { newSale, stockUpdateLogs } = await db.transaction(async (tx) => {
+    const { newSale, stockUpdateLogs, stockWarnings } = await db.transaction(async (tx) => {
       // Advisory lock par établissement pour éviter les doublons de séquence
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${establishment.id})`)
 
@@ -411,9 +423,13 @@ export default defineEventHandler(async (event) => {
       const ticketNumber = generateTicketNumber(sequenceNumber, establishmentNumber, registerNumber)
 
       // 3. GÉNÉRER LE HASH NF525
+      // NF525 : la date hashée DOIT être strictement identique (à la milliseconde,
+      // cf. toISOString dans generateTicketHash) à la saleDate stockée, sinon
+      // verify-chain recalcule un hash différent et signale le ticket corrompu.
+      const saleDate = new Date()
       const ticketData: TicketData = {
         ticketNumber,
-        saleDate: new Date(),
+        saleDate,
         totalTTC: Number(body.totals.totalTTC),
         totalHT: Number(body.totals.totalHT),
         totalTVA: Number(body.totals.totalTVA),
@@ -446,7 +462,8 @@ export default defineEventHandler(async (event) => {
         .values({
           tenantId,
           ticketNumber,
-          saleDate: new Date(),
+          clientSaleId: body.clientSaleId || null,
+          saleDate, // même instant que celui hashé dans ticketData (invariant NF525)
           totalHT: Number(body.totals.totalHT).toString(),
           totalTVA: Number(body.totals.totalTVA).toString(),
           totalTTC: Number(body.totals.totalTTC).toString(),
@@ -578,6 +595,9 @@ export default defineEventHandler(async (event) => {
 
       const stockMovementsData = []
       const stockUpdateLogs: string[] = []
+      // Surventes : la vente passe même si le stock devient négatif (stock système
+      // souvent faux en retail), mais chaque survente est tracée et remontée au client.
+      const stockWarnings: Array<{ productId: number; productName: string; variation: string | null; remainingStock: number }> = []
 
       for (const item of body.items) {
         // Lookup mémoire au lieu d'un SELECT par item
@@ -663,6 +683,20 @@ export default defineEventHandler(async (event) => {
             )
         }
 
+        const oversell = newStock < 0
+        if (oversell) {
+          logger.warn(
+            { productId: item.productId, variation: item.variation || null, oldStock, quantity: item.quantity },
+            'Survente : le stock passe en négatif',
+          )
+          stockWarnings.push({
+            productId: item.productId,
+            productName: item.productName,
+            variation: item.variation || null,
+            remainingStock: newStock,
+          })
+        }
+
         // Enregistrer le mouvement de stock avec l'établissement
         stockMovementsData.push({
           tenantId,
@@ -672,6 +706,7 @@ export default defineEventHandler(async (event) => {
           oldStock,
           newStock,
           reason: 'sale' as const,
+          oversell,
           saleId: createdSale.id,
           userId: body.seller.id,
           establishmentId: establishment.id, // Ajout de l'établissement
@@ -723,14 +758,64 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      // 5.4a-bis FIDÉLITÉ : marquer les vouchers utilisés (validés en pré-transaction)
-      // Comme la pré-validation s'est faite hors transaction, il y a une fenêtre théorique
-      // pour qu'un voucher soit utilisé ailleurs entre temps. On accepte ce risque (V1 simple) ;
-      // en cas de race condition, le voucher restera marqué `used` sur la mauvaise vente —
-      // peu probable en environnement single-user-per-customer.
-      if (validatedUsedVouchers.length > 0) {
+      // 5.4a-bis FIDÉLITÉ : verrouiller, re-valider puis marquer les vouchers utilisés.
+      // SOURCE DE VÉRITÉ anti-double-dépense. La pré-validation (hors transaction) n'est qu'un
+      // fast-fail UX : ici on relit les lignes loyaltyVouchers avec SELECT ... FOR UPDATE pour
+      // sérialiser deux ventes concurrentes sur le même bon. La 1re vente acquiert le lock,
+      // marque le bon 'used' et commit ; la 2e, bloquée sur le lock, relit ensuite la ligne
+      // (READ COMMITTED) avec status='used' → re-validation échoue → rollback + 409.
+      if (Array.isArray(body.usedVoucherIds) && body.usedVoucherIds.length > 0) {
+        if (!body.customer?.id) {
+          throw createError({
+            statusCode: 400,
+            message: 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client',
+          })
+        }
+
         const nowDate = new Date()
-        for (const v of validatedUsedVouchers) {
+        const lockedRows = await tx
+          .select({
+            id: loyaltyVouchers.id,
+            code: loyaltyVouchers.code,
+            amount: loyaltyVouchers.amount,
+            customerId: loyaltyVouchers.customerId,
+            status: loyaltyVouchers.status,
+            expiresAt: loyaltyVouchers.expiresAt,
+          })
+          .from(loyaltyVouchers)
+          .where(
+            and(
+              eq(loyaltyVouchers.tenantId, tenantId),
+              inArray(loyaltyVouchers.id, body.usedVoucherIds),
+            ),
+          )
+          .for('update')
+
+        // Re-vérification APRÈS acquisition du lock : status='active', non expiré, bon client.
+        const lockedById = new Map(lockedRows.map(r => [r.id, r]))
+        const invalidCodes: string[] = []
+        for (const voucherId of body.usedVoucherIds) {
+          const row = lockedById.get(voucherId)
+          if (!row) {
+            invalidCodes.push(`#${voucherId}`)
+            continue
+          }
+          const expired = row.expiresAt !== null && row.expiresAt <= nowDate
+          const wrongCustomer = row.customerId !== body.customer.id
+          if (row.status !== 'active' || expired || wrongCustomer) {
+            invalidCodes.push(row.code)
+          }
+        }
+
+        if (invalidCodes.length > 0) {
+          // throw dans la transaction → rollback automatique (la vente n'est pas créée).
+          throw createError({
+            statusCode: 409,
+            message: `Bon(s) d'achat non disponible(s) : ${invalidCodes.join(', ')} (déjà utilisé, expiré ou invalide). Veuillez recharger la page.`,
+          })
+        }
+
+        for (const row of lockedRows) {
           await tx
             .update(loyaltyVouchers)
             .set({
@@ -740,7 +825,7 @@ export default defineEventHandler(async (event) => {
             })
             .where(
               and(
-                eq(loyaltyVouchers.id, v.id),
+                eq(loyaltyVouchers.id, row.id),
                 eq(loyaltyVouchers.tenantId, tenantId),
               ),
             )
@@ -793,7 +878,7 @@ export default defineEventHandler(async (event) => {
         ipAddress: getRequestIP(event) || null,
       })
 
-      return { newSale: createdSale, saleItemsData, stockUpdateLogs }
+      return { newSale: createdSale, saleItemsData, stockUpdateLogs, stockWarnings }
     })
 
     if (stockUpdateLogs.length > 0) {
@@ -817,6 +902,9 @@ export default defineEventHandler(async (event) => {
 
     return {
       success: true,
+      duplicate: false,
+      // Articles vendus en survente (stock passé en négatif) — la caisse les affiche
+      stockWarnings,
       sale: {
         id: newSale.id,
         ticketNumber: newSale.ticketNumber,
@@ -840,9 +928,13 @@ export default defineEventHandler(async (event) => {
       ipAddress: getRequestIP(event) || null,
     })
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

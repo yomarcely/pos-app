@@ -173,10 +173,10 @@ function createReadChain(rows: unknown[]) {
 /**
  * For close-day: 3 selects (register, closure, sales) + 1 insert + 1 update
  */
-function createCloseDayChain(register: unknown | null, existingClosure: unknown[], dailySales: unknown[], newClosure: unknown, pendingCount: unknown[] = [{ count: 0 }]) {
+function createCloseDayChain(register: unknown | null, existingClosure: unknown[], dailySales: unknown[], newClosure: unknown, pendingRows: unknown[] = []) {
   let selectIdx = 0
-  // Ordre des SELECT dans close-day.post.ts : register, existingClosure, pendingSalesCount, dailySales
-  const selectResults = [register ? [register] : [], existingClosure, pendingCount, dailySales]
+  // Ordre des SELECT dans close-day.post.ts : register, existingClosure, pendingSales (liste), dailySales
+  const selectResults = [register ? [register] : [], existingClosure, pendingRows, dailySales]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectChain: any = {
     from: vi.fn(() => selectChain),
@@ -255,7 +255,7 @@ describe('API /api/sales', () => {
   // POST /api/sales/create — validation only
   // -----------------------------------------
   describe('POST /api/sales/create', () => {
-    it('throw 400 si panier vide (remonte en 500)', async () => {
+    it('throw 400 si panier vide', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sales/create.post')).default as any
@@ -272,12 +272,12 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Le panier est vide'
       })
     })
 
-    it('throw 400 si vendeur manquant (remonte en 500)', async () => {
+    it('throw 400 si vendeur manquant', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sales/create.post')).default as any
@@ -294,12 +294,12 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Vendeur manquant'
       })
     })
 
-    it('throw 400 si paiement manquant (remonte en 500)', async () => {
+    it('throw 400 si paiement manquant', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sales/create.post')).default as any
@@ -316,12 +316,12 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Mode de paiement manquant'
       })
     })
 
-    it('throw 400 si établissement ou caisse manquant (remonte en 500)', async () => {
+    it('throw 400 si établissement ou caisse manquant', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sales/create.post')).default as any
@@ -338,7 +338,7 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Établissement ou caisse manquant'
       })
     })
@@ -435,7 +435,52 @@ describe('API /api/sales', () => {
       expect(res.closure.totalTTC).toBe(100)
     })
 
-    it('throw 400 si journée déjà clôturée (remonte en 500)', async () => {
+    it('registre immuable : vente annulée le même jour + son avoir → net 0', async () => {
+      const register = { id: 1, name: 'Caisse 1', establishmentId: 10, tenantId: 'test-tenant-id' }
+      const dailySales = [
+        // Vente normale
+        { id: 1, status: 'completed', type: 'sale', creditNoteId: null, totalTTC: '100.00', totalHT: '83.33', totalTVA: '16.67', payments: [{ mode: 'cash', amount: 100 }], currentHash: 'h1', ticketNumber: 'T001' },
+        // Vente annulée AVEC avoir → reste comptée (creditNoteId présent)
+        { id: 2, status: 'cancelled', type: 'sale', creditNoteId: 3, totalTTC: '40.00', totalHT: '33.33', totalTVA: '6.67', payments: [{ mode: 'card', amount: 40 }], currentHash: 'h2', ticketNumber: 'T002' },
+        // L'avoir négatif
+        { id: 3, status: 'completed', type: 'credit_note', creditNoteId: null, originalSaleId: 2, totalTTC: '-40.00', totalHT: '-33.33', totalTVA: '-6.67', payments: [{ mode: 'card', amount: -40 }], currentHash: 'h3', ticketNumber: 'T003' },
+      ]
+      const newClosure = { id: 2, closureDate: '2024-01-15', closureHash: 'mock-closure-hash-hex', closedBy: 'Utilisateur', createdAt: new Date() }
+
+      currentDb = createCloseDayChain(register, [], dailySales, newClosure)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/close-day.post')).default as any
+      const res = await handler(createMockEvent({ body: { date: '2024-01-15', registerId: 1 } }))
+
+      // 100 (vente) + 40 (origine annulée comptée) - 40 (avoir) = 100
+      expect(res.closure.totalTTC).toBe(100)
+      // paiements : cash 100, card 40 - 40 = 0
+      expect(res.closure.paymentMethods.cash).toBe(100)
+      expect(res.closure.paymentMethods.card).toBe(0)
+      expect(res.closure.ticketCount).toBe(1) // ventes normales completed
+      expect(res.closure.creditNoteCount).toBe(1)
+      expect(res.closure.cancelledCount).toBe(1)
+    })
+
+    it('avoir seul (origine clôturée un jour antérieur) → total négatif reporté', async () => {
+      const register = { id: 1, name: 'Caisse 1', establishmentId: 10, tenantId: 'test-tenant-id' }
+      const dailySales = [
+        { id: 5, status: 'completed', type: 'sale', creditNoteId: null, totalTTC: '200.00', totalHT: '166.67', totalTVA: '33.33', payments: [{ mode: 'cash', amount: 200 }], currentHash: 'h5', ticketNumber: 'T010' },
+        { id: 6, status: 'completed', type: 'credit_note', creditNoteId: null, originalSaleId: 99, totalTTC: '-50.00', totalHT: '-41.67', totalTVA: '-8.33', payments: [{ mode: 'cash', amount: -50 }], currentHash: 'h6', ticketNumber: 'T011' },
+      ]
+      const newClosure = { id: 3, closureDate: '2024-01-16', closureHash: 'mock-closure-hash-hex', closedBy: 'Utilisateur', createdAt: new Date() }
+
+      currentDb = createCloseDayChain(register, [], dailySales, newClosure)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/close-day.post')).default as any
+      const res = await handler(createMockEvent({ body: { date: '2024-01-16', registerId: 1 } }))
+
+      // 200 - 50 = 150 ; l'avoir porte son négatif sur la période où il est émis
+      expect(res.closure.totalTTC).toBe(150)
+      expect(res.closure.creditNoteCount).toBe(1)
+    })
+
+    it('throw 400 si journée déjà clôturée', async () => {
       const register = { id: 1, name: 'Caisse 1', establishmentId: 10, tenantId: 'test-tenant-id' }
       const existingClosure = [{ id: 1, closureDate: '2024-01-15', registerId: 1 }]
 
@@ -447,12 +492,12 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Cette journée est déjà clôturée pour cette caisse'
       })
     })
 
-    it('throw 404 si caisse introuvable (remonte en 500)', async () => {
+    it('throw 404 si caisse introuvable', async () => {
       currentDb = createCloseDayChain(null, [], [], {})
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sales/close-day.post')).default as any
@@ -461,7 +506,7 @@ describe('API /api/sales', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Caisse non trouvée'
       })
     })
@@ -532,6 +577,47 @@ describe('API /api/sales', () => {
       expect(res.success).toBe(true)
       expect(res.isValid).toBe(true)
       expect(res.ticketCount).toBe(1)
+    })
+
+    it('throw 400 si startDate mal formatée', async () => {
+      currentDb = createVerifyChainDb([], [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/verify-chain.get')).default as any
+      const event = createMockEvent({ query: { startDate: '15/01/2024' } })
+
+      await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 })
+    })
+
+    it('throw 400 si limit dépasse 5000', async () => {
+      currentDb = createVerifyChainDb([], [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/verify-chain.get')).default as any
+      const event = createMockEvent({ query: { limit: '99999' } })
+
+      await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 })
+    })
+
+    it('throw 400 si registerId non entier positif', async () => {
+      currentDb = createVerifyChainDb([], [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/verify-chain.get')).default as any
+      const event = createMockEvent({ query: { registerId: '-3' } })
+
+      await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 })
+    })
+
+    it('renvoie un message générique (sans détails internes) en cas d\'erreur interne', async () => {
+      currentDb = {
+        select: vi.fn(() => { throw new Error('relation "sales" does not exist: column tenant_id') }),
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/sales/verify-chain.get')).default as any
+      const event = createMockEvent()
+
+      await expect(handler(event)).rejects.toMatchObject({
+        statusCode: 500,
+        message: "Une erreur interne s'est produite",
+      })
     })
   })
 })

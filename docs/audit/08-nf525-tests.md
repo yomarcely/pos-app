@@ -213,4 +213,28 @@ La fonction ne vérifie pas que le premier ticket de la chaîne a `previousHash 
 
 ---
 
-*Mise à jour : 2026-03-16 — 42 tests écrits, 371 tests total (suite complète), 0 échec.*
+## 8. Note historique — divergence de date hash/stockage (corrigée le 2026-06-12, P1.2)
+
+Jusqu'au commit du 2026-06-12, `server/api/sales/create.post.ts` calculait le hash NF525
+avec un `new Date()` (dans `ticketData`) mais insérait la vente avec un **autre** `new Date()`.
+Comme `generateTicketHash` inclut `saleDate.toISOString()` (précision milliseconde), la date
+hashée n'était **jamais** celle stockée en base : `verify-chain` recalculait un hash différent
+et signalait quasiment chaque ticket comme corrompu.
+
+Conséquences sur la vérifiabilité de l'historique :
+
+- **Ventes créées avant ce commit** : leurs hashes ont été calculés avec une date jamais
+  persistée. La **vérification de contenu** (recalcul du hash depuis les données stockées)
+  les signalera définitivement comme invalides — c'est un faux positif structurel, pas une
+  altération des données.
+- **Le chaînage `previousHash` → `currentHash` reste vérifiable sur tout l'historique** :
+  chaque ticket référence bien le hash stocké du ticket précédent, indépendamment du bug.
+  Toute insertion/suppression/réordonnancement frauduleux reste donc détectable.
+- **La vérification de contenu n'est fiable qu'à partir des ventes créées après ce commit.**
+
+Test de régression : `tests/api/salesHashRoundTrip.test.ts` (round-trip création →
+stockage decimal/string → reconstruction verify-chain → recalcul du hash).
+
+---
+
+*Mise à jour : 2026-06-12 — fix P1.2 (date unique hash/stockage) + 2 tests round-trip ; précédemment 2026-03-16 — 42 tests écrits, 371 tests total (suite complète), 0 échec.*
