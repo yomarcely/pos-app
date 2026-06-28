@@ -13,8 +13,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { RefreshCcw, Trash2 } from 'lucide-vue-next'
 import type { Product } from '@/types'
+import type { ProductInCart } from '@/types/pos'
 import { storeToRefs } from 'pinia'
 import { useProductsStore } from '@/stores/products'
 import { useCartStore } from '@/stores/cart'
@@ -48,10 +50,21 @@ const searchQuery = ref('')
 const searchSuggestions = ref<Suggestion[]>([])
 const confirmClearOpen = ref(false)
 const returnMode = ref(false)
-const restockDialogOpen = ref(false)
-const pendingProduct = ref<Product | null>(null)
-const pendingVariation = ref<string>('')
-const pendingRestock = ref(false)
+// Dialog unique de confirmation de retour (remplace l'ancien dialog par article)
+const returnConfirmOpen = ref(false)
+
+// Lignes retournées présentes dans le panier (quantité négative)
+const returnedItems = computed(() =>
+  cart.value.filter(item => item.quantity < 0) as ProductInCart[]
+)
+
+// Checkbox d'en-tête « Tout remettre en stock »
+const allRestock = computed<boolean>({
+  get: () => returnedItems.value.length > 0 && returnedItems.value.every(item => item.restockOnReturn),
+  set: (value: boolean) => {
+    returnedItems.value.forEach((item) => { item.restockOnReturn = value })
+  },
+})
 
 // Injecter l'état des paiements
 const hasPayments = inject<Ref<boolean>>('hasPayments', ref(false))
@@ -90,7 +103,8 @@ function handleProductAdd(product: Product) {
     return ''
   })()
 
-  // Mode retour : quantité négative et flag restock
+  // Mode retour : quantité négative, remise en stock cochée par défaut.
+  // Le choix de remise en stock se fait dans le dialog de confirmation unique.
   if (returnMode.value) {
     // Chercher une ligne existante avec quantité négative
     const existing = cart.value.find(
@@ -98,7 +112,6 @@ function handleProductAdd(product: Product) {
     )
     if (existing) {
       existing.quantity -= 1
-      existing.restockOnReturn = pendingRestock.value
     } else {
       // Ajouter manuellement dans le panier avec quantité -1
       cart.value.push({
@@ -107,9 +120,9 @@ function handleProductAdd(product: Product) {
         discount: 0,
         discountType: '%',
         variation: variationName,
-        restockOnReturn: pendingRestock.value,
+        restockOnReturn: true,
         _uniqueId: Date.now() + Math.random(), // ID unique pour différencier les lignes
-      } as any)
+      } as ProductInCart)
     }
   } else {
     cartStore.addToCart(product, variationName)
@@ -150,23 +163,12 @@ function handleSelectProduct(suggestion: Suggestion) {
     return
   }
 
-  if (returnMode.value) {
-    pendingProduct.value = product
-    pendingVariation.value = (() => {
-      if (product.variationGroupIds && product.variationGroupIds.length > 0) {
-        const firstVariationId = product.variationGroupIds[0]
-        if (firstVariationId !== undefined) {
-          return getVariationNameById(firstVariationId)
-        }
-      }
-      return ''
-    })()
-    restockDialogOpen.value = true
-  } else {
-    handleProductAdd(product)
-    searchQuery.value = ''
-    searchSuggestions.value = []
-  }
+  // En mode retour comme en mode normal, on ajoute directement la ligne au panier.
+  // En mode retour, la confirmation (et le choix de remise en stock) se fait via
+  // le dialog unique « Confirmer le retour ».
+  handleProductAdd(product)
+  searchQuery.value = ''
+  searchSuggestions.value = []
 }
 
 function selectFirstSuggestion() {
@@ -199,32 +201,43 @@ function clearSearch() {
   clearSuggestions()
 }
 
-function confirmRestockChoice(restock: boolean) {
-  pendingRestock.value = restock
-  if (pendingProduct.value) {
-    handleProductAdd(pendingProduct.value)
-  }
-  // Réinitialiser après l'ajout
-  pendingProduct.value = null
-  pendingVariation.value = ''
-  pendingRestock.value = false
-  searchQuery.value = ''
-  searchSuggestions.value = []
-  restockDialogOpen.value = false
-  returnMode.value = false // Désactiver le mode retour
+function openReturnConfirm() {
+  if (returnedItems.value.length === 0) return
+  returnConfirmOpen.value = true
 }
 
-function cancelRestockDialog() {
-  pendingProduct.value = null
-  pendingVariation.value = ''
-  pendingRestock.value = false
-  restockDialogOpen.value = false
+function confirmReturn() {
+  // Les flags restockOnReturn sont déjà positionnés sur les items via les checkboxes.
+  returnConfirmOpen.value = false
+  returnMode.value = false // Sortir du mode retour une fois le retour confirmé
+}
+
+function cancelReturnConfirm() {
+  returnConfirmOpen.value = false
 }
 
 function clearCartAndSearch() {
   cartStore.clearCart()
   clearSearch()
 }
+
+// ===========================================
+// Raccourcis clavier (useCaisseShortcuts, monté sur la page) :
+// la page tient un ref sur ce composant et appelle ces deux méthodes.
+// ===========================================
+const searchRef = ref<{ focus: () => void } | null>(null)
+
+function focusSearch() {
+  searchRef.value?.focus()
+}
+
+/** Retire la dernière ligne du panier (Suppr). No-op si panier verrouillé ou vide. */
+function removeLastItem() {
+  if (isCartLocked.value || cart.value.length === 0) return
+  cart.value.splice(cart.value.length - 1, 1)
+}
+
+defineExpose({ focusSearch, removeLastItem })
 </script>
 
 <template>
@@ -259,6 +272,7 @@ function clearCartAndSearch() {
 
       <div class="flex-1 flex justify-center">
         <ProductSearchWithSuggestions
+          ref="searchRef"
           class="w-full max-w-lg"
           :search-query="searchQuery"
           :suggestions="searchSuggestions"
@@ -278,18 +292,28 @@ function clearCartAndSearch() {
         />
       </div>
 
-      <Button
-        variant="outline"
-        size="icon"
-        :class="[
-          'h-9 w-9 transition-colors',
-          returnMode ? 'bg-orange-100 border-orange-500 text-orange-700 hover:bg-orange-200' : ''
-        ]"
-        @click="() => returnMode = !returnMode"
-        :aria-label="returnMode ? 'Mode retour activé' : 'Mode retour désactivé'"
-      >
-        <RefreshCcw class="w-4 h-4" />
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button
+          v-if="returnMode && returnedItems.length > 0"
+          variant="outline"
+          class="h-9 border-orange-500 text-orange-700 hover:bg-orange-50"
+          @click="openReturnConfirm"
+        >
+          Confirmer le retour ({{ returnedItems.length }})
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          :class="[
+            'h-9 w-9 transition-colors',
+            returnMode ? 'bg-orange-100 border-orange-500 text-orange-700 hover:bg-orange-200' : ''
+          ]"
+          @click="() => returnMode = !returnMode"
+          :aria-label="returnMode ? 'Mode retour activé' : 'Mode retour désactivé'"
+        >
+          <RefreshCcw class="w-4 h-4" />
+        </Button>
+      </div>
     </div>
 
   <!-- Liste des produits du panier -->
@@ -306,29 +330,49 @@ function clearCartAndSearch() {
   </ScrollArea>
   </div>
 
-  <!-- Dialog retour produit : remettre en stock ? -->
-  <AlertDialog v-model:open="restockDialogOpen">
+  <!-- Dialog unique de confirmation de retour : liste des articles + remise en stock par ligne -->
+  <AlertDialog v-model:open="returnConfirmOpen">
     <AlertDialogContent>
       <AlertDialogHeader>
-        <AlertDialogTitle>Retour produit</AlertDialogTitle>
+        <AlertDialogTitle>Confirmer le retour</AlertDialogTitle>
       </AlertDialogHeader>
-      <div class="space-y-2">
+      <div class="space-y-3">
         <p class="text-sm text-muted-foreground">
-          Produit : <span class="font-semibold">{{ pendingProduct?.name }}</span>
+          Vérifiez les articles retournés et choisissez ceux à remettre en stock.
         </p>
-        <p v-if="pendingVariation" class="text-sm text-muted-foreground">
-          Variation : <span class="font-semibold">{{ pendingVariation }}</span>
-        </p>
-        <p class="text-sm font-medium mt-4">
-          Souhaitez-vous remettre ce produit en stock ?
-        </p>
+
+        <!-- En-tête : tout remettre en stock -->
+        <label class="flex items-center gap-2 border-b pb-2 text-sm font-medium">
+          <Checkbox v-model="allRestock" aria-label="Tout remettre en stock" />
+          Tout remettre en stock
+        </label>
+
+        <!-- Une ligne par article retourné -->
+        <ul class="space-y-2 max-h-64 overflow-y-auto">
+          <li
+            v-for="item in returnedItems"
+            :key="(item as any)._uniqueId || (item.id + '-' + item.variation)"
+            class="flex items-center justify-between gap-3 text-sm"
+          >
+            <div class="min-w-0">
+              <div class="truncate font-medium">{{ item.name }}</div>
+              <div class="text-xs text-muted-foreground">
+                <span v-if="item.variation">{{ item.variation }} · </span>Quantité : {{ Math.abs(item.quantity) }}
+              </div>
+            </div>
+            <label class="flex shrink-0 items-center gap-2 text-xs">
+              <Checkbox v-model="item.restockOnReturn" :aria-label="`Remettre en stock ${item.name}`" />
+              Remettre en stock
+            </label>
+          </li>
+        </ul>
       </div>
       <AlertDialogFooter class="mt-4">
-        <AlertDialogCancel @click="confirmRestockChoice(false)">
-          Non, ne pas remettre en stock
+        <AlertDialogCancel @click="cancelReturnConfirm">
+          Annuler
         </AlertDialogCancel>
-        <AlertDialogAction @click="confirmRestockChoice(true)">
-          Oui, remettre en stock
+        <AlertDialogAction @click="confirmReturn">
+          Confirmer le retour
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>

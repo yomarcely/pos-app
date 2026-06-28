@@ -18,6 +18,7 @@ export enum AuditEventType {
   // Événements de vente
   SALE_CREATE = 'sale_create',
   SALE_CANCEL = 'sale_cancel',
+  TICKET_REPRINT = 'ticket_reprint',
 
   // Événements de clôture
   CLOSURE_CREATE = 'closure_create',
@@ -184,7 +185,73 @@ export async function logSaleCancellation(params: {
 }
 
 /**
- * Log spécifique pour la clôture de journée
+ * Log spécifique pour la réimpression manuelle d'un ticket / facture (NF525).
+ *
+ * Traçabilité exigée : toute réédition d'un document de vente doit être
+ * journalisée (qui, quand, quel ticket, quel format). N'altère pas la chaîne
+ * de hash — c'est un événement d'audit, pas une nouvelle vente.
+ */
+export async function logTicketReprint(params: {
+  tenantId: string
+  userId: number | null
+  userName: string | null
+  saleId: number | null
+  ticketNumber: string
+  documentType: 'receipt' | 'invoice'
+  establishmentId?: number
+  registerId?: number
+  ipAddress?: string | null
+}): Promise<void> {
+  await logAuditEvent({
+    tenantId: params.tenantId,
+    userId: params.userId,
+    userName: params.userName,
+    entityType: 'sale',
+    entityId: params.saleId,
+    action: AuditEventType.TICKET_REPRINT,
+    changes: {
+      ticketNumber: params.ticketNumber,
+      documentType: params.documentType,
+    },
+    metadata: {
+      ticketNumber: params.ticketNumber,
+      establishmentId: params.establishmentId,
+      registerId: params.registerId,
+    },
+    ipAddress: params.ipAddress,
+  })
+}
+
+/**
+ * Anomalies tracées lors d'une clôture forcée (NF525).
+ *
+ * Quand l'opérateur force une clôture malgré une anomalie bloquante, la
+ * traçabilité exige de consigner précisément ce qui a été contourné :
+ *  - `totalsDiscrepancy` : incohérence HT+TVA≠TTC (écart > 1 centime)
+ *  - `pendingSales` : tickets restés en attente sur la caisse au moment
+ *    de la clôture (paniers abandonnés non encaissés)
+ */
+export interface ClosureAnomalies {
+  totalsDiscrepancy?: {
+    totalHT: number
+    totalTVA: number
+    totalTTC: number
+    diffCents: number
+  }
+  pendingSales?: Array<{
+    id: number
+    createdAt: string | null
+    createdByEmail: string | null
+    itemCount: number
+  }>
+}
+
+/**
+ * Log spécifique pour la clôture de journée.
+ *
+ * `forced`/`anomalies` : renseignés uniquement lors d'une clôture forcée
+ * (force=true) — l'anomalie contournée est alors consignée dans `changes`
+ * pour la traçabilité NF525.
  */
 export async function logClosure(params: {
   tenantId: string
@@ -197,6 +264,8 @@ export async function logClosure(params: {
   ticketCount: number
   totalTTC: number
   closureHash: string
+  forced?: boolean
+  anomalies?: ClosureAnomalies | null
   ipAddress?: string | null
 }): Promise<void> {
   await logAuditEvent({
@@ -210,11 +279,15 @@ export async function logClosure(params: {
       closureDate: params.closureDate,
       ticketCount: params.ticketCount,
       totalTTC: params.totalTTC,
+      ...(params.forced
+        ? { forced: true, anomalies: params.anomalies ?? {} }
+        : {}),
     },
     metadata: {
       hash: params.closureHash,
       registerId: params.registerId,
       establishmentId: params.establishmentId,
+      ...(params.forced ? { forced: true } : {}),
     },
     ipAddress: params.ipAddress,
   })

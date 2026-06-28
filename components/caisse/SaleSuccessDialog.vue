@@ -9,14 +9,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 
 defineProps<{
   open: boolean
   ticketNumber?: string
+  autoPrint: boolean
 }>()
 
 defineEmits<{
   (e: 'update:open', value: boolean): void
+  (e: 'update:autoPrint', value: boolean): void
   (e: 'print-receipt'): void
   (e: 'print-invoice'): void
   (e: 'close'): void
@@ -39,14 +42,18 @@ defineEmits<{
         </div>
       </DialogHeader>
 
-      <div class="grid grid-cols-2 gap-3 py-4">
+      <p v-if="autoPrint" class="text-center text-xs text-muted-foreground">
+        Ticket imprimé automatiquement.
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 py-2">
         <Button
           variant="outline"
           class="h-24 flex-col gap-2"
           @click="$emit('print-receipt')"
         >
           <Printer class="h-7 w-7" />
-          <span class="text-sm font-medium">Ticket</span>
+          <span class="text-sm font-medium">{{ autoPrint ? 'Réimprimer' : 'Ticket' }}</span>
           <span class="text-xs text-muted-foreground">80mm</span>
         </Button>
 
@@ -61,9 +68,18 @@ defineEmits<{
         </Button>
       </div>
 
+      <label class="flex items-center gap-2 text-sm">
+        <Checkbox
+          :model-value="autoPrint"
+          aria-label="Impression automatique du ticket"
+          @update:model-value="(v) => $emit('update:autoPrint', v === true)"
+        />
+        Impression automatique du ticket
+      </label>
+
       <DialogFooter>
         <Button variant="ghost" class="w-full" @click="$emit('close')">
-          Fermer sans imprimer
+          Fermer
         </Button>
       </DialogFooter>
     </DialogContent>
