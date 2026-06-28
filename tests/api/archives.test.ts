@@ -34,6 +34,16 @@ vi.mock('crypto', () => ({
   }
 }))
 
+// État pilotable de l'export R2 (préfixe `mock` requis par vi.mock hoisting)
+const mockR2State = { configured: false, fail: false }
+vi.mock('~/server/utils/r2Storage', () => ({
+  isR2Configured: vi.fn(() => mockR2State.configured),
+  uploadArchiveToR2: vi.fn(async () => {
+    if (mockR2State.fail) throw new Error('R2 indisponible')
+    return { url: 'https://r2.example/archive' }
+  }),
+}))
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let currentDb: any
 
@@ -143,7 +153,12 @@ function createArchiveCreateChain(closuresData: unknown[], salesData: unknown[],
 // ===========================================
 
 describe('API /api/archives', () => {
-  beforeEach(() => { vi.resetModules() })
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    mockR2State.configured = false
+    mockR2State.fail = false
+  })
 
   // -----------------------------------------
   // GET /api/archives
@@ -211,6 +226,61 @@ describe('API /api/archives', () => {
       expect(res.archive).toBeDefined()
       expect(res.archive.archiveHash).toBe('mock-archive-hash-abc123')
       expect(res.content).toBeDefined()
+    })
+
+    it('exporte vers R2 et marque exportStatus=exported quand R2 est configuré', async () => {
+      mockR2State.configured = true
+      const mockSale = {
+        id: 1, ticketNumber: 'T001', saleDate: new Date('2024-01-15'),
+        totalHT: '40.00', totalTVA: '8.00', totalTTC: '48.00',
+        globalDiscount: '0', globalDiscountType: '%', sellerId: 1, customerId: null,
+        establishmentId: 1, registerId: 1, payments: [], previousHash: null,
+        currentHash: 'h1', signature: 's1', status: 'completed',
+      }
+      const newArchive = { id: 7, period: '2024-01', fileSize: 1024, createdAt: new Date() }
+      currentDb = createArchiveCreateChain([], [mockSale], [], newArchive)
+      const { uploadArchiveToR2 } = await import('~/server/utils/r2Storage')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/archives/create.post')).default as any
+      const event = createMockEvent({ body: { period: '2024-01', type: 'monthly' } })
+
+      const res = await handler(event)
+
+      expect(res.success).toBe(true)
+      expect(res.archive.exportStatus).toBe('exported')
+      expect(res.archive.storageKey).toBe('archives/test-tenant-id/archive-2024-01.json')
+      expect(uploadArchiveToR2).toHaveBeenCalledOnce()
+    })
+
+    it('bascule en pending_export quand R2 n\'est pas configuré', async () => {
+      // mockR2State.configured = false par défaut
+      const newArchive = { id: 8, period: '2024-01', fileSize: 1024, createdAt: new Date() }
+      currentDb = createArchiveCreateChain([], [], [], newArchive)
+      const { uploadArchiveToR2 } = await import('~/server/utils/r2Storage')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/archives/create.post')).default as any
+      const event = createMockEvent({ body: { period: '2024-01', type: 'monthly' } })
+
+      const res = await handler(event)
+
+      expect(res.archive.exportStatus).toBe('pending_export')
+      expect(res.archive.storageKey).toBeNull()
+      expect(uploadArchiveToR2).not.toHaveBeenCalled()
+    })
+
+    it('bascule en pending_export si l\'upload R2 échoue (flux non cassé)', async () => {
+      mockR2State.configured = true
+      mockR2State.fail = true
+      const newArchive = { id: 9, period: '2024-01', fileSize: 1024, createdAt: new Date() }
+      currentDb = createArchiveCreateChain([], [], [], newArchive)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/archives/create.post')).default as any
+      const event = createMockEvent({ body: { period: '2024-01', type: 'monthly' } })
+
+      const res = await handler(event)
+
+      expect(res.success).toBe(true)
+      expect(res.archive.exportStatus).toBe('pending_export')
     })
 
     // Note : la validation Zod du body (type/period requis, format YYYY-MM)

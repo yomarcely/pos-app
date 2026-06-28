@@ -2,7 +2,9 @@ import { db } from '~/server/database/connection'
 import { archives, sales, saleItems, closures } from '~/server/database/schema'
 import { and, eq, gte, lte, desc } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { generateArchiveHash } from '~/server/utils/nf525'
+import { isR2Configured, uploadArchiveToR2 } from '~/server/utils/r2Storage'
 import { logger } from '~/server/utils/logger'
 import { validateBody } from '~/server/utils/validation'
 import { createArchiveSchema, type CreateArchiveInput } from '~/server/validators/archive.schema'
@@ -29,6 +31,7 @@ import crypto from 'crypto'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const { period, type, registerId } = await validateBody<CreateArchiveInput>(event, createArchiveSchema)
 
     logger.info({ type, period, registerId }, 'Création d\'archive NF525')
@@ -181,11 +184,50 @@ export default defineEventHandler(async (event) => {
     logger.debug({ archiveHash: archiveHash.substring(0, 16) }, 'Hash archive généré')
 
     // ==========================================
-    // 6. ENREGISTRER L'ARCHIVE EN BASE DE DONNÉES
+    // 6. EXPORT IMMUABLE VERS CLOUDFLARE R2
+    // ==========================================
+    // L'archive stockée uniquement en DB n'a pas de valeur probante (modifiable +
+    // re-signable par quiconque a accès à la base). On la pousse dans le bucket R2 avec
+    // son hash SHA-256 en métadonnée d'objet. Si R2 est indisponible (credentials absents
+    // au runtime) ou en échec, l'archive est créée en 'pending_export' et reste
+    // ré-exportable via POST /api/archives/[id]/export — le flux ne casse jamais.
+    // Voir docs/runbooks/nf525-archive-export.md.
+    const fileName = `archive-${period}${registerId ? `-register-${registerId}` : ''}.json`
+    const storageKey = `archives/${tenantId}/${fileName}`
+
+    let exportStatus: 'exported' | 'pending_export' = 'pending_export'
+    let exportedAt: Date | null = null
+    let filePath = `inline:${fileName}`
+
+    if (isR2Configured()) {
+      try {
+        await uploadArchiveToR2({
+          key: storageKey,
+          body: archiveContentString,
+          contentHash: archiveHash,
+          metadata: {
+            'archive-hash': archiveHash,
+            'tenant-id': tenantId,
+            period,
+          },
+        })
+        exportStatus = 'exported'
+        exportedAt = new Date()
+        filePath = `r2:${storageKey}`
+        logger.info({ storageKey }, 'Archive exportée vers R2')
+      } catch (uploadError) {
+        // Ne casse pas le flux : on conserve l'archive en DB pour ré-export ultérieur.
+        logger.error({ err: uploadError, storageKey }, 'Export R2 échoué — archive en pending_export')
+      }
+    } else {
+      logger.warn('R2 non configuré — archive créée en pending_export')
+    }
+
+    // ==========================================
+    // 7. ENREGISTRER L'ARCHIVE EN BASE DE DONNÉES
     // ==========================================
     const periodStartDate = new Date(`${startDate}T00:00:00Z`)
     const periodEndDate = new Date(`${endDate}T23:59:59Z`)
-    const inlineArchivePath = `inline:archive-${period}${registerId ? `-register-${registerId}` : ''}.json`
 
     const [newArchive] = await db.insert(archives).values({
       tenantId,
@@ -199,8 +241,13 @@ export default defineEventHandler(async (event) => {
       totalAmount: archiveContent.statistics.totalSalesAmount.toFixed(2),
       archiveHash,
       archiveSignature,
-      filePath: inlineArchivePath,
+      filePath,
       fileSize: Buffer.byteLength(archiveContentString, 'utf8'),
+      exportStatus,
+      storageKey: exportStatus === 'exported' ? storageKey : null,
+      exportedAt,
+      // Conservé en DB tant que non exporté (pour ré-export à hash identique). Sinon R2 fait foi.
+      content: exportStatus === 'exported' ? null : archiveContentString,
       metadata: {
         version: '1.0',
         standard: 'NF525',
@@ -214,7 +261,7 @@ export default defineEventHandler(async (event) => {
     logger.info({ archiveId: newArchive.id, period, salesCount: salesData.length, closuresCount: closuresData.length }, 'Archive NF525 créée')
 
     // ==========================================
-    // 7. RETOURNER LE RÉSULTAT
+    // 8. RETOURNER LE RÉSULTAT
     // ==========================================
     return {
       success: true,
@@ -228,6 +275,8 @@ export default defineEventHandler(async (event) => {
         archiveHash,
         archiveSignature,
         fileSize: newArchive.fileSize,
+        exportStatus,
+        storageKey: exportStatus === 'exported' ? storageKey : null,
         createdAt: newArchive.createdAt,
       },
       // En développement, on peut retourner le contenu
@@ -237,9 +286,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la création de l\'archive')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

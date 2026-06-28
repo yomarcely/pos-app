@@ -42,6 +42,9 @@ export default defineEventHandler(async (event) => {
         archiveSignature: archives.archiveSignature,
         fileSize: archives.fileSize,
         filePath: archives.filePath,
+        exportStatus: archives.exportStatus,
+        storageKey: archives.storageKey,
+        exportedAt: archives.exportedAt,
         createdAt: archives.createdAt,
       })
       .from(archives)
@@ -58,9 +61,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des archives')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })
