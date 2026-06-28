@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, syncRules } from '~/server/database/schema'
 import { createSyncGroupSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -17,6 +18,7 @@ import { logger } from '~/server/utils/logger'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'admin')
     const body = await readBody(event)
 
     // Validation des données
@@ -82,9 +84,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

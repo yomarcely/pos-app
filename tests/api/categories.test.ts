@@ -347,7 +347,7 @@ describe('API /api/categories', () => {
       expect(res.category).toMatchObject({ name: 'Boissons chaudes' })
     })
 
-    it('throw 400 si parentId = self (remonte en 500)', async () => {
+    it('throw 400 si parentId = self', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/update.patch')).default as any
@@ -357,12 +357,12 @@ describe('API /api/categories', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'Une catégorie ne peut pas être son propre parent'
       })
     })
 
-    it('throw 404 si catégorie introuvable (remonte en 500)', async () => {
+    it('throw 404 si catégorie introuvable', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/categories/[id]/update.patch')).default as any
@@ -372,7 +372,7 @@ describe('API /api/categories', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Catégorie introuvable'
       })
     })

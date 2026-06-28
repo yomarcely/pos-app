@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import DashboardPage from '@/pages/dashboard/index.vue'
 
 // Mock Nuxt/Pinia helpers
@@ -55,7 +56,7 @@ describe('pages/dashboard/index', () => {
     expect(push).toHaveBeenCalledWith('/caisse')
   })
 
-  it('met à jour la date/heure et charge les stores', () => {
+  it('met à jour la date/heure et charge les stores', async () => {
     const wrapper = mount(DashboardPage, {
       global: {
         mocks: { $router: { push: vi.fn() } },
@@ -72,7 +73,11 @@ describe('pages/dashboard/index', () => {
 
     // Avance l'intervalle pour déclencher updateDateTime
     vi.runOnlyPendingTimers()
+    // Laisse la réactivité propager date/heure jusqu'au DOM
+    await nextTick()
 
-    expect(wrapper.text()).toContain('Agenda')
+    expect(wrapper.text()).toContain('Tableau de bord')
+    // updateDateTime() a peuplé l'heure (format HH:MM)
+    expect(wrapper.text()).toMatch(/\d{2}:\d{2}/)
   })
 })

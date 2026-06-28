@@ -216,7 +216,7 @@ describe('PUT /api/movements/:id', () => {
     expect(logEntityUpdateMock).toHaveBeenCalled()
   })
 
-  it('applique le delta de quantité sur le stock global (entrée positive)', async () => {
+  it('refuse une modification de quantité sur un mouvement sans établissement', async () => {
     movementResult = {
       id: 42, tenantId: 'test-tenant-id', type: 'reception',
       comment: null, supplierId: null, deliveryNoteNumber: null,
@@ -226,7 +226,25 @@ describe('PUT /api/movements/:id', () => {
       id: 100, productId: 1, quantity: 5, oldStock: 0, newStock: 5,
       reason: 'reception', saleId: null, variation: null,
     }]
-    productResult = { id: 1, name: 'P', stock: 5, stockByVariation: null, tenantId: 'test-tenant-id' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (await import('~/server/api/movements/[id].put')).default as any
+
+    await expect(
+      handler(createMockEvent({ params: { id: '42' }, body: { lines: [{ id: 100, quantity: 10 }] } })),
+    ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('applique le delta de quantité sur productStocks (entrée positive)', async () => {
+    movementResult = {
+      id: 42, tenantId: 'test-tenant-id', type: 'reception',
+      comment: null, supplierId: null, deliveryNoteNumber: null,
+      establishmentId: 7, userId: null,
+    }
+    linesResult = [{
+      id: 100, productId: 1, quantity: 5, oldStock: 0, newStock: 5,
+      reason: 'reception', saleId: null, variation: null,
+    }]
+    productStockResult = { id: 50, productId: 1, establishmentId: 7, stock: 5, stockByVariation: null, tenantId: 'test-tenant-id' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/movements/[id].put')).default as any
 
@@ -240,7 +258,9 @@ describe('PUT /api/movements/:id', () => {
     expect(res.success).toBe(true)
     expect(res.changedLines).toHaveLength(1)
     expect(res.changedLines[0]).toMatchObject({ id: 100, oldQuantity: 5, newQuantity: 10 })
-    expect(productUpdateCalls).toHaveLength(1)
+    // products n'est plus écrit (colonne gelée) ; seul productStocks est mis à jour
+    expect(productUpdateCalls).toHaveLength(0)
+    expect(productStocksUpdateCalls).toHaveLength(1)
     expect(stockMovementsUpdateCalls).toHaveLength(1)
     expect((stockMovementsUpdateCalls[0]?.values as { quantity?: number }).quantity).toBe(10)
     // newStock = oldNewStock(5) + delta(5) = 10
@@ -251,13 +271,13 @@ describe('PUT /api/movements/:id', () => {
     movementResult = {
       id: 42, tenantId: 'test-tenant-id', type: 'loss',
       comment: null, supplierId: null, deliveryNoteNumber: null,
-      establishmentId: null, userId: null,
+      establishmentId: 7, userId: null,
     }
     linesResult = [{
       id: 100, productId: 1, quantity: -3, oldStock: 10, newStock: 7,
       reason: 'loss', saleId: null, variation: null,
     }]
-    productResult = { id: 1, name: 'P', stock: 7, stockByVariation: null, tenantId: 'test-tenant-id' }
+    productStockResult = { id: 50, productId: 1, establishmentId: 7, stock: 7, stockByVariation: null, tenantId: 'test-tenant-id' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/movements/[id].put')).default as any
 
@@ -279,13 +299,13 @@ describe('PUT /api/movements/:id', () => {
     movementResult = {
       id: 42, tenantId: 'test-tenant-id', type: 'reception',
       comment: null, supplierId: null, deliveryNoteNumber: null,
-      establishmentId: null, userId: null,
+      establishmentId: 7, userId: null,
     }
     linesResult = [{
       id: 100, productId: 1, quantity: 5, oldStock: 0, newStock: 5,
       reason: 'reception', saleId: null, variation: null,
     }]
-    productResult = { id: 1, name: 'P', stock: 5, stockByVariation: null, tenantId: 'test-tenant-id' }
+    productStockResult = { id: 50, productId: 1, establishmentId: 7, stock: 5, stockByVariation: null, tenantId: 'test-tenant-id' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/movements/[id].put')).default as any
 
@@ -299,6 +319,7 @@ describe('PUT /api/movements/:id', () => {
     expect(res.success).toBe(true)
     expect(res.changedLines).toHaveLength(0)
     expect(productUpdateCalls).toHaveLength(0)
+    expect(productStocksUpdateCalls).toHaveLength(0)
     expect(stockMovementsUpdateCalls).toHaveLength(0)
   })
 })

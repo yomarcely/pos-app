@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { updateSellerSchema, type UpdateSellerInput } from '~/server/validators/seller.schema'
 import { logger } from '~/server/utils/logger'
@@ -18,6 +19,7 @@ import { logEntityUpdate } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const id = Number(event.context.params?.id)
     const body = await validateBody<UpdateSellerInput>(event, updateSellerSchema)
 
@@ -112,9 +114,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la mise à jour du vendeur')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

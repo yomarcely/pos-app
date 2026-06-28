@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { categories } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { createCategorySchema, type CreateCategoryInput } from '~/server/validators/category.schema'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
@@ -19,6 +20,7 @@ import { logEntityCreation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
@@ -67,7 +69,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

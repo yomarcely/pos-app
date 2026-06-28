@@ -6,6 +6,7 @@ declare module 'h3' {
       user: User
       accessToken: string
       tenantId: string
+      role: 'admin' | 'manager' | 'cashier'
     }
   }
 }

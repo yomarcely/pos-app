@@ -207,26 +207,26 @@ describe('API /api/establishments', () => {
       expect(res.establishment).toMatchObject({ id: 1, name: 'Boutique Paris' })
     })
 
-    it('throw 400 si ID invalide (remonte en 500)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/establishments/[id]/index.get')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID d\'établissement invalide'
       })
     })
 
-    it('throw 404 si établissement introuvable (remonte en 500)', async () => {
+    it('throw 404 si établissement introuvable', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/establishments/[id]/index.get')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Établissement introuvable'
       })
     })
@@ -248,14 +248,14 @@ describe('API /api/establishments', () => {
       expect(res.message).toBe('Établissement désactivé avec succès')
     })
 
-    it('throw 404 si établissement introuvable (remonte en 500)', async () => {
+    it('throw 404 si établissement introuvable', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/establishments/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Établissement introuvable'
       })
     })
@@ -281,7 +281,7 @@ describe('API /api/establishments', () => {
       expect(res.establishment).toMatchObject({ name: 'Boutique Modifiée' })
     })
 
-    it('throw 400 si ID invalide (remonte en 500)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/establishments/[id]/update.patch')).default as any
@@ -291,12 +291,12 @@ describe('API /api/establishments', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID d\'établissement invalide'
       })
     })
 
-    it('throw 404 si établissement introuvable (remonte en 500)', async () => {
+    it('throw 404 si établissement introuvable', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/establishments/[id]/update.patch')).default as any
@@ -306,7 +306,7 @@ describe('API /api/establishments', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Établissement introuvable'
       })
     })

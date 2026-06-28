@@ -3,6 +3,7 @@ import { syncRules, syncGroups } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { updateSyncRulesSchema } from '~/server/validators/sync.schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -18,6 +19,7 @@ import { logger } from '~/server/utils/logger'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'admin')
     const id = parseInt(getRouterParam(event, 'id') || '0')
     const body = await readBody(event)
 
@@ -82,7 +84,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

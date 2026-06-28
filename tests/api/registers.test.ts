@@ -218,26 +218,26 @@ describe('API /api/registers', () => {
       expect(currentDb.update).toHaveBeenCalled()
     })
 
-    it('throw 400 si ID invalide (remonte en 500 via catch)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/registers/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID de caisse invalide'
       })
     })
 
-    it('throw 404 si caisse introuvable (remonte en 500 via catch)', async () => {
+    it('throw 404 si caisse introuvable', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/registers/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Caisse introuvable'
       })
     })
@@ -263,7 +263,7 @@ describe('API /api/registers', () => {
       expect(res.register).toMatchObject({ id: 1, name: 'Caisse Modifiée' })
     })
 
-    it('throw 400 si ID invalide (remonte en 500 via catch)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/registers/[id]/update.patch')).default as any
@@ -273,12 +273,12 @@ describe('API /api/registers', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID de caisse invalide'
       })
     })
 
-    it('throw 404 si caisse introuvable (remonte en 500 via catch)', async () => {
+    it('throw 404 si caisse introuvable', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/registers/[id]/update.patch')).default as any
@@ -288,7 +288,7 @@ describe('API /api/registers', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Caisse introuvable'
       })
     })

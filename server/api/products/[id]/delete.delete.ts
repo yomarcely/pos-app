@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { products, saleItems } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { logEntityDeletion } from '~/server/utils/audit'
 
@@ -19,6 +20,7 @@ import { logEntityDeletion } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const id = getRouterParam(event, 'id')
 
     if (!id) {
@@ -105,7 +107,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

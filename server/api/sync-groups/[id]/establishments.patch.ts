@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { syncGroups, syncGroupEstablishments, establishments, productEstablishments, customerEstablishments, productStocks } from '~/server/database/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { validateBody } from '~/server/utils/validation'
 import { patchSyncGroupEstablishmentsSchema, type PatchSyncGroupEstablishmentsInput } from '~/server/validators/sync.schema'
@@ -19,6 +20,7 @@ import { patchSyncGroupEstablishmentsSchema, type PatchSyncGroupEstablishmentsIn
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'admin')
     const id = parseInt(getRouterParam(event, 'id') || '0')
 
     if (!id) {
@@ -238,7 +240,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

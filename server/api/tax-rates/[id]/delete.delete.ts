@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { taxRates, products } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logEntityDeactivation } from '~/server/utils/audit'
 
 /**
@@ -11,6 +12,7 @@ import { logEntityDeactivation } from '~/server/utils/audit'
  */
 export default defineEventHandler(async (event) => {
   const tenantId = getTenantIdFromEvent(event)
+  assertRole(event, 'admin')
   const id = Number(event.context.params?.id)
 
   if (!id) {

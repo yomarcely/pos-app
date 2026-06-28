@@ -304,7 +304,7 @@ describe('API /api/variations', () => {
       expect(res.variation).toMatchObject({ id: 10, name: 'Rouge' })
     })
 
-    it('throw 404 si groupe inexistant (remonte en 500)', async () => {
+    it('throw 404 si groupe inexistant', async () => {
       currentDb = createVariationCreateChain(null, {})
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/create.post')).default as any
@@ -313,7 +313,7 @@ describe('API /api/variations', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Groupe de variation introuvable'
       })
     })
@@ -335,14 +335,14 @@ describe('API /api/variations', () => {
       expect(res.message).toBe('Variation supprimée avec succès')
     })
 
-    it('throw 404 si variation introuvable (remonte en 500)', async () => {
+    it('throw 404 si variation introuvable', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Variation introuvable'
       })
     })
@@ -368,7 +368,7 @@ describe('API /api/variations', () => {
       expect(res.variation).toMatchObject({ name: 'Rouge foncé' })
     })
 
-    it('throw 404 si variation introuvable (remonte en 500)', async () => {
+    it('throw 404 si variation introuvable', async () => {
       currentDb = createSelectThenUpdateChain([], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/[id]/update.patch')).default as any
@@ -378,7 +378,7 @@ describe('API /api/variations', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Variation introuvable'
       })
     })
@@ -442,23 +442,23 @@ describe('API /api/variations', () => {
       expect(res.message).toBe('Groupe de variation supprimé avec succès')
     })
 
-    it('throw 400 si variations existent dans le groupe (remonte en 500)', async () => {
+    it('throw 400 si variations existent dans le groupe', async () => {
       currentDb = createGroupDeleteChain([{ id: 1, name: 'Couleur' }], [{ id: 10, name: 'Rouge' }])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/groups/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '1' } })
 
-      await expect(handler(event)).rejects.toMatchObject({ statusCode: 500 })
+      await expect(handler(event)).rejects.toMatchObject({ statusCode: 400 })
     })
 
-    it('throw 404 si groupe introuvable (remonte en 500)', async () => {
+    it('throw 404 si groupe introuvable', async () => {
       currentDb = createGroupDeleteChain([], [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/groups/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Groupe de variation introuvable'
       })
     })
@@ -484,7 +484,7 @@ describe('API /api/variations', () => {
       expect(res.group).toMatchObject({ name: 'Couleurs vives' })
     })
 
-    it('throw 404 si groupe introuvable (remonte en 500)', async () => {
+    it('throw 404 si groupe introuvable', async () => {
       currentDb = createUpdateReturningChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/variations/groups/[id]/update.patch')).default as any
@@ -494,7 +494,7 @@ describe('API /api/variations', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Groupe de variation introuvable'
       })
     })

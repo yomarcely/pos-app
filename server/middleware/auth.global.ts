@@ -1,4 +1,5 @@
 import { assertAuth, getAccessTokenFromEvent, getTenantFromUser, supabaseServerClient } from '~/server/utils/supabase'
+import { resolveRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 
 const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth']
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
             user: data.user,
             accessToken: token,
             tenantId,
+            role: resolveRole(data.user),
           }
         }
         logger.debug({ tenantId, userId: data.user.id }, '✅ [DEV MODE] Auth context set')

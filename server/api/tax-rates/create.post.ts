@@ -2,6 +2,7 @@ import { eq, and, count } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { taxRates } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { createTaxRateSchema } from '~/server/validators/tax-rate.schema'
 import { logEntityCreation } from '~/server/utils/audit'
@@ -12,6 +13,7 @@ import { logEntityCreation } from '~/server/utils/audit'
  */
 export default defineEventHandler(async (event) => {
   const tenantId = getTenantIdFromEvent(event)
+  assertRole(event, 'admin')
 
   // Valider les données
   const validatedData = await validateBody(event, createTaxRateSchema)

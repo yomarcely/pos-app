@@ -1,5 +1,6 @@
 // server/api/database/seed.post.ts
 import { seedDatabase } from '~/server/database/seed'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -12,10 +13,11 @@ import { logger } from '~/server/utils/logger'
  * Peuple la base de données avec les données de vendeurs et produits
  */
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
   if (process.env.NODE_ENV !== 'development') {
     throw createError({ statusCode: 403, message: 'Seed réservé au dev' })
   }
+  assertRole(event, 'admin')
 
   try {
     logger.info('Démarrage du seed de la base de données (API)')
@@ -31,10 +33,14 @@ export default defineEventHandler(async () => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors du seed')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
       statusMessage: 'Erreur lors du seed de la base de données',
-      message: error instanceof Error ? error.message : 'Erreur inconnue',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

@@ -16,7 +16,7 @@ UI : ShadCN-Nuxt + Reka UI + Tailwind 4. Validation : Zod. Logger : Pino.
 ## 📁 Points non-évidents (le reste est auto-découvrable)
 
 ```
-composables/useEstablishmentRegister.ts   # SINGLETON module-level (établ./caisse)
+stores/establishmentRegister.ts            # store Pinia (sélection établ./caisse) — wrapper compat : composables/useEstablishmentRegister.ts
 middleware/auth.global.ts                  # client (redirect /login)
 server/middleware/auth.global.ts           # serveur Nitro (assertAuth)
 utils/                                     # racine — cartUtils (centimes+LRM), formatters
@@ -35,7 +35,7 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 - `server/utils/nf525.ts` — hash SHA-256, chaînage, numérotation
 - `server/database/schema.ts` (1101 l.) — impact N endpoints
 - `stores/cart.ts` + `utils/cartUtils.ts` — logique caisse, centimes
-- `composables/useEstablishmentRegister.ts` — singleton sélection établ./caisse
+- `stores/establishmentRegister.ts` — store Pinia sélection établ./caisse (persistance localStorage scopée tenant ; `composables/useEstablishmentRegister.ts` n'est qu'un wrapper d'API)
 
 🟠 **Complexité élevée** :
 - `server/utils/sync.ts` (800 l.) — propagation multi-établissement
@@ -74,7 +74,7 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 2. **Service role key** : `server/utils/supabase.ts` importé QUE par `server/middleware/auth.global.ts`. Vérif : `grep -r "utils/supabase" . | grep -v server/middleware`.
 3. **HTTP client** : tous les `$fetch` passent par `plugins/01.api-fetch.client.ts`. Pas de client alternatif.
 4. **Tenant** : tous les endpoints appellent `getTenantIdFromEvent` (sauf `PUBLIC_ENDPOINTS`).
-5. **SignOut** : `stores/auth.ts:signOut()` reset les singletons (`useSellersStore().clearSeller()` + `useEstablishmentRegister().reset()`). Ajouter un singleton = mettre à jour `signOut`.
+5. **SignOut** : `stores/auth.ts:signOut()` reset les stores/singletons (`useSellersStore().clearSeller()` + `useEstablishmentRegisterStore().$reset()`). Ajouter un store/singleton à état persistant = mettre à jour `signOut`.
 6. **Finance** : calculs en centimes entiers. Points d'entrée : `utils/cartUtils.ts` (client), `server/utils/financialValidation.ts` (serveur). Pas de math float ad-hoc.
 7. **Hash NF525** : une seule fonction `generateTicketHash` dans `server/utils/nf525.ts`. Toute modification invalide les chaînes existantes = migration data.
 
@@ -88,12 +88,26 @@ event.context.auth = {
   user: User,          // objet Supabase
   accessToken: string,
   tenantId: string,
+  role: 'admin' | 'manager' | 'cashier',  // RBAC — posé par le middleware uniquement
 }
 ```
 
 ### Lire le tenantId
 **Toujours** : `getTenantIdFromEvent(event)` depuis `server/utils/tenant.ts` (lève 401 si absent).
 **Jamais** lire `event.context.auth.tenantId` directement.
+
+### Lire le rôle (RBAC)
+**Jamais** lire `event.context.auth.role` directement. Helpers dans `server/utils/roles.ts` :
+- `assertRole(event, 'admin' | 'manager')` — lève **403** si privilèges insuffisants.
+  Hiérarchie : `cashier (0) < manager (1) < admin (2)` ; `assertRole(event, 'manager')` passe
+  pour manager **et** admin.
+- `getRoleFromEvent(event)` / `resolveRole(user)` — défaut **`admin`** si rôle absent/invalide
+  (rétro-compat : les comptes existants sans `app_metadata.role` conservent l'accès complet).
+- Le rôle vit dans `user.app_metadata.role` (métadonnée de confiance Supabase) et n'est posé
+  dans `event.context.auth` QUE par `server/middleware/auth.global.ts` (via `resolveRole`).
+- `roles.ts` ne doit **jamais** importer `server/utils/supabase.ts` (règle 10).
+- Côté client : composable `composables/useUserRole.ts` (masquage nav/boutons uniquement ;
+  le **403 serveur reste la seule vraie barrière**).
 
 ### Ordre de résolution `getTenantFromUser`
 1. Header `x-tenant-id` (⚠️ actuellement accepté sans validation — doit être vérifié contre les tenants autorisés, voir P1.1 du plan de corrections)

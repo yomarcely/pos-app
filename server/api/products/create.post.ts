@@ -3,6 +3,7 @@ import { products, productStocks } from '~/server/database/schema'
 import { createProductSchema, type CreateProductInput } from '~/server/validators/product.schema'
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { syncProductToGroup } from '~/server/utils/sync'
 import { logger } from '~/server/utils/logger'
 import { logEntityCreation } from '~/server/utils/audit'
@@ -10,16 +11,20 @@ import { logEntityCreation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
     // Validation avec Zod
     const validatedData = await validateBody<CreateProductInput>(event, createProductSchema)
 
-    // Préparer les données du produit avec tenant_id
+    // Préparer les données du produit avec tenant_id.
+    // products.stock / stockByVariation sont gelés (source de vérité = productStocks) :
+    // on les retire du payload products et on les écrit dans productStocks ci-dessous.
+    const { stock, stockByVariation, ...productFields } = validatedData
     const productData = {
       tenantId,
-      ...validatedData,
+      ...productFields,
     }
 
     // Créer le produit
@@ -57,8 +62,8 @@ export default defineEventHandler(async (event) => {
         tenantId,
         productId: newProduct.id,
         establishmentId,
-        stock: validatedData.stock || 0,
-        stockByVariation: validatedData.stockByVariation || [],
+        stock: stock || 0,
+        stockByVariation: stockByVariation || [],
         minStock: validatedData.minStock ?? 0,
       })
       logger.info({ productId: newProduct.id, establishmentId }, 'Stock créé pour le produit')
@@ -90,7 +95,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la création du produit',
+      statusMessage: "Une erreur interne s'est produite",
     })
   }
 })

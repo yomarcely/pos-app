@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { sellers, sellerEstablishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { createSellerSchema, type CreateSellerInput } from '~/server/validators/seller.schema'
 import { logger } from '~/server/utils/logger'
@@ -17,6 +18,7 @@ import { logEntityCreation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const body = await validateBody<CreateSellerInput>(event, createSellerSchema)
 
     const [newSeller] = await db
@@ -76,9 +78,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Failed to create seller')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

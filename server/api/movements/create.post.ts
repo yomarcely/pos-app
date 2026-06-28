@@ -3,6 +3,7 @@ import { products, stockMovements, productStocks } from '~/server/database/schem
 import { eq, and, sql } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import { z } from 'zod'
@@ -18,7 +19,8 @@ const createMovementSchema = z.object({
   type: z.enum(['reception', 'adjustment', 'loss', 'transfer']),
   comment: z.string().max(1000).optional(),
   items: z.array(movementItemSchema).min(1, 'Aucun article dans le mouvement'),
-  establishmentId: z.number().int().positive().optional(),
+  // establishmentId requis : le stock vit dans productStocks (source de vérité par établissement)
+  establishmentId: z.number().int().positive(),
   supplierId: z.number().int().positive().optional(),
   deliveryNoteNumber: z.string().max(100).optional(),
 }).refine(
@@ -58,7 +60,7 @@ interface CreateMovementRequest {
   type: 'reception' | 'adjustment' | 'loss' | 'transfer'
   comment?: string
   items: MovementItem[]
-  establishmentId?: number
+  establishmentId: number
   supplierId?: number
   deliveryNoteNumber?: string
 }
@@ -66,6 +68,7 @@ interface CreateMovementRequest {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const auth = event.context.auth
     const userId = auth?.user?.id || null
     const body = await validateBody<CreateMovementRequest>(event, createMovementSchema)
@@ -121,108 +124,70 @@ export default defineEventHandler(async (event) => {
           })
         }
 
+        // Source de vérité = productStocks (par établissement, requis).
+        // oldStock/newStock de l'audit sont désormais lus/écrits sur productStocks.
         let oldStock = 0
         let newStock = 0
         let quantityDelta = 0
 
-        // Calculer le delta de stock (toujours additif)
-        if (item.variation && product.stockByVariation) {
-          const stockByVar = product.stockByVariation as Record<string, number>
-          oldStock = stockByVar[item.variation] || 0
-
-          if (item.adjustmentType === 'add') {
-            quantityDelta = item.quantity
-          } else {
-            quantityDelta = item.quantity - oldStock
-          }
-          newStock = oldStock + quantityDelta
-
-          // Mettre à jour le stock de la variation (JSONB : read-modify-write)
-          stockByVar[item.variation] = newStock
-
-          await tx
-            .update(products)
-            .set({
-              stockByVariation: stockByVar,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, item.productId))
-        } else {
-          oldStock = product.stock || 0
-
-          if (item.adjustmentType === 'add') {
-            quantityDelta = item.quantity
-          } else {
-            quantityDelta = item.quantity - oldStock
-          }
-          newStock = oldStock + quantityDelta
-
-          // Mise à jour atomique : stock = stock + delta (jamais d'écrasement)
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${quantityDelta}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, item.productId))
-        }
-
-        // Mettre à jour le stock par établissement si fourni
-        if (body.establishmentId) {
-          const [stockRecord] = await tx
-            .select()
-            .from(productStocks)
-            .where(
-              and(
-                eq(productStocks.productId, item.productId),
-                eq(productStocks.establishmentId, body.establishmentId),
-                eq(productStocks.tenantId, tenantId)
-              )
+        const [stockRecord] = await tx
+          .select()
+          .from(productStocks)
+          .where(
+            and(
+              eq(productStocks.productId, item.productId),
+              eq(productStocks.establishmentId, body.establishmentId),
+              eq(productStocks.tenantId, tenantId)
             )
-            .limit(1)
+          )
+          .limit(1)
+
+        if (item.variation) {
+          type VarStock = { variationId: string; stock: number }
+          const varStocks: VarStock[] = stockRecord && Array.isArray(stockRecord.stockByVariation)
+            ? (stockRecord.stockByVariation as VarStock[])
+            : []
+          oldStock = varStocks.find(v => v.variationId === item.variation)?.stock || 0
+          quantityDelta = item.adjustmentType === 'add' ? item.quantity : item.quantity - oldStock
+          newStock = oldStock + quantityDelta
+
+          const updated = varStocks.filter(v => v.variationId !== item.variation)
+          updated.push({ variationId: item.variation, stock: newStock })
 
           if (stockRecord) {
-            if (item.variation) {
-              type VarStock = { variationId: string; stock: number }
-              const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
-                ? (stockRecord.stockByVariation as VarStock[])
-                : []
-              const estOldStock = varStocks.find(v => v.variationId === item.variation)?.stock || 0
-              const estNewStock = estOldStock + quantityDelta
-              const updated = varStocks.filter(v => v.variationId !== item.variation)
-              updated.push({ variationId: item.variation, stock: estNewStock })
-              await tx.update(productStocks)
-                .set({ stockByVariation: updated, updatedAt: new Date() })
-                .where(eq(productStocks.id, stockRecord.id))
-            } else {
-              // Mise à jour atomique du stock établissement
-              await tx.update(productStocks)
-                .set({
-                  stock: sql`COALESCE(${productStocks.stock}, 0) + ${quantityDelta}`,
-                  updatedAt: new Date(),
-                })
-                .where(eq(productStocks.id, stockRecord.id))
-            }
+            await tx.update(productStocks)
+              .set({ stockByVariation: updated, updatedAt: new Date() })
+              .where(eq(productStocks.id, stockRecord.id))
           } else {
-            // Créer le record productStocks s'il n'existe pas encore
-            const initStock = item.adjustmentType === 'add' ? item.quantity : item.quantity
-            if (item.variation) {
-              await tx.insert(productStocks).values({
-                tenantId,
-                productId: item.productId,
-                establishmentId: body.establishmentId,
-                stock: 0,
-                stockByVariation: [{ variationId: item.variation, stock: initStock }],
+            await tx.insert(productStocks).values({
+              tenantId,
+              productId: item.productId,
+              establishmentId: body.establishmentId,
+              stock: 0,
+              stockByVariation: updated,
+            })
+          }
+        } else {
+          oldStock = stockRecord?.stock || 0
+          quantityDelta = item.adjustmentType === 'add' ? item.quantity : item.quantity - oldStock
+          newStock = oldStock + quantityDelta
+
+          if (stockRecord) {
+            // Mise à jour atomique du stock établissement
+            await tx.update(productStocks)
+              .set({
+                stock: sql`COALESCE(${productStocks.stock}, 0) + ${quantityDelta}`,
+                updatedAt: new Date(),
               })
-            } else {
-              await tx.insert(productStocks).values({
-                tenantId,
-                productId: item.productId,
-                establishmentId: body.establishmentId,
-                stock: initStock,
-                stockByVariation: [],
-              })
-            }
+              .where(eq(productStocks.id, stockRecord.id))
+          } else {
+            await tx.insert(productStocks).values({
+              tenantId,
+              productId: item.productId,
+              establishmentId: body.establishmentId,
+              stock: newStock,
+              stockByVariation: [],
+            })
           }
         }
 
@@ -269,7 +234,7 @@ export default defineEventHandler(async (event) => {
     logger.error({ err: error }, 'Erreur lors de la création du mouvement')
 
     const statusCode = error instanceof Error && 'statusCode' in error ? (error as { statusCode: number }).statusCode : 500
-    const message = error instanceof Error ? error.message : 'Erreur lors de la création du mouvement'
+    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
 
     throw createError({
       statusCode,

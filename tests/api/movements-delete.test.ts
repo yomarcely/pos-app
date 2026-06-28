@@ -206,7 +206,7 @@ describe('DELETE /api/movements/:id', () => {
     )
   })
 
-  it('revert le stock global du produit pour chaque ligne', async () => {
+  it('refuse la suppression avec lignes si le mouvement n\'a pas d\'établissement', async () => {
     movementResult = {
       id: 42,
       tenantId: 'test-tenant-id',
@@ -220,20 +220,16 @@ describe('DELETE /api/movements/:id', () => {
     }
     linesResult = [
       { id: 100, productId: 1, variation: null, quantity: 5, oldStock: 10, newStock: 15, reason: 'reception', saleId: null },
-      { id: 101, productId: 2, variation: null, quantity: 3, oldStock: 0, newStock: 3, reason: 'reception', saleId: null },
     ]
-    productResult = { id: 1, name: 'Produit', stock: 15, stockByVariation: null, tenantId: 'test-tenant-id' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/movements/[id].delete')).default as any
 
-    const res = await handler(createMockEvent({ params: { id: '42' } }))
-
-    expect(res.success).toBe(true)
-    expect(res.lineCount).toBe(2)
-    expect(productUpdateCalls.length).toBe(2)
+    await expect(handler(createMockEvent({ params: { id: '42' } }))).rejects.toMatchObject({
+      statusCode: 400,
+    })
   })
 
-  it('revert également productStocks si le mouvement a un establishmentId', async () => {
+  it('revert le stock sur productStocks pour chaque ligne (source de vérité)', async () => {
     movementResult = {
       id: 42,
       tenantId: 'test-tenant-id',
@@ -248,7 +244,6 @@ describe('DELETE /api/movements/:id', () => {
     linesResult = [
       { id: 100, productId: 1, variation: null, quantity: 5, oldStock: 10, newStock: 15, reason: 'reception', saleId: null },
     ]
-    productResult = { id: 1, name: 'Produit', stock: 15, stockByVariation: null, tenantId: 'test-tenant-id' }
     productStockResult = { id: 999, productId: 1, establishmentId: 7, stock: 15, stockByVariation: null, tenantId: 'test-tenant-id' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/movements/[id].delete')).default as any
@@ -256,7 +251,9 @@ describe('DELETE /api/movements/:id', () => {
     const res = await handler(createMockEvent({ params: { id: '42' } }))
 
     expect(res.success).toBe(true)
-    expect(productUpdateCalls.length).toBe(1)
+    expect(res.lineCount).toBe(1)
+    // products n'est plus écrit (colonne gelée) ; seul productStocks est reverté
+    expect(productUpdateCalls.length).toBe(0)
     expect(productStocksUpdateCalls.length).toBe(1)
   })
 })

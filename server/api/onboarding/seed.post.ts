@@ -2,6 +2,7 @@ import { and, count, eq } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { establishments, sellerEstablishments, sellers, taxRates } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { logEntityCreation } from '~/server/utils/audit'
 
@@ -25,6 +26,7 @@ const DEFAULT_TAX_RATES: Array<{ name: string; rate: string; isDefault: boolean 
 
 export default defineEventHandler(async (event) => {
   const tenantId = getTenantIdFromEvent(event)
+  assertRole(event, 'admin')
   const auth = event.context.auth
   const userName =
     (auth?.user?.user_metadata as Record<string, unknown> | undefined)?.name as string | undefined

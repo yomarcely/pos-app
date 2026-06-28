@@ -251,26 +251,26 @@ describe('API /api/sellers', () => {
       expect(res.message).toBe('Vendeur désactivé avec succès')
     })
 
-    it('throw 400 si ID invalide (remonte en 500)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sellers/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID de vendeur invalide'
       })
     })
 
-    it('throw 404 si vendeur introuvable (remonte en 500)', async () => {
+    it('throw 404 si vendeur introuvable', async () => {
       currentDb = createSelectAndUpdateChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sellers/[id]/delete.delete')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Vendeur introuvable'
       })
     })
@@ -299,7 +299,7 @@ describe('API /api/sellers', () => {
       expect(currentDb.insert).toHaveBeenCalled()
     })
 
-    it('throw 404 si vendeur introuvable (remonte en 500)', async () => {
+    it('throw 404 si vendeur introuvable', async () => {
       currentDb = createSellerUpdateChain(null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sellers/[id]/update.patch')).default as any
@@ -309,7 +309,7 @@ describe('API /api/sellers', () => {
       })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Vendeur introuvable'
       })
     })
@@ -336,14 +336,14 @@ describe('API /api/sellers', () => {
       expect(res.establishmentIds).toEqual([10, 20])
     })
 
-    it('throw 400 si ID invalide (remonte en 500)', async () => {
+    it('throw 400 si ID invalide', async () => {
       currentDb = createReadChain([])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/sellers/[id]/establishments.get')).default as any
       const event = createMockEvent({ params: { id: 'abc' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 400,
         message: 'ID de vendeur invalide'
       })
     })

@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, saleItems } from '~/server/database/schema'
 import { and, eq, gte, lt, inArray, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { computeMarginKpis, densifyHourlySeries, parseIdsParam } from '~/server/utils/revenueStats'
 
@@ -39,6 +40,7 @@ function parseDate(raw: string | undefined, fallback: Date): Date {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const query = getQuery(event)
 
     // 30 derniers jours par défaut
@@ -185,9 +187,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     if ((error as { statusCode?: number }).statusCode) throw error
     logger.error({ err: error }, 'Erreur lors du calcul des statistiques de revenu')
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

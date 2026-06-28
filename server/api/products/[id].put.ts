@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm'
 import { updateProductSchema, type UpdateProductInput } from '~/server/validators/product.schema'
 import { validateBody } from '~/server/utils/validation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { getGlobalProductFields, type ProductFields } from '~/server/utils/sync'
 import { logger } from '~/server/utils/logger'
 import { logEntityUpdate } from '~/server/utils/audit'
@@ -37,6 +38,7 @@ interface LocalOverrides {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const id = getRouterParam(event, 'id')
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
@@ -133,6 +135,13 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    // products.stock / stockByVariation / minStock* sont gelés (source de vérité = productStocks).
+    // On ne propage jamais ces champs vers la table products, même s'ils arrivent dans le payload.
+    delete globalFields.stock
+    delete globalFields.stockByVariation
+    delete globalFields.minStock
+    delete globalFields.minStockByVariation
+
     // Mettre à jour UNIQUEMENT les champs autorisés globalement
     const [updatedProduct] = await db
       .update(products)
@@ -221,7 +230,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la modification du produit',
+      statusMessage: "Une erreur interne s'est produite",
     })
   }
 })

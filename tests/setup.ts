@@ -1,7 +1,17 @@
 // Configuration globale des tests Vitest
 // Les types globaux sont activés via vitest.config.ts (globals: true)
 
-import { vi } from 'vitest'
+import { vi, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+
+// Pinia active par défaut pour chaque test : certains composants montés en test touchent
+// des stores Pinia de façon transitive (ex. `useEstablishmentRegister`, désormais adossé à
+// `stores/establishmentRegister.ts`). Les fichiers de test qui appellent eux-mêmes
+// `setActivePinia(...)` ou montent avec `createTestingPinia()` écrasent cette instance
+// (les hooks de setup global s'exécutent avant les hooks au niveau du fichier).
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
 
 // ===========================================
 // Mocks globaux pour l'environnement Nuxt/Nitro
@@ -69,7 +79,7 @@ export function createMockEvent(options: {
   body?: unknown
   params?: Record<string, string>
   headers?: Record<string, string>
-  auth?: { user?: { id: string } }
+  auth?: { user?: { id: string; app_metadata?: Record<string, unknown> }; role?: string }
 } = {}) {
   return {
     query: options.query || {},

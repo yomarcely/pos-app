@@ -165,8 +165,8 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('refuse si une préparation est déjà validée', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
-      { id: 2, tenantId: 'test-tenant-id', status: 'validated', preparationNumber: 'B', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
+      { id: 2, tenantId: 'test-tenant-id', status: 'validated', preparationNumber: 'B', establishmentId: 3, userId: null },
     ]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (await import('~/server/api/inventory-preparations/validate.post')).default as any
@@ -177,8 +177,8 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('renvoie 409 si conflit de comptage entre préparations', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
-      { id: 2, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'B', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
+      { id: 2, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'B', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = [
       { preparationId: 1, productId: 5, variation: null, countedStock: 10 },
@@ -193,7 +193,7 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('refuse l\'archivage si stock != 0', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = []
     affectedProductsRows = [
@@ -216,7 +216,7 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('applique le delta sur le stock courant (concurrence ventes)', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = [
       // L'utilisateur a compté 8 alors qu'au moment de la préparation il pensait avoir 10
@@ -244,13 +244,13 @@ describe('POST /api/inventory-preparations/validate', () => {
       expect.any(String),
       undefined,
       'test-tenant-id',
-      expect.objectContaining({ establishmentId: null }),
+      expect.objectContaining({ establishmentId: 3 }),
     )
   })
 
   it('skip les ajustements où delta = 0', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = [
       { preparationId: 1, productId: 5, variation: null, countedStock: 10 },
@@ -272,7 +272,7 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('applique les mises à zéro et marque les préparations comme validées', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = []
     affectedProductsRows = [
@@ -303,7 +303,7 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it('archive les produits dont le stock est exactement 0', async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = []
     affectedProductsRows = [
@@ -328,7 +328,7 @@ describe('POST /api/inventory-preparations/validate', () => {
 
   it("refuse si un setToZeroItem est aussi inventorié", async () => {
     preparationsRows = [
-      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: null, userId: null },
+      { id: 1, tenantId: 'test-tenant-id', status: 'draft', preparationNumber: 'A', establishmentId: 3, userId: null },
     ]
     preparationItemsRows = [
       { preparationId: 1, productId: 5, variation: null, countedStock: 10 },

@@ -7,6 +7,7 @@ import {
 } from '~/server/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import { normalizeStockByVariation } from '~/server/utils/productOverrides'
@@ -37,6 +38,7 @@ type PreviewBody = z.infer<typeof previewSchema>
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const body = await validateBody<PreviewBody>(event, previewSchema)
 
     // 1. Charger les préparations + validations métier

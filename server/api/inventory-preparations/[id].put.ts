@@ -5,6 +5,7 @@ import {
 } from '~/server/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import { logEntityUpdate } from '~/server/utils/audit'
@@ -33,6 +34,7 @@ type UpdateBody = z.infer<typeof updateSchema>
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const idParam = getRouterParam(event, 'id')
     const id = idParam ? Number(idParam) : NaN
 
@@ -125,7 +127,7 @@ export default defineEventHandler(async (event) => {
       error instanceof Error && 'statusCode' in error
         ? (error as { statusCode: number }).statusCode
         : 500
-    const message = error instanceof Error ? error.message : 'Erreur interne du serveur'
+    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
     throw createError({ statusCode, message })
   }
 })

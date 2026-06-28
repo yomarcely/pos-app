@@ -9,6 +9,7 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import {
@@ -57,6 +58,7 @@ function lineKey(productId: number, variation: string | null): string {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const body = await validateBody<ValidateBody>(event, validateSchema)
 
     // 1. Charger les préparations + garde-fous (identique à preview)
@@ -97,6 +99,15 @@ export default defineEventHandler(async (event) => {
       })
     }
     const establishmentId = establishmentIds[0] ?? null
+
+    // Le stock vit dans productStocks (par établissement) : sans établissement,
+    // la validation n'a aucune cible de stock à ajuster.
+    if (!establishmentId) {
+      throw createError({
+        statusCode: 400,
+        message: 'Préparation sans établissement : validation du stock impossible',
+      })
+    }
 
     // 2. Charger les lignes des préparations + détecter conflits
     const lines = await db
@@ -317,35 +328,9 @@ export default defineEventHandler(async (event) => {
         establishmentId,
       })
 
-      // 8b. Pour chaque ligne : update products + productStocks + insert stockMovements
+      // 8b. Pour chaque ligne : update productStocks + insert stockMovements
       for (const line of movementLines) {
-        // products.stock (ou stockByVariation)
-        if (line.variation) {
-          const [product] = await tx
-            .select()
-            .from(products)
-            .where(and(eq(products.id, line.productId), eq(products.tenantId, tenantId)))
-            .limit(1)
-          if (product) {
-            const stockByVar = (product.stockByVariation as Record<string, number>) || {}
-            const current = stockByVar[line.variation] || 0
-            stockByVar[line.variation] = current + line.quantityDelta
-            await tx
-              .update(products)
-              .set({ stockByVariation: stockByVar, updatedAt: new Date() })
-              .where(eq(products.id, line.productId))
-          }
-        } else {
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${line.quantityDelta}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, line.productId))
-        }
-
-        // productStocks (par établissement)
+        // productStocks (par établissement) — source de vérité
         if (establishmentId) {
           const [stockRecord] = await tx
             .select()

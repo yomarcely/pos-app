@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { createEstablishmentSchema, type CreateEstablishmentInput } from '~/server/validators/establishment.schema'
 import { logger } from '~/server/utils/logger'
@@ -28,6 +29,7 @@ function lockKeyForTenant(tenantId: string): number {
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const body = await validateBody<CreateEstablishmentInput>(event, createEstablishmentSchema)
 
     // Numéro d'établissement immutable : MAX(establishment_number) + 1 sous advisory lock
@@ -97,9 +99,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Failed to create establishment')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

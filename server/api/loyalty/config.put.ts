@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { loyaltyConfig } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { updateLoyaltyConfigSchema } from '~/server/validators/loyalty.schema'
 import { logger } from '~/server/utils/logger'
@@ -14,6 +15,7 @@ import { logEntityCreation, logEntityUpdate } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'admin')
     const data = await validateBody(event, updateLoyaltyConfigSchema)
     const userId = event.context.auth?.user?.id ? Number(event.context.auth.user.id) : null
     const userName = event.context.auth?.user?.email ?? null
@@ -111,7 +113,7 @@ export default defineEventHandler(async (event) => {
     logger.error({ err: error }, 'Erreur lors de la mise à jour de la config fidélité')
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

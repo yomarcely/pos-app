@@ -1,6 +1,7 @@
 import { db } from '~/server/database/connection'
 import { suppliers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { createSupplierSchema, type CreateSupplierInput } from '~/server/validators/supplier.schema'
 import { logger } from '~/server/utils/logger'
@@ -9,6 +10,7 @@ import { logEntityCreation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const query = getQuery(event)
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
 
@@ -61,7 +63,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la création du fournisseur',
+      statusMessage: "Une erreur interne s'est produite",
     })
   }
 })

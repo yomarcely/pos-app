@@ -2,11 +2,11 @@ import { db } from '~/server/database/connection'
 import {
   movements,
   stockMovements,
-  products,
   productStocks,
 } from '~/server/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { logEntityDeletion } from '~/server/utils/audit'
 
@@ -18,9 +18,8 @@ import { logEntityDeletion } from '~/server/utils/audit'
  * DELETE /api/movements/:id
  *
  * Pour chaque ligne du mouvement :
- *   - products.stock                       → soustrait la quantité du delta enregistré
- *   - products.stockByVariation[variation] → idem si variation
- *   - productStocks (établissement)        → idem si movements.establishmentId est posé
+ *   - productStocks (établissement) → soustrait la quantité du delta enregistré
+ *     (source de vérité ; establishmentId du mouvement requis)
  *
  * Le mouvement parent est ensuite supprimé. Les lignes stockMovements
  * partent en cascade (FK onDelete: cascade).
@@ -28,6 +27,7 @@ import { logEntityDeletion } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const idParam = getRouterParam(event, 'id')
     const id = idParam ? Number(idParam) : NaN
 
@@ -68,6 +68,17 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Le stock vit dans productStocks (par établissement) : restaurer le stock des
+    // lignes nécessite l'établissement du mouvement. Un mouvement sans ligne (aucun
+    // stock à restaurer) reste supprimable même sans établissement.
+    if (lines.length > 0 && !movement.establishmentId) {
+      throw createError({
+        statusCode: 400,
+        message: 'Mouvement sans établissement : restauration du stock impossible',
+      })
+    }
+    const establishmentId = movement.establishmentId!
+
     // 2. Transaction : revert stock pour chaque ligne, puis delete parent
     const reverts: Array<{
       productId: number
@@ -78,17 +89,24 @@ export default defineEventHandler(async (event) => {
 
     await db.transaction(async (tx) => {
       for (const line of lines) {
-        const [product] = await tx
+        // Revert productStocks de l'établissement du mouvement (source de vérité)
+        const [stockRecord] = await tx
           .select()
-          .from(products)
-          .where(and(eq(products.id, line.productId), eq(products.tenantId, tenantId)))
+          .from(productStocks)
+          .where(
+            and(
+              eq(productStocks.productId, line.productId),
+              eq(productStocks.establishmentId, establishmentId),
+              eq(productStocks.tenantId, tenantId),
+            ),
+          )
           .limit(1)
 
-        if (!product) {
-          // Produit supprimé entre temps : on saute la revert du stock global
+        if (!stockRecord) {
+          // Stock établissement introuvable (produit supprimé / jamais initialisé)
           logger.warn(
             { productId: line.productId, movementId: id },
-            'Produit introuvable lors du revert — ligne ignorée',
+            'Stock établissement introuvable lors du revert — ligne ignorée',
           )
           reverts.push({
             productId: line.productId,
@@ -99,62 +117,26 @@ export default defineEventHandler(async (event) => {
           continue
         }
 
-        // Revert global product.stock
-        if (line.variation && product.stockByVariation) {
-          const stockByVar = (product.stockByVariation as Record<string, number>) || {}
-          const current = stockByVar[line.variation] || 0
-          stockByVar[line.variation] = current - line.quantity
+        if (line.variation) {
+          type VarStock = { variationId: string; stock: number }
+          const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
+            ? (stockRecord.stockByVariation as VarStock[])
+            : []
+          const old = varStocks.find((v) => v.variationId === line.variation)?.stock || 0
+          const updated = varStocks.filter((v) => v.variationId !== line.variation)
+          updated.push({ variationId: line.variation, stock: old - line.quantity })
           await tx
-            .update(products)
-            .set({ stockByVariation: stockByVar, updatedAt: new Date() })
-            .where(eq(products.id, line.productId))
+            .update(productStocks)
+            .set({ stockByVariation: updated, updatedAt: new Date() })
+            .where(eq(productStocks.id, stockRecord.id))
         } else {
           await tx
-            .update(products)
+            .update(productStocks)
             .set({
-              stock: sql`COALESCE(${products.stock}, 0) - ${line.quantity}`,
+              stock: sql`COALESCE(${productStocks.stock}, 0) - ${line.quantity}`,
               updatedAt: new Date(),
             })
-            .where(eq(products.id, line.productId))
-        }
-
-        // Revert productStocks de l'établissement du mouvement (si posé)
-        if (movement.establishmentId) {
-          const [stockRecord] = await tx
-            .select()
-            .from(productStocks)
-            .where(
-              and(
-                eq(productStocks.productId, line.productId),
-                eq(productStocks.establishmentId, movement.establishmentId),
-                eq(productStocks.tenantId, tenantId),
-              ),
-            )
-            .limit(1)
-
-          if (stockRecord) {
-            if (line.variation) {
-              type VarStock = { variationId: string; stock: number }
-              const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
-                ? (stockRecord.stockByVariation as VarStock[])
-                : []
-              const old = varStocks.find((v) => v.variationId === line.variation)?.stock || 0
-              const updated = varStocks.filter((v) => v.variationId !== line.variation)
-              updated.push({ variationId: line.variation, stock: old - line.quantity })
-              await tx
-                .update(productStocks)
-                .set({ stockByVariation: updated, updatedAt: new Date() })
-                .where(eq(productStocks.id, stockRecord.id))
-            } else {
-              await tx
-                .update(productStocks)
-                .set({
-                  stock: sql`COALESCE(${productStocks.stock}, 0) - ${line.quantity}`,
-                  updatedAt: new Date(),
-                })
-                .where(eq(productStocks.id, stockRecord.id))
-            }
-          }
+            .where(eq(productStocks.id, stockRecord.id))
         }
 
         reverts.push({
@@ -208,7 +190,7 @@ export default defineEventHandler(async (event) => {
       error instanceof Error && 'statusCode' in error
         ? (error as { statusCode: number }).statusCode
         : 500
-    const message = error instanceof Error ? error.message : 'Erreur interne du serveur'
+    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
     throw createError({ statusCode, message })
   }
 })

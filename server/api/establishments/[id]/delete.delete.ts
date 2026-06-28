@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { establishments } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { logEntityDeactivation } from '~/server/utils/audit'
 
@@ -18,6 +19,7 @@ import { logEntityDeactivation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'admin')
     const id = Number(event.context.params?.id)
 
     if (!id || isNaN(id)) {
@@ -77,9 +79,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la désactivation de l\'établissement')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

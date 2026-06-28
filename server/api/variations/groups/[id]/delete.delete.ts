@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { variationGroups, variations, products } from '~/server/database/schema'
 import { eq, and, ne, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { logEntityDeactivation } from '~/server/utils/audit'
 
@@ -18,6 +19,7 @@ import { logEntityDeactivation } from '~/server/utils/audit'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const id = Number(event.context.params?.id)
 
     if (!id || isNaN(id)) {
@@ -126,9 +128,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la suppression du groupe de variation')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

@@ -30,10 +30,8 @@ vi.mock('~/server/utils/validation', () => ({
 vi.mock('~/server/validators/product.schema', () => ({
   createProductSchema: {},
   updateProductSchema: {},
-  updateStockSchema: {},
   CreateProductInput: {},
-  UpdateProductInput: {},
-  UpdateStockInput: {}
+  UpdateProductInput: {}
 }))
 
 vi.mock('~/server/utils/sync', () => ({
@@ -236,79 +234,6 @@ function createStockHistoryChain(product: unknown | null, movs: unknown[]) {
       Promise.resolve(results[selectIdx - 1] || []).then(resolve, reject),
   }
   return chain
-}
-
-/**
- * For stock movement delete: 2 selects + update + delete + insert
- */
-function createMovementDeleteChain(movement: unknown | null, product: unknown | null) {
-  let selectIdx = 0
-  const selectResults = [movement ? [movement] : [], product ? [product] : []]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const selectChain: any = {
-    from: vi.fn(() => selectChain),
-    where: vi.fn(() => selectChain),
-    limit: vi.fn(() => selectChain),
-    then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-      Promise.resolve(selectResults[selectIdx - 1] || []).then(resolve, reject),
-  }
-  return {
-    select: vi.fn(() => { selectIdx++; return selectChain }),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-            Promise.resolve(undefined).then(resolve, reject)
-        }))
-      }))
-    })),
-    delete: vi.fn(() => ({
-      where: vi.fn(() => ({
-        then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-          Promise.resolve(undefined).then(resolve, reject)
-      }))
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-          Promise.resolve(undefined).then(resolve, reject)
-      }))
-    })),
-  }
-}
-
-/**
- * For update stock: transaction with tx having select, update, insert
- */
-function createUpdateStockTxChain(product: unknown | null, movementResult: unknown) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tx: any = {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve(product ? [product] : []))
-        }))
-      }))
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-            Promise.resolve(undefined).then(resolve, reject)
-        }))
-      }))
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([movementResult])),
-        then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-          Promise.resolve(undefined).then(resolve, reject)
-      }))
-    })),
-  }
-  return {
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx)),
-  }
 }
 
 // ===========================================
@@ -571,14 +496,14 @@ describe('API /api/products', () => {
       expect(res.count).toBe(1)
     })
 
-    it('throw 404 si produit introuvable (remonte en 500)', async () => {
+    it('throw 404 si produit introuvable', async () => {
       currentDb = createStockHistoryChain(null, [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handler = (await import('~/server/api/products/[id]/stock-history.get')).default as any
       const event = createMockEvent({ params: { id: '999' } })
 
       await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
+        statusCode: 404,
         message: 'Produit non trouvé'
       })
     })
@@ -605,101 +530,4 @@ describe('API /api/products', () => {
     })
   })
 
-  // -----------------------------------------
-  // DELETE /api/products/stock-movements/:id
-  // -----------------------------------------
-  describe('DELETE /api/products/stock-movements/:id', () => {
-    it('supprime le mouvement et restaure le stock', async () => {
-      const movement = { id: 10, productId: 1, variation: null, quantity: 5, oldStock: 0, newStock: 5, reason: 'reception', userId: 1 }
-      const product = { id: 1, name: 'Produit A', stock: 15, stockByVariation: null }
-      currentDb = createMovementDeleteChain(movement, product)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/stock-movements/[id].delete')).default as any
-      const event = createMockEvent({ params: { id: '10' } })
-
-      const res = await handler(event)
-
-      expect(res.success).toBe(true)
-      expect(res.message).toBe('Mouvement supprimé et stock restauré')
-      expect(res.movement).toMatchObject({ id: 10, productId: 1, quantity: 5 })
-    })
-
-    it('throw 403 si mouvement de vente (remonte en 500)', async () => {
-      const movement = { id: 10, productId: 1, variation: null, quantity: -2, reason: 'sale', userId: 1 }
-      currentDb = createMovementDeleteChain(movement, null)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/stock-movements/[id].delete')).default as any
-      const event = createMockEvent({ params: { id: '10' } })
-
-      await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
-        message: 'Impossible de supprimer un mouvement de vente. Utilisez l\'annulation de vente.'
-      })
-    })
-
-    it('throw 404 si mouvement introuvable (remonte en 500)', async () => {
-      currentDb = createMovementDeleteChain(null, null)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/stock-movements/[id].delete')).default as any
-      const event = createMockEvent({ params: { id: '999' } })
-
-      await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
-        message: 'Mouvement non trouvé'
-      })
-    })
-  })
-
-  // -----------------------------------------
-  // POST /api/products/update-stock
-  // -----------------------------------------
-  describe('POST /api/products/update-stock', () => {
-    it('met à jour le stock en mode add', async () => {
-      const product = { id: 1, name: 'Produit A', stock: 10, stockByVariation: null }
-      currentDb = createUpdateStockTxChain(product, { id: 100 })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/update-stock.post')).default as any
-      const event = createMockEvent({
-        body: { productId: 1, quantity: 5, adjustmentType: 'add', reason: 'reception' }
-      })
-
-      const res = await handler(event)
-
-      expect(res.success).toBe(true)
-      expect(res.stock.oldStock).toBe(10)
-      expect(res.stock.newStock).toBe(15)
-      expect(res.stock.delta).toBe(5)
-    })
-
-    it('met à jour le stock en mode set', async () => {
-      const product = { id: 1, name: 'Produit A', stock: 10, stockByVariation: null }
-      currentDb = createUpdateStockTxChain(product, { id: 101 })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/update-stock.post')).default as any
-      const event = createMockEvent({
-        body: { productId: 1, quantity: 20, adjustmentType: 'set', reason: 'inventory_adjustment' }
-      })
-
-      const res = await handler(event)
-
-      expect(res.success).toBe(true)
-      expect(res.stock.oldStock).toBe(10)
-      expect(res.stock.newStock).toBe(20)
-      expect(res.stock.delta).toBe(10)
-    })
-
-    it('throw 404 si produit introuvable (remonte en 500)', async () => {
-      currentDb = createUpdateStockTxChain(null, {})
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (await import('~/server/api/products/update-stock.post')).default as any
-      const event = createMockEvent({
-        body: { productId: 999, quantity: 5, adjustmentType: 'add', reason: 'reception' }
-      })
-
-      await expect(handler(event)).rejects.toMatchObject({
-        statusCode: 500,
-        message: 'Produit non trouvé'
-      })
-    })
-  })
 })

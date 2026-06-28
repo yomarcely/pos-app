@@ -2,11 +2,11 @@ import { db } from '~/server/database/connection'
 import {
   movements,
   stockMovements,
-  products,
   productStocks,
 } from '~/server/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import { logEntityUpdate } from '~/server/utils/audit'
@@ -45,6 +45,7 @@ type UpdateBody = z.infer<typeof updateSchema>
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const idParam = getRouterParam(event, 'id')
     const id = idParam ? Number(idParam) : NaN
 
@@ -110,6 +111,17 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    // Le stock vit dans productStocks (par établissement) : modifier des quantités
+    // nécessite l'établissement du mouvement. Une édition purement métadonnée
+    // (commentaire/BL, sans lignes) reste possible sur un mouvement sans établissement.
+    if (updatedLines.length > 0 && !movement.establishmentId) {
+      throw createError({
+        statusCode: 400,
+        message: 'Mouvement sans établissement : modification du stock impossible',
+      })
+    }
+    const establishmentId = movement.establishmentId!
+
     // 4. Transaction : revert ancien delta + apply nouveau pour chaque ligne modifiée
     const changedLines: Array<{
       id: number
@@ -130,77 +142,44 @@ export default defineEventHandler(async (event) => {
         const delta = newQty - oldQty
         if (delta === 0) continue
 
-        // a. Revert + apply sur products.stock global
-        if (existing.variation) {
-          const [product] = await tx
-            .select()
-            .from(products)
-            .where(and(eq(products.id, existing.productId), eq(products.tenantId, tenantId)))
-            .limit(1)
+        // a. Revert + apply sur productStocks (source de vérité, par établissement)
+        const [stockRecord] = await tx
+          .select()
+          .from(productStocks)
+          .where(
+            and(
+              eq(productStocks.productId, existing.productId),
+              eq(productStocks.establishmentId, establishmentId),
+              eq(productStocks.tenantId, tenantId),
+            ),
+          )
+          .limit(1)
 
-          if (!product) {
-            throw createError({
-              statusCode: 404,
-              message: `Produit #${existing.productId} introuvable`,
-            })
-          }
-          const stockByVar = (product.stockByVariation as Record<string, number>) || {}
-          const current = stockByVar[existing.variation] || 0
-          stockByVar[existing.variation] = current + delta
-          await tx
-            .update(products)
-            .set({ stockByVariation: stockByVar, updatedAt: new Date() })
-            .where(eq(products.id, existing.productId))
-        } else {
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${delta}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, existing.productId))
-        }
-
-        // b. productStocks par établissement (si posé sur le mouvement)
-        if (movement.establishmentId) {
-          const [stockRecord] = await tx
-            .select()
-            .from(productStocks)
-            .where(
-              and(
-                eq(productStocks.productId, existing.productId),
-                eq(productStocks.establishmentId, movement.establishmentId),
-                eq(productStocks.tenantId, tenantId),
-              ),
-            )
-            .limit(1)
-
-          if (stockRecord) {
-            if (existing.variation) {
-              type VarStock = { variationId: string; stock: number }
-              const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
-                ? (stockRecord.stockByVariation as VarStock[])
-                : []
-              const old = varStocks.find((v) => v.variationId === existing.variation)?.stock || 0
-              const updated = varStocks.filter((v) => v.variationId !== existing.variation)
-              updated.push({ variationId: existing.variation, stock: old + delta })
-              await tx
-                .update(productStocks)
-                .set({ stockByVariation: updated, updatedAt: new Date() })
-                .where(eq(productStocks.id, stockRecord.id))
-            } else {
-              await tx
-                .update(productStocks)
-                .set({
-                  stock: sql`COALESCE(${productStocks.stock}, 0) + ${delta}`,
-                  updatedAt: new Date(),
-                })
-                .where(eq(productStocks.id, stockRecord.id))
-            }
+        if (stockRecord) {
+          if (existing.variation) {
+            type VarStock = { variationId: string; stock: number }
+            const varStocks: VarStock[] = Array.isArray(stockRecord.stockByVariation)
+              ? (stockRecord.stockByVariation as VarStock[])
+              : []
+            const old = varStocks.find((v) => v.variationId === existing.variation)?.stock || 0
+            const updated = varStocks.filter((v) => v.variationId !== existing.variation)
+            updated.push({ variationId: existing.variation, stock: old + delta })
+            await tx
+              .update(productStocks)
+              .set({ stockByVariation: updated, updatedAt: new Date() })
+              .where(eq(productStocks.id, stockRecord.id))
+          } else {
+            await tx
+              .update(productStocks)
+              .set({
+                stock: sql`COALESCE(${productStocks.stock}, 0) + ${delta}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(productStocks.id, stockRecord.id))
           }
         }
 
-        // c. Mettre à jour la ligne stockMovements (quantity + newStock)
+        // b. Mettre à jour la ligne stockMovements (quantity + newStock)
         await tx
           .update(stockMovements)
           .set({
@@ -265,7 +244,7 @@ export default defineEventHandler(async (event) => {
       error instanceof Error && 'statusCode' in error
         ? (error as { statusCode: number }).statusCode
         : 500
-    const message = error instanceof Error ? error.message : 'Erreur interne du serveur'
+    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
     throw createError({ statusCode, message })
   }
 })

@@ -8,6 +8,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm'
 import { createInventoryPreparation } from '~/server/utils/createInventoryPreparation'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { logger } from '~/server/utils/logger'
 import { logEntityCreation } from '~/server/utils/audit'
@@ -38,6 +39,7 @@ type CreateBody = z.infer<typeof createSchema>
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const body = await validateBody<CreateBody>(event, createSchema)
 
     // 1. Récupérer les stocks actuels pour les produits concernés
@@ -175,7 +177,7 @@ export default defineEventHandler(async (event) => {
       error instanceof Error && 'statusCode' in error
         ? (error as { statusCode: number }).statusCode
         : 500
-    const message = error instanceof Error ? error.message : 'Erreur interne du serveur'
+    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
     throw createError({ statusCode, message })
   }
 })

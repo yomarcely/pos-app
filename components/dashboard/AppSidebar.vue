@@ -34,6 +34,7 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 })
 
 const authStore = useAuthStore()
+const { canAccess } = useUserRole()
 const isClient = ref(false)
 
 onMounted(() => {
@@ -165,6 +166,7 @@ const data = {
       title: 'Statistiques',
       url: '#',
       icon: BarChart,
+      minRole: 'manager',
       items: [
         {
           title: 'Chiffre d\'affaires',
@@ -188,6 +190,7 @@ const data = {
       title: 'Paramètres',
       url: '#',
       icon: Settings2,
+      minRole: 'manager',
       items: [
         {
           title: 'General',
@@ -204,10 +207,12 @@ const data = {
         {
           title: 'TVA',
           url: '/tva',
+          minRole: 'admin',
         },
         {
           title: 'Fidélité',
           url: '/parametres/fidelite',
+          minRole: 'admin',
         },
       ],
     },
@@ -227,6 +232,22 @@ const data = {
     },
   ],
 }
+
+// Masquage RBAC : on retire les sous-items et groupes dont le rôle minimum
+// dépasse celui de l'utilisateur. Le 403 serveur (assertRole) reste la vraie
+// barrière ; ceci n'est qu'un confort d'UI. Un groupe sans item visible (et
+// sans page propre) est masqué entièrement.
+const navMain = computed(() =>
+  data.navMain
+    .filter(group => canAccess((group as { minRole?: 'admin' | 'manager' | 'cashier' }).minRole ?? 'cashier'))
+    .map(group => ({
+      ...group,
+      items: group.items?.filter(item =>
+        canAccess((item as { minRole?: 'admin' | 'manager' | 'cashier' }).minRole ?? 'cashier')
+      ),
+    }))
+    .filter(group => group.url !== '#' || (group.items?.length ?? 0) > 0)
+)
 </script>
 <template>
   <Sidebar v-bind="props">
@@ -249,7 +270,7 @@ const data = {
       </SidebarMenu>
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="data.navMain" />
+      <NavMain :items="navMain" />
       <NavSecondary :items="data.navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>

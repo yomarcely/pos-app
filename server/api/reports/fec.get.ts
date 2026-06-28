@@ -2,6 +2,7 @@ import { and, asc, eq, gte, lte, inArray } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { sales, saleItems, establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { buildFecContent, buildFecFilename, type FecSale } from '~/utils/fecExport'
 
@@ -21,6 +22,7 @@ import { buildFecContent, buildFecFilename, type FecSale } from '~/utils/fecExpo
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
+    assertRole(event, 'manager')
     const query = getQuery(event)
     const fromStr = query.from as string | undefined
     const toStr = query.to as string | undefined
@@ -148,7 +150,7 @@ export default defineEventHandler(async (event) => {
     logger.error({ err: error }, 'Erreur génération FEC')
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

@@ -64,7 +64,7 @@ describe('API /api/database', () => {
 
       await expect(handler({})).rejects.toMatchObject({
         statusCode: 500,
-        message: 'DB connection failed'
+        message: "Une erreur interne s'est produite"
       })
     })
 
