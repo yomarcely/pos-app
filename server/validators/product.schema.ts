@@ -34,17 +34,6 @@ export const createProductSchema = z.object({
 // Schéma pour la mise à jour d'un produit
 export const updateProductSchema = createProductSchema.partial()
 
-// Schéma pour la mise à jour du stock
-export const updateStockSchema = z.object({
-  productId: z.number().int().positive(),
-  quantity: z.number().int(),
-  variation: z.string().optional().nullable(),
-  adjustmentType: z.enum(['add', 'set']).default('set'),
-  reason: z.enum(['reception', 'inventory_adjustment', 'loss', 'return']).default('inventory_adjustment'),
-  userId: z.number().int().positive().optional().nullable(),
-})
-
 // Type TypeScript inféré du schéma
 export type CreateProductInput = z.infer<typeof createProductSchema>
 export type UpdateProductInput = z.infer<typeof updateProductSchema>
-export type UpdateStockInput = z.infer<typeof updateStockSchema>

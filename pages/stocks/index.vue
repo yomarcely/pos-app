@@ -113,14 +113,14 @@ const filteredProducts = computed(() => {
 function isVariationLowStock(product: Product, variationId: number): boolean {
   const alert = productsStore.lowStockAlerts.find(a => a.product.id === product.id)
   if (!alert) return false
-  return alert.variations?.some((v: any) => v.variationId === variationId) ?? false
+  return alert.variations?.some(v => Number(v.id) === variationId) ?? false
 }
 
 // Déterminer si une variation est en rupture
 function isVariationOutOfStock(product: Product, variationId: number): boolean {
   const alert = productsStore.outOfStockAlerts.find(a => a.product.id === product.id)
   if (!alert) return false
-  return alert.variations?.some((v: any) => v.variationId === variationId) ?? false
+  return alert.variations?.some(v => Number(v.id) === variationId) ?? false
 }
 </script>
 
