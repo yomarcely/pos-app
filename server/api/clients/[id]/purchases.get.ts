@@ -81,7 +81,31 @@ export default defineEventHandler(async (event) => {
       .orderBy(desc(sales.saleDate))
 
     // Grouper les résultats par vente
-    const purchasesMap = new Map<number, any>()
+    type PurchaseRow = (typeof salesWithItems)[number]
+    interface PurchaseItem {
+      id: NonNullable<PurchaseRow['itemId']>
+      productName: PurchaseRow['productName']
+      variation: PurchaseRow['variation']
+      quantity: PurchaseRow['quantity']
+      unitPrice: PurchaseRow['unitPrice']
+      totalTTC: PurchaseRow['itemTotalTTC']
+      discount: PurchaseRow['discount']
+      discountType: PurchaseRow['discountType']
+      originalPrice: PurchaseRow['originalPrice']
+      tva: PurchaseRow['tva']
+    }
+    interface Purchase {
+      id: PurchaseRow['saleId']
+      ticketNumber: PurchaseRow['ticketNumber']
+      saleDate: PurchaseRow['saleDate']
+      totalHT: PurchaseRow['totalHT']
+      totalTVA: PurchaseRow['totalTVA']
+      totalTTC: PurchaseRow['totalTTC']
+      status: PurchaseRow['status']
+      payments: PurchaseRow['payments']
+      items: PurchaseItem[]
+    }
+    const purchasesMap = new Map<number, Purchase>()
 
     for (const row of salesWithItems) {
       if (!purchasesMap.has(row.saleId)) {
@@ -135,7 +159,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

@@ -177,7 +177,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error instanceof Error ? error.message : 'Erreur lors de la récupération du produit',
+      statusMessage: "Une erreur interne s'est produite",
     })
   }
 })

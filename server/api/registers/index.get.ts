@@ -58,9 +58,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la récupération des caisses')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

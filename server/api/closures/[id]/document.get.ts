@@ -109,7 +109,7 @@ export default defineEventHandler(async (event) => {
     logger.error({ err: error }, 'Erreur récupération document de clôture')
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

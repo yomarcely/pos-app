@@ -5,6 +5,14 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { verifyTicketChain, type TicketData } from '~/server/utils/nf525'
 import { logChainVerification } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
+import { z } from 'zod'
+
+const querySchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate doit être au format YYYY-MM-DD').optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate doit être au format YYYY-MM-DD').optional(),
+  limit: z.coerce.number().int().positive().max(5000).optional(),
+  registerId: z.coerce.number().int().positive().optional(),
+})
 
 /**
  * ==========================================
@@ -26,15 +34,17 @@ import { logger } from '~/server/utils/logger'
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
-    const query = getQuery(event)
+    const parsed = querySchema.safeParse(getQuery(event))
+    if (!parsed.success) {
+      throw createError({
+        statusCode: 400,
+        message: `Paramètres invalides : ${parsed.error.issues.map(i => i.message).join(' ; ')}`,
+      })
+    }
 
-    const registerIdParam = query.registerId as string | undefined
-    const limitParam = query.limit as string | undefined
-    const startDate = query.startDate as string | undefined
-    const endDate = query.endDate as string | undefined
-
-    const registerId = registerIdParam ? Number(registerIdParam) : null
-    const limit = limitParam ? Number(limitParam) : 1000
+    const { startDate, endDate } = parsed.data
+    const registerId = parsed.data.registerId ?? null
+    const limit = parsed.data.limit ?? 1000
 
     logger.info({ tenantId, registerId }, 'Vérification de chaîne')
 
@@ -77,18 +87,28 @@ export default defineEventHandler(async (event) => {
     // Récupérer les items pour chaque vente
     const salesWithItems = await Promise.all(
       salesData.map(async (sale) => {
+        // L'ordre des items entre dans le hash (join('|')) : on force l'ordre
+        // d'insertion (id croissant) pour reproduire l'ordre de création.
         const items = await db
           .select()
           .from(saleItems)
           .where(eq(saleItems.saleId, sale.id))
+          .orderBy(asc(saleItems.id))
 
         return {
           ...sale,
           items: items.map(item => ({
             productId: item.productId,
             quantity: item.quantity,
+            // unitPrice : hashé en interpolation brute (`${unitPrice}`) à la création.
+            // Number() normalise le decimal stocké ("10.50" → 10.5 → "10.5"),
+            // exactement comme le number d'origine ("10.5"). Ne pas .toFixed() ici.
             unitPrice: Number(item.unitPrice),
             totalTTC: Number(item.totalTTC),
+            // tva : sert au fallback tvaCode du hash (`TVA${tva}`, ex: "TVA20").
+            // ⚠️ Ne PAS passer item.tvaCode stocké : il est au format "TVA20.00"
+            // (tvaRate.toFixed(2)) alors que le hash de création utilise le
+            // fallback "TVA20" (tvaCode absent de ticketData dans create.post.ts).
             tva: Number(item.tva),
             discount: Number(item.discount),
             discountType: item.discountType as '%' | '€',
@@ -103,15 +123,24 @@ export default defineEventHandler(async (event) => {
 
     const tickets = salesWithItems.map(sale => ({
       ticketNumber: sale.ticketNumber,
+      // saleDate : hashée via toISOString() (précision ms). La colonne PG
+      // timestamp conserve les ms, et create.post.ts utilise LA MÊME instance
+      // Date pour le hash et l'insert — toute divergence casse la vérification.
       saleDate: sale.saleDate,
+      // Totaux : hashés en .toFixed(2) à la création depuis Number(body.totals.X) ;
+      // Number(decimal "12.30") → 12.3 → toFixed(2) → "12.30" : round-trip exact.
       totalTTC: Number(sale.totalTTC),
       totalHT: Number(sale.totalHT),
       totalTVA: Number(sale.totalTVA),
       sellerId: sale.sellerId || 0, // Fallback pour les ventes sans vendeur
       // Extraire les numéros d'établissement et de caisse du ticketNumber
       // Format: YYYYMMDD-E{etab}-R{caisse}-NNNNNN
+      // Correspond aux colonnes immuables establishmentNumber/registerNumber
+      // utilisées à la création, puisque le ticketNumber est construit avec elles.
       establishmentNumber: extractEstablishmentNumber(sale.ticketNumber),
       registerNumber: extractRegisterNumber(sale.ticketNumber),
+      // globalDiscount : hashé en interpolation brute (`${value}€`), pas en
+      // toFixed — Number() normalise le decimal stocké comme pour unitPrice.
       globalDiscount: Number(sale.globalDiscount || 0),
       globalDiscountType: (sale.globalDiscountType as '%' | '€') || '€',
       items: sale.items,
@@ -163,9 +192,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la vérification de chaîne')
 
+    if (error instanceof Error && 'statusCode' in error) {
+      throw error
+    }
+
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })

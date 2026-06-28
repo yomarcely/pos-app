@@ -95,7 +95,7 @@ export default defineEventHandler(async (event) => {
     logger.error({ err: error }, 'Erreur loyalty-status')
     throw createError({
       statusCode: 500,
-      message: error instanceof Error ? error.message : 'Erreur interne du serveur',
+      message: "Une erreur interne s'est produite",
     })
   }
 })
