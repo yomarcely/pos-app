@@ -543,3 +543,4 @@ caractérisation d'abord.
 
 *Généré à partir de l'audit complet du 2026-06-12 (voir conversation d'audit). Chaque finding
 cité a été vérifié dans le code (fichier:ligne) avant d'entrer dans ce plan.*
+TEST
