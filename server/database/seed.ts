@@ -57,35 +57,24 @@ type DbExecutor = {
 
 async function resetDatabase(executor: DbExecutor) {
   console.log('🧹 Réinitialisation des tables...')
+  // Vide dynamiquement toutes les tables du schéma `public` afin de ne jamais
+  // oublier une table récente. CASCADE résout l'ordre des clés étrangères ;
+  // RESTART IDENTITY remet les compteurs d'ID à zéro. Le schéma `drizzle`
+  // (historique des migrations) n'est pas touché.
   await executor.execute(sql`
-    TRUNCATE TABLE
-      sale_items,
-      sales,
-      stock_movements,
-      movements,
-      product_stocks,
-      product_establishments,
-      customer_establishments,
-      seller_establishments,
-      sync_logs,
-      sync_rules,
-      sync_group_establishments,
-      sync_groups,
-      products,
-      categories,
-      variations,
-      variation_groups,
-      suppliers,
-      brands,
-      customers,
-      sellers,
-      registers,
-      establishments,
-      tax_rates,
-      audit_logs,
-      closures,
-      archives
-    RESTART IDENTITY CASCADE
+    DO $$
+    DECLARE
+      tbls text;
+    BEGIN
+      SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+        INTO tbls
+      FROM pg_tables
+      WHERE schemaname = 'public';
+
+      IF tbls IS NOT NULL THEN
+        EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE';
+      END IF;
+    END $$;
   `)
 }
 
