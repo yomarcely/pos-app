@@ -4,7 +4,8 @@ import { and, eq, gte, lt, inArray, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
-import { computeMarginKpis, densifyHourlySeries, parseIdsParam } from '~/server/utils/revenueStats'
+import { computeMarginKpis, densifyHourlySeries, parseIdsParam, resolveStatsRange } from '~/server/utils/revenueStats'
+import { BUSINESS_TIMEZONE } from '~/server/utils/businessDay'
 
 /**
  * GET /api/stats/revenue
@@ -25,41 +26,21 @@ import { computeMarginKpis, densifyHourlySeries, parseIdsParam } from '~/server/
  * marge. marginCoveragePct indique la fraction du CA HT couverte par snapshot.
  */
 
-function parseDate(raw: string | undefined, fallback: Date): Date {
-  if (!raw) return fallback
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) {
-    throw createError({
-      statusCode: 400,
-      message: `Date invalide : ${raw} (format attendu : YYYY-MM-DD)`,
-    })
-  }
-  return d
-}
-
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     assertRole(event, 'manager')
     const query = getQuery(event)
 
-    // 30 derniers jours par défaut
+    // 30 derniers jours par défaut, bornes ancrées sur le jour métier (Europe/Paris)
     const now = new Date()
     const defaultStart = new Date(now)
     defaultStart.setDate(defaultStart.getDate() - 29)
-
-    const startDate = parseDate(query.startDate as string | undefined, defaultStart)
-    startDate.setHours(0, 0, 0, 0)
-
-    const endDate = parseDate(query.endDate as string | undefined, now)
-    endDate.setHours(23, 59, 59, 999)
-
-    if (endDate < startDate) {
-      throw createError({
-        statusCode: 400,
-        message: 'endDate doit être >= startDate',
-      })
-    }
+    const { startStr, endStr, start: startDate, end: endDate } = resolveStatsRange(
+      query.startDate as string | undefined,
+      query.endDate as string | undefined,
+      { start: defaultStart, end: now },
+    )
 
     const establishmentIds = parseIdsParam(query.establishmentId as string | undefined)
     const registerIds = parseIdsParam(query.registerId as string | undefined)
@@ -104,29 +85,38 @@ export default defineEventHandler(async (event) => {
       .innerJoin(sales, eq(saleItems.saleId, sales.id))
       .where(and(...baseConditions))
 
+    // Jour/heure exprimés dans le fuseau métier (Europe/Paris), pas dans le
+    // fuseau de session PG (UTC) : sinon une vente à 00h30 Paris serait bucketée
+    // la veille, en décalage avec les bornes [startDate, endDate). saleDate est
+    // un timestamptz → `AT TIME ZONE` le convertit en heure murale locale.
+    // NB : on groupe/trie par position ordinale (GROUP BY 1) car réutiliser ce
+    // fragment paramétré dans le GROUP BY générerait un autre placeholder ($n)
+    // que Postgres ne reconnaîtrait pas comme identique à la colonne du SELECT.
+    const localSaleDate = sql`(${sales.saleDate} AT TIME ZONE ${BUSINESS_TIMEZONE})`
+
     // 3. Série quotidienne (CA TTC + nb tickets par jour)
     const dailyRows = await db
       .select({
-        day: sql<string>`TO_CHAR(${sales.saleDate}, 'YYYY-MM-DD')`,
+        day: sql<string>`TO_CHAR(${localSaleDate}, 'YYYY-MM-DD')`,
         ttc: sql<string>`COALESCE(SUM(CAST(${sales.totalTTC} AS NUMERIC)), 0)`,
         ticketCount: sql<number>`CAST(COUNT(*) AS INTEGER)`,
       })
       .from(sales)
       .where(and(...baseConditions))
-      .groupBy(sql`TO_CHAR(${sales.saleDate}, 'YYYY-MM-DD')`)
-      .orderBy(sql`TO_CHAR(${sales.saleDate}, 'YYYY-MM-DD')`)
+      .groupBy(sql`1`)
+      .orderBy(sql`1`)
 
     // 4. Série horaire (nb tickets + CA par tranche horaire 0..23, agrégé sur la période)
     const hourlyRows = await db
       .select({
-        hour: sql<number>`CAST(EXTRACT(HOUR FROM ${sales.saleDate}) AS INTEGER)`,
+        hour: sql<number>`CAST(EXTRACT(HOUR FROM ${localSaleDate}) AS INTEGER)`,
         ttc: sql<string>`COALESCE(SUM(CAST(${sales.totalTTC} AS NUMERIC)), 0)`,
         ticketCount: sql<number>`CAST(COUNT(*) AS INTEGER)`,
       })
       .from(sales)
       .where(and(...baseConditions))
-      .groupBy(sql`EXTRACT(HOUR FROM ${sales.saleDate})`)
-      .orderBy(sql`EXTRACT(HOUR FROM ${sales.saleDate})`)
+      .groupBy(sql`1`)
+      .orderBy(sql`1`)
 
     if (!salesKpis || !itemsKpis) {
       throw createError({ statusCode: 500, message: 'Erreur d\'agrégation des statistiques' })
@@ -157,8 +147,8 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       period: {
-        startDate: startDate.toISOString().slice(0, 10),
-        endDate: endDate.toISOString().slice(0, 10),
+        startDate: startStr,
+        endDate: endStr,
       },
       filters: {
         establishmentIds,

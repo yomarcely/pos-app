@@ -25,20 +25,22 @@
           <!-- Date de début -->
           <div class="space-y-2">
             <Label for="startDate">Date de début</Label>
-            <Input
+            <DatePicker
               id="startDate"
               v-model="startDate"
-              type="date"
+              :max="endDate"
+              class="w-full"
             />
           </div>
 
           <!-- Date de fin -->
           <div class="space-y-2">
             <Label for="endDate">Date de fin</Label>
-            <Input
+            <DatePicker
               id="endDate"
               v-model="endDate"
-              type="date"
+              :min="startDate"
+              class="w-full"
             />
           </div>
 
@@ -262,7 +264,6 @@ import { ref, onMounted, watch } from 'vue'
 import { Eye, CalendarDays, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -276,6 +277,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
+import DatePicker from '@/components/shared/DatePicker.vue'
 import RegisterSelect from '@/components/shared/RegisterSelect.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { usePrintDocument } from '@/composables/usePrintDocument'

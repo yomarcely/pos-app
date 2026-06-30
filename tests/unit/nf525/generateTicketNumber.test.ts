@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateTicketNumber } from '~/server/utils/nf525'
+import { getBusinessDayString } from '~/server/utils/businessDay'
 
 describe('generateTicketNumber', () => {
   // T1 — Format de base
@@ -46,13 +47,9 @@ describe('generateTicketNumber', () => {
     expect(result).toContain('001000')
   })
 
-  // T5 — Date du jour
-  it('T5 — commence par la date du jour au format YYYYMMDD (heure locale)', () => {
-    const now = new Date()
-    const today =
-      `${now.getFullYear()}` +
-      `${String(now.getMonth() + 1).padStart(2, '0')}` +
-      `${String(now.getDate()).padStart(2, '0')}`
+  // T5 — Date du jour métier (fuseau commerçant, pas le fuseau du process)
+  it('T5 — commence par la date du jour métier au format YYYYMMDD', () => {
+    const today = getBusinessDayString().replace(/-/g, '')
     const result = generateTicketNumber(1, 1, 1)
     expect(result.startsWith(today)).toBe(true)
   })

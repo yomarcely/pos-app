@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, saleItems, stockMovements, auditLogs, variations, productStocks, customerEstablishments, loyaltyVouchers, registers, establishments, closures } from '~/server/database/schema'
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { getBusinessDayString } from '~/server/utils/businessDay'
 import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { cancelSaleSchema, type CancelSaleInput } from '~/server/validators/sale.schema'
@@ -102,7 +103,7 @@ export default defineEventHandler(async (event) => {
 
     // Un avoir est daté du jour : il ne peut entrer dans une journée déjà clôturée
     // pour cette caisse (cohérent avec sales/create.post.ts).
-    const today = new Date().toISOString().slice(0, 10)
+    const today = getBusinessDayString()
     const [todayClosure] = await db
       .select({ id: closures.id })
       .from(closures)

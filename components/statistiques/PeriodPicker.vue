@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Calendar } from 'lucide-vue-next'
+import DatePicker from '@/components/shared/DatePicker.vue'
 
 interface Period {
   startDate: string // YYYY-MM-DD
@@ -60,8 +59,12 @@ function applyPreset(preset: 'today' | '7d' | '30d' | 'mtd' | 'ytd') {
   emitChange()
 }
 
+// Date locale (et non UTC) : sinon en soirée les presets renvoient la veille.
 function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 const activePreset = computed<string | null>(() => {
@@ -120,21 +123,16 @@ const activePreset = computed<string | null>(() => {
     </div>
 
     <div class="flex items-center gap-2 ml-2">
-      <Calendar class="w-4 h-4 text-muted-foreground" />
-      <Input
+      <DatePicker
         v-model="startDate"
-        type="date"
-        class="w-[150px]"
         :max="endDate"
-        @change="emitChange"
+        @update:model-value="emitChange"
       />
       <span class="text-sm text-muted-foreground">→</span>
-      <Input
+      <DatePicker
         v-model="endDate"
-        type="date"
-        class="w-[150px]"
         :min="startDate"
-        @change="emitChange"
+        @update:model-value="emitChange"
       />
     </div>
   </div>

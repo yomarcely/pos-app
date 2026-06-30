@@ -1,7 +1,8 @@
-import { and, asc, eq, gte, lte, inArray } from 'drizzle-orm'
+import { and, asc, eq, gte, lt, inArray } from 'drizzle-orm'
 import { db } from '~/server/database/connection'
 import { sales, saleItems, establishments } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { getBusinessDayBounds } from '~/server/utils/businessDay'
 import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
 import { buildFecContent, buildFecFilename, type FecSale } from '~/utils/fecExport'
@@ -35,19 +36,20 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const from = new Date(fromStr)
-    const to = new Date(toStr)
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    if (Number.isNaN(new Date(fromStr).getTime()) || Number.isNaN(new Date(toStr).getTime())) {
       throw createError({ statusCode: 400, message: 'Dates invalides (attendu YYYY-MM-DD)' })
     }
-    // `to` borne inclusive de fin de journée
-    to.setHours(23, 59, 59, 999)
+    // Bornes UTC du jour métier (Europe/Paris) : `from` = minuit local du jour
+    // de début (inclus), `to` = minuit local du lendemain du jour de fin (exclu).
+    // cf. server/utils/businessDay.ts
+    const from = getBusinessDayBounds(fromStr).start
+    const to = getBusinessDayBounds(toStr).end
 
     const conditions = [
       eq(sales.tenantId, tenantId),
       eq(sales.status, 'completed'),
       gte(sales.saleDate, from),
-      lte(sales.saleDate, to),
+      lt(sales.saleDate, to),
     ]
     if (establishmentIdParam) {
       conditions.push(eq(sales.establishmentId, Number(establishmentIdParam)))
@@ -136,7 +138,9 @@ export default defineEventHandler(async (event) => {
 
     // 5. Générer le contenu FEC
     const content = buildFecContent(fecSales)
-    const filename = buildFecFilename(siren, to)
+    // Nom de fichier daté du dernier jour de la période (et non de la borne
+    // exclusive `to`, qui pointe le lendemain) ; midi local évite tout bascule TZ.
+    const filename = buildFecFilename(siren, new Date(`${toStr}T12:00:00`))
 
     logger.info({ tenantId, salesCount: fecSales.length, period: { from: fromStr, to: toStr } }, 'FEC généré')
 

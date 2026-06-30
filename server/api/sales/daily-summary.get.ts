@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { sales, saleItems } from '~/server/database/schema'
 import { desc, gte, lt, and, eq, sql, inArray } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { getBusinessDayString, getBusinessDayBounds } from '~/server/utils/businessDay'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -24,15 +25,12 @@ export default defineEventHandler(async (event) => {
     const registerIdParam = query.registerId as string
     const establishmentIdParam = query.establishmentId as string
 
-    // Date par défaut: aujourd'hui
-    const targetDate = dateParam ? new Date(dateParam) : new Date()
+    // Jour métier ciblé (défaut : aujourd'hui dans le fuseau du commerçant)
+    const targetDay = dateParam || getBusinessDayString()
 
-    // Début et fin de la journée
-    const startOfDay = new Date(targetDate)
-    startOfDay.setHours(0, 0, 0, 0)
-
-    const endOfDay = new Date(targetDate)
-    endOfDay.setHours(23, 59, 59, 999)
+    // Bornes UTC [start, end) du jour métier, indépendantes du fuseau du
+    // process — cf. server/utils/businessDay.ts.
+    const { start: startOfDay, end: endOfDay } = getBusinessDayBounds(targetDay)
 
     // Filtres optionnels
     const registerId = registerIdParam ? Number(registerIdParam) : null
@@ -256,7 +254,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     return {
       success: true,
-      date: targetDate.toISOString().split('T')[0],
+      date: targetDay,
       summary: {
         // Totaux généraux
         totalTTC,

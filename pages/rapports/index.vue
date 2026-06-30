@@ -21,11 +21,11 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="space-y-2">
             <Label for="fecFrom">Date de début</Label>
-            <Input id="fecFrom" v-model="fecFrom" type="date" />
+            <DatePicker id="fecFrom" v-model="fecFrom" :max="fecTo" class="w-full" />
           </div>
           <div class="space-y-2">
             <Label for="fecTo">Date de fin</Label>
-            <Input id="fecTo" v-model="fecTo" type="date" />
+            <DatePicker id="fecTo" v-model="fecTo" :min="fecFrom" class="w-full" />
           </div>
           <div class="space-y-2">
             <Label>Établissement (optionnel)</Label>
@@ -78,12 +78,12 @@ definePageMeta({ layout: 'dashboard' })
 import { ref, computed } from 'vue'
 import { Download, FileText, Receipt } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Spinner from '@/components/ui/spinner/Spinner.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import EstablishmentSelect from '@/components/shared/EstablishmentSelect.vue'
+import DatePicker from '@/components/shared/DatePicker.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useToast } from '@/composables/useToast'
 import { extractFetchError } from '@/composables/useFetchError'

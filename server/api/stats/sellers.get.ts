@@ -4,7 +4,7 @@ import { and, eq, gte, lt, inArray, sql, desc } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
-import { parseIdsParam } from '~/server/utils/revenueStats'
+import { parseIdsParam, resolveStatsRange } from '~/server/utils/revenueStats'
 
 /**
  * GET /api/stats/sellers
@@ -18,37 +18,21 @@ import { parseIdsParam } from '~/server/utils/revenueStats'
  * triée par CA TTC décroissant.
  */
 
-function parseDate(raw: string | undefined, fallback: Date): Date {
-  if (!raw) return fallback
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) {
-    throw createError({
-      statusCode: 400,
-      message: `Date invalide : ${raw} (format attendu : YYYY-MM-DD)`,
-    })
-  }
-  return d
-}
-
 export default defineEventHandler(async (event) => {
   try {
     const tenantId = getTenantIdFromEvent(event)
     assertRole(event, 'manager')
     const query = getQuery(event)
 
+    // 30 derniers jours par défaut, bornes ancrées sur le jour métier (Europe/Paris)
     const now = new Date()
     const defaultStart = new Date(now)
     defaultStart.setDate(defaultStart.getDate() - 29)
-
-    const startDate = parseDate(query.startDate as string | undefined, defaultStart)
-    startDate.setHours(0, 0, 0, 0)
-
-    const endDate = parseDate(query.endDate as string | undefined, now)
-    endDate.setHours(23, 59, 59, 999)
-
-    if (endDate < startDate) {
-      throw createError({ statusCode: 400, message: 'endDate doit être >= startDate' })
-    }
+    const { startStr, endStr, start: startDate, end: endDate } = resolveStatsRange(
+      query.startDate as string | undefined,
+      query.endDate as string | undefined,
+      { start: defaultStart, end: now },
+    )
 
     const establishmentIds = parseIdsParam(query.establishmentId as string | undefined)
     const registerIds = parseIdsParam(query.registerId as string | undefined)
@@ -119,8 +103,8 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       period: {
-        startDate: startDate.toISOString().slice(0, 10),
-        endDate: endDate.toISOString().slice(0, 10),
+        startDate: startStr,
+        endDate: endStr,
       },
       sellers: sellersStats,
     }

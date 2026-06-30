@@ -4,7 +4,6 @@ definePageMeta({
 })
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -18,7 +17,6 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Calendar,
   Lock,
   LockOpen,
 } from 'lucide-vue-next'
@@ -26,6 +24,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import DailySummaryStats, { type Summary } from '@/components/synthese/DailySummaryStats.vue'
 import SaleTicketItem, { type Sale } from '@/components/synthese/SaleTicketItem.vue'
 import RegisterSelect from '@/components/shared/RegisterSelect.vue'
+import DatePicker from '@/components/shared/DatePicker.vue'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useUserRole } from '@/composables/useUserRole'
 
@@ -52,7 +51,7 @@ interface PendingSale {
 }
 
 // État
-const selectedDate = ref(new Date().toISOString().split('T')[0])
+const selectedDate = ref(getLocalDateString())
 const dailyData = ref<DailyData | null>(null)
 const loading = ref(false)
 const isClosed = ref(false)
@@ -290,10 +289,8 @@ const cancelledSales = computed(() => {
 
           <!-- Sélection date -->
           <div class="flex items-center gap-2">
-            <Calendar class="w-4 h-4 text-muted-foreground" />
-            <Input
+            <DatePicker
               v-model="selectedDate"
-              type="date"
               class="w-[200px]"
               :disabled="closingDay"
             />

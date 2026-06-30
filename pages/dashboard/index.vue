@@ -65,7 +65,7 @@ async function loadSummary() {
     loadingSummary.value = true
     try {
         const params = new URLSearchParams()
-        params.append('date', new Date().toISOString().split('T')[0] as string)
+        params.append('date', getLocalDateString())
         if (selectedEstablishmentId.value) {
             params.append('establishmentId', String(selectedEstablishmentId.value))
         }

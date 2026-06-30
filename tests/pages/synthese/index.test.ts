@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SynthesePage from '@/pages/synthese/index.vue'
 import { ref as vueRef, watch as vueWatch, ref } from 'vue'
+import { getLocalDateString } from '@/utils/formatters'
 
 vi.mock('@/composables/useEstablishmentRegister', () => ({
   useEstablishmentRegister: () => ({
@@ -39,6 +40,7 @@ describe('Page synthese', () => {
     vi.stubGlobal('definePageMeta', vi.fn())
     vi.stubGlobal('ref', vueRef)
     vi.stubGlobal('watch', vueWatch)
+    vi.stubGlobal('getLocalDateString', getLocalDateString)
     vi.stubGlobal('$fetch', fetchMock)
     fetchMock.mockReset()
     fetchMock.mockImplementation((url: string) => {

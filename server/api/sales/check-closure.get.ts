@@ -2,6 +2,7 @@ import { db } from '~/server/database/connection'
 import { closures } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { getBusinessDayString } from '~/server/utils/businessDay'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
     const dateParam = query.date as string
     const registerIdParam = query.registerId as string
 
-    const targetDate = dateParam || new Date().toISOString().slice(0, 10)
+    const targetDate = dateParam || getBusinessDayString()
     const registerId = registerIdParam ? Number(registerIdParam) : null
 
     // Construction des conditions WHERE dynamiques

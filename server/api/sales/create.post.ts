@@ -16,6 +16,7 @@ import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
 import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
 import { resolvePurchasePriceAtSale } from '~/server/utils/purchasePriceSnapshot'
+import { getBusinessDayString } from '~/server/utils/businessDay'
 import { findExistingSaleByClientSaleId, buildDuplicateSaleResponse } from '~/server/utils/saleIdempotency'
 
 /**
@@ -196,7 +197,7 @@ export default defineEventHandler(async (event) => {
     // ==========================================
     // VÉRIFIER SI LA JOURNÉE EST CLÔTURÉE POUR CETTE CAISSE
     // ==========================================
-    const today = new Date().toISOString().slice(0, 10)
+    const today = getBusinessDayString()
     const [todayClosure] = await db
       .select()
       .from(closures)

@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { getBusinessDayString } from './businessDay'
 
 /**
  * ==========================================
@@ -111,10 +112,9 @@ export function generateTicketHash(
  * @returns Numéro de ticket formaté
  */
 export function generateTicketNumber(sequenceNumber: number, establishmentNumber: number, registerNumber: number): string {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  // Date du jour métier (fuseau du commerçant), indépendante du fuseau du
+  // process Node — cf. server/utils/businessDay.ts.
+  const [year, month, day] = getBusinessDayString().split('-')
 
   // Numéro de séquence sur 6 chiffres
   const sequence = String(sequenceNumber).padStart(6, '0')

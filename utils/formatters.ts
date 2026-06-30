@@ -19,6 +19,24 @@ export function formatPrice(price: string | number, fallback: number = 0): strin
 }
 
 /**
+ * Renvoie une date au format `YYYY-MM-DD` exprimée dans le fuseau **local**.
+ *
+ * À ne PAS confondre avec `date.toISOString().split('T')[0]`, qui renvoie la
+ * date en UTC : passé minuit en heure locale (ex. UTC+2 après 22h UTC), ce
+ * dernier retourne encore la veille. Utilisé pour les sélecteurs de date
+ * « aujourd'hui » côté caisse, qui doivent suivre le jour local du commerçant.
+ *
+ * @param value - Date à formater (défaut : maintenant)
+ * @returns Date locale (ex: "2026-06-29")
+ */
+export function getLocalDateString(value: Date = new Date()): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
  * Formatte une date au format français (JJ/MM/AAAA)
  * @param value - Date (string ISO ou Date)
  * @returns Date formatée (ex: "25/12/2024")

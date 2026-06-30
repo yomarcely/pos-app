@@ -3,6 +3,7 @@ import { sales, closures, registers, pendingSales } from '~/server/database/sche
 import { desc, gte, lt, and, eq, inArray, sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
+import { getBusinessDayBounds } from '~/server/utils/businessDay'
 import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
@@ -39,14 +40,9 @@ export default defineEventHandler(async (event) => {
     const userName = auth?.user?.email || auth?.user?.user_metadata?.name || 'Utilisateur'
     const body = await validateBody<CloseDayInput>(event, closeDaySchema)
 
-    const targetDate = new Date(body.date)
-
-    // Début et fin de la journée
-    const startOfDay = new Date(targetDate)
-    startOfDay.setHours(0, 0, 0, 0)
-
-    const endOfDay = new Date(targetDate)
-    endOfDay.setHours(23, 59, 59, 999)
+    // Bornes UTC [start, end) du jour métier (fuseau commerçant), indépendantes
+    // du fuseau du process — cf. server/utils/businessDay.ts.
+    const { start: startOfDay, end: endOfDay } = getBusinessDayBounds(body.date)
 
     // ==========================================
     // 0. RÉCUPÉRER LES INFOS DE LA CAISSE

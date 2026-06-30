@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import DatePicker from '@/components/shared/DatePicker.vue'
 import {
     StickyNote, Plus, Check, Trash2, CalendarClock, User, X,
 } from 'lucide-vue-next'
@@ -35,7 +36,7 @@ const todoCount = computed(() => notesStore.notes.filter(n => !n.done).length)
 // ──────────────────────────────────────────────
 // Formulaire d'ajout
 // ──────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().split('T')[0] as string
+const todayStr = () => getLocalDateString()
 
 const newContent = ref('')
 const newType = ref<NoteType>('general')
@@ -207,10 +208,10 @@ watch(selectedEstablishmentId, (id) => notesStore.loadNotes(id))
                     </client-only>
 
                     <!-- Date limite -->
-                    <input
+                    <DatePicker
                         v-model="newDueDate"
-                        type="date"
-                        class="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        placeholder="Échéance"
+                        class="h-9 w-[150px]"
                     />
 
                     <Button size="sm" class="h-9 gap-1" :disabled="!newContent.trim() || saving" @click="submit">

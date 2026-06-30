@@ -2,6 +2,44 @@
  * Helpers purs pour /api/stats/revenue.
  * Extraits pour testabilité (la marge est un calcul financier — règle CLAUDE.md).
  */
+import { createError } from 'h3'
+import { getBusinessDayString, getBusinessDayBounds } from './businessDay'
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Résout une plage de stats en bornes UTC ancrées sur le jour métier (Europe/Paris),
+ * indépendamment du fuseau du process — cf. server/utils/businessDay.ts.
+ *
+ * @param startParam - `startDate` brut (YYYY-MM-DD) ou undefined
+ * @param endParam   - `endDate` brut (YYYY-MM-DD) ou undefined
+ * @param fallback   - instants de repli si un paramètre est absent (convertis en jour métier)
+ * @returns `startStr`/`endStr` (jours métier à ré-exposer) et bornes `[start, end)`
+ */
+export function resolveStatsRange(
+  startParam: string | undefined,
+  endParam: string | undefined,
+  fallback: { start: Date; end: Date },
+): { startStr: string; endStr: string; start: Date; end: Date } {
+  const startStr = startParam || getBusinessDayString(fallback.start)
+  const endStr = endParam || getBusinessDayString(fallback.end)
+
+  for (const [label, value] of [['startDate', startStr], ['endDate', endStr]] as const) {
+    if (!DAY_RE.test(value) || Number.isNaN(new Date(value).getTime())) {
+      throw createError({ statusCode: 400, message: `${label} invalide : ${value} (format attendu : YYYY-MM-DD)` })
+    }
+  }
+  if (endStr < startStr) {
+    throw createError({ statusCode: 400, message: 'endDate doit être >= startDate' })
+  }
+
+  return {
+    startStr,
+    endStr,
+    start: getBusinessDayBounds(startStr).start,
+    end: getBusinessDayBounds(endStr).end,
+  }
+}
 
 export interface MarginKpis {
   totalCost: number
