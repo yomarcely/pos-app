@@ -99,6 +99,22 @@ export default defineEventHandler(async (event) => {
     const reason = reasonMap[body.type] ?? 'inventory_adjustment'
 
     const result = await db.transaction(async (tx) => {
+      // ==========================================
+      // VERROU DE CONCURRENCE (par établissement)
+      // ==========================================
+      // Même verrou que server/api/sales/create.post.ts : pg_advisory_xact_lock sur
+      // l'establishmentId (clé numérique identique, acquis en TOUT DÉBUT de transaction,
+      // AVANT toute lecture de stock). Conséquences :
+      //   - oldStock est lu sous verrou → l'audit oldStock/newStock est cohérent même
+      //     sous ajustements simultanés du même produit.
+      //   - le mode "set" devient exact : delta = quantity - oldStock appliqué à un stock
+      //     qui ne peut plus bouger entre lecture et écriture → on obtient bien la valeur
+      //     absolue demandée.
+      //   - le chemin variation (read-modify-write JSONB) est sérialisé → plus de lost update.
+      // Pas d'interblocage avec sales/create : même clé (establishmentId) et même ordre
+      // d'acquisition (verrou pris en premier, une seule clé par transaction).
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${body.establishmentId})`)
+
       // 1. Créer le mouvement principal
       const movement = await createMovement(body.type, body.comment, undefined, tenantId, {
         supplierId: body.supplierId ?? null,
@@ -147,6 +163,8 @@ export default defineEventHandler(async (event) => {
           const varStocks: VarStock[] = stockRecord && Array.isArray(stockRecord.stockByVariation)
             ? (stockRecord.stockByVariation as VarStock[])
             : []
+          // Read-modify-write du JSONB : sûr car sérialisé par le verrou établissement
+          // (plus de lost update entre ajustements concurrents du même produit/variation).
           oldStock = varStocks.find(v => v.variationId === item.variation)?.stock || 0
           quantityDelta = item.adjustmentType === 'add' ? item.quantity : item.quantity - oldStock
           newStock = oldStock + quantityDelta
@@ -168,19 +186,25 @@ export default defineEventHandler(async (event) => {
             })
           }
         } else {
+          // oldStock lu sous verrou (voir pg_advisory_xact_lock plus haut).
           oldStock = stockRecord?.stock || 0
           quantityDelta = item.adjustmentType === 'add' ? item.quantity : item.quantity - oldStock
-          newStock = oldStock + quantityDelta
 
           if (stockRecord) {
-            // Mise à jour atomique du stock établissement
-            await tx.update(productStocks)
+            // Mise à jour atomique du stock établissement. On garde l'écriture atomique
+            // (stock = COALESCE(stock,0) + delta) — sûre car sérialisée par le verrou — et
+            // on récupère la VRAIE valeur post-UPDATE via RETURNING pour l'audit newStock,
+            // au lieu de la valeur calculée en amont (qui pouvait diverger sous concurrence).
+            const [updated] = await tx.update(productStocks)
               .set({
                 stock: sql`COALESCE(${productStocks.stock}, 0) + ${quantityDelta}`,
                 updatedAt: new Date(),
               })
               .where(eq(productStocks.id, stockRecord.id))
+              .returning({ stock: productStocks.stock })
+            newStock = updated?.stock ?? oldStock + quantityDelta
           } else {
+            newStock = oldStock + quantityDelta
             await tx.insert(productStocks).values({
               tenantId,
               productId: item.productId,

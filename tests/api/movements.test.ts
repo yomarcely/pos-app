@@ -75,6 +75,8 @@ vi.mock('~/server/database/schema', () => ({
 function createMovementTxChain(product: unknown | null) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tx: any = {
+    // Verrou d'avance de transaction (pg_advisory_xact_lock) — no-op en test
+    execute: vi.fn(() => Promise.resolve(undefined)),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -85,6 +87,8 @@ function createMovementTxChain(product: unknown | null) {
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
+          // RETURNING vide → le handler retombe sur oldStock + quantityDelta
+          returning: vi.fn(() => Promise.resolve([])),
           then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
             Promise.resolve(undefined).then(resolve, reject)
         }))
@@ -131,6 +135,52 @@ describe('API /api/movements', () => {
       expect(res.details).toHaveLength(1)
       expect(res.details[0].oldStock).toBe(10)
       expect(res.details[0].newStock).toBe(15)
+    })
+
+    // Caractérisation du comportement mono-appel (inchangé par le correctif concurrence) :
+    // mode 'set' → newStock = valeur absolue demandée, quantityDelta = quantity - oldStock.
+    it('mode set: ajuste le stock à la valeur absolue (caractérisation)', async () => {
+      const product = { id: 1, name: 'Produit A', stock: 10, stockByVariation: null }
+      currentDb = createMovementTxChain(product)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/movements/create.post')).default as any
+      const event = createMockEvent({
+        body: {
+          type: 'adjustment',
+          establishmentId: 3,
+          items: [{ productId: 1, quantity: 8, adjustmentType: 'set' }]
+        }
+      })
+
+      const res = await handler(event)
+
+      expect(res.details[0].oldStock).toBe(10)
+      expect(res.details[0].newStock).toBe(8)
+      expect(res.details[0].quantityDelta).toBe(-2)
+    })
+
+    // Caractérisation : chemin variation (read-modify-write JSONB).
+    it('variation: incrémente le stock de la variation ciblée (caractérisation)', async () => {
+      const product = {
+        id: 1, name: 'Produit A', stock: 0,
+        stockByVariation: [{ variationId: 'red', stock: 4 }],
+      }
+      currentDb = createMovementTxChain(product)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/movements/create.post')).default as any
+      const event = createMockEvent({
+        body: {
+          type: 'reception',
+          establishmentId: 3,
+          items: [{ productId: 1, variation: 'red', quantity: 3, adjustmentType: 'add' }]
+        }
+      })
+
+      const res = await handler(event)
+
+      expect(res.details[0].oldStock).toBe(4)
+      expect(res.details[0].newStock).toBe(7)
+      expect(res.details[0].quantityDelta).toBe(3)
     })
 
     it('throw 400 si type manquant', async () => {
