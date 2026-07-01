@@ -39,6 +39,12 @@ En production, `script-src` n'autorise plus `'unsafe-eval'` (renforce la défens
 3. **Vérifier qu'aucune erreur du type `Refused to evaluate ... unsafe-eval` n'apparaît**
 4. Si une lib tierce dépend de `eval`/`Function()` : identifier la lib et soit la remplacer, soit remettre `'unsafe-eval'` (revert temporaire dans [nuxt.config.ts](../nuxt.config.ts) ligne 79-83)
 
+**✅ Validé le 2026-07-01** (build prod local `NODE_ENV=production`, Chromium headless piloté par
+Playwright) : header `script-src 'self' 'unsafe-inline'` confirmé sans `unsafe-eval`, **0 erreur
+CSP** sur `/login`, flow de connexion, `/dashboard`, `/caisse`, `/produits`,
+`/etablissements/synchronisation`. À re-vérifier une fois sur staging (même build, autre origine).
+Anomalie cosmétique relevée au passage : 404 sur `/avatars/shadcn.jpg` (reliquat template shadcn).
+
 ---
 
 ## 🧾 Conformité NF525 (risques ouverts CLAUDE.md)
