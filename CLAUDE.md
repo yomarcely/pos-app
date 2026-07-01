@@ -41,14 +41,14 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 - `server/utils/sync.ts` (800 l.) — propagation multi-établissement
 - `server/api/sync-groups/[id]/resync.post.ts` (562 l.) — opération destructive
 
-### Risques ouverts (audit 2026-06-12 — plan : [docs/audit/11-plan-corrections.md](docs/audit/11-plan-corrections.md))
-- 🔴 **Header `x-tenant-id` non validé** (`server/utils/supabase.ts:32`) : accepté sans vérification contre les tenants autorisés — rupture d'isolation multi-tenant (P1.1)
-- 🔴 **Hash NF525 invérifiable** (`sales/create.post.ts:416` vs `:449`) : deux `new Date()` distincts entre le hash et la `saleDate` stockée → `verify-chain` signale tous les tickets corrompus (P1.2)
-- 🔴 **Signature NF525 temporaire** (`nf525.ts:157`) : `TEMP_SIGNATURE_*` tant que `INFOCERT_PRIVATE_KEY` absente — bloquant ; l'auto-attestation éditeur n'est plus admise (loi de finances 2025), certification organisme accrédité requise
-- 🔴 **Stock négatif silencieux** (`sales/create.post.ts:626,648`) : aucune borne sur `newStock` (P1.3)
-- 🟠 **Annulations non chaînées NF525** (`sales/[id]/cancel.post.ts`) : pas de ticket d'avoir dans la chaîne (P3.2)
-- 🟠 **Panier non persisté** (`stores/cart.ts`) : perdu au F5 / expiration session (P2.1)
-- 🟠 **Double source de stock** : `products.stock` vs `productStocks` — la vente n'écrit que `productStocks` (P3.5)
+### Risques ouverts (audit 2026-06-12 — plan : [docs/audit/11-plan-corrections.md](docs/audit/11-plan-corrections.md), P1.1→P4.4 tous mergés)
+- 🔴 **Signature NF525 temporaire** (`nf525.ts:160`) : `TEMP_SIGNATURE_*` tant que `INFOCERT_PRIVATE_KEY` absente — bloquant ; l'auto-attestation éditeur n'est plus admise (loi de finances 2025), certification organisme accrédité requise (dossier INFOCERT/LNE à mener côté fondateur)
+- 🟠 **Colonnes stock deprecated non supprimées** (`schema.ts:366`) : `products.stock`/`stockByVariation` sont gelées (`@deprecated`, plus aucune écriture) mais existent encore — migration de suppression à faire dans un 2e temps (P3.5, phase 2)
+- ✅ ~~Header `x-tenant-id` non validé~~ : validé contre la liste des tenants autorisés (P1.1)
+- ✅ ~~Hash NF525 invérifiable (double `new Date()`)~~ : une seule `saleDate` hashée et stockée (P1.2) ; les ventes antérieures au fix restent invérifiables en contenu (voir note docs/audit/08)
+- ✅ ~~Stock négatif silencieux~~ : survente explicite via flag `oversell` + warning (P1.3)
+- ✅ ~~Annulations non chaînées~~ : l'annulation crée un avoir `credit_note` chaîné (P3.2)
+- ✅ ~~Panier non persisté~~ : localStorage scopé tenant+caisse via `utils/cartPersistence.ts` (P2.1)
 - ✅ ~~Numérotation NF525 basée sur position `isActive`~~ : résolu par migration 0013 (colonnes immuables `establishmentNumber`/`registerNumber`)
 
 ---
@@ -140,4 +140,4 @@ pnpm env:switch           # bascule d'environnement (dev/staging/prod)
 - Checklist pré-déploiement : [docs/pre-deploy-checklist.md](docs/pre-deploy-checklist.md)
 - Index structurel : [codebase_index.md](codebase_index.md)
 
-*Dernière mise à jour : 2026-06-12 — risques ouverts actualisés suite audit complet (voir docs/audit/11-plan-corrections.md)*
+*Dernière mise à jour : 2026-07-01 — risques ouverts actualisés après merge de P1.1→P4.4 (reste : signature INFOCERT, suppression colonnes stock deprecated)*
