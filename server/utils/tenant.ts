@@ -1,4 +1,5 @@
-import type { H3Event } from 'h3'
+// Type inline érasé par TS — pas d'import 'h3' (cf. server/utils/supabase.ts).
+type H3Event = import('h3').H3Event
 
 /**
  * Utilitaire pour récupérer le tenantId

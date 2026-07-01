@@ -2,7 +2,7 @@
  * Helpers purs pour /api/stats/revenue.
  * Extraits pour testabilité (la marge est un calcul financier — règle CLAUDE.md).
  */
-import { createError } from 'h3'
+// `createError` est auto-importé par Nuxt côté server/ — pas d'import 'h3' (cf. server/utils/supabase.ts).
 import { getBusinessDayString, getBusinessDayBounds } from './businessDay'
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/

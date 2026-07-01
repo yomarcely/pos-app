@@ -1,7 +1,9 @@
-import { type H3Event } from 'h3'
 import type { ZodType } from 'zod'
 import { ZodError } from 'zod'
 import { logger } from '~/server/utils/logger'
+
+// Type inline érasé par TS — pas d'import 'h3' (cf. server/utils/supabase.ts).
+type H3Event = import('h3').H3Event
 
 /**
  * ==========================================
