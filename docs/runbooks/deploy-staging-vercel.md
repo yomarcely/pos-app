@@ -4,6 +4,31 @@
 > qui suit la branche `main`. La prod sera un 2e projet Vercel, créé plus tard (après
 > certification NF525).
 
+## Workflow des branches (décidé le 2026-07-01)
+
+- **`developpement`** : travail quotidien. Pusher librement, rien ne part en staging.
+  En local, le code lit `.env` (base Supabase **dev**) quelle que soit la branche.
+- **`main`** : merger `developpement` → `main` uniquement quand c'est stable.
+  Chaque push sur `main` déclenche le déploiement **staging** sur Vercel.
+- **Prod** (plus tard, après certification NF525) : 2e projet Vercel, déclenché par tag ou
+  branche `production` dédiée.
+
+⚠️ À chaque merge dans `main` contenant une **nouvelle migration** Drizzle, appliquer les
+migrations sur la base staging AVANT ou juste après le déploiement (Vercel ne le fait pas) :
+
+```bash
+pnpm env:staging && pnpm db:migrate && pnpm env:dev
+```
+
+**Réglages à faire une fois (manuel)** :
+1. *Vercel* → Settings du projet → **Git** : désactiver les Preview Deployments (ou configurer
+   les variables d'environnement « Preview » sur la base **dev** — sinon une preview de
+   `developpement` écrirait dans la base staging).
+2. *GitHub* → repo → **Settings → Branches → Add branch ruleset** (ou « Add classic branch
+   protection rule ») sur `main` : cocher **Require status checks to pass** et sélectionner les
+   jobs de la CI (`audit`, `lint`, `typecheck`, `test`). Le staging ne recevra jamais de code
+   dont la CI est rouge.
+
 ## Architecture
 
 - **Vercel** (serverless) héberge l'app Nuxt/Nitro — le preset Vercel est auto-détecté au build,
