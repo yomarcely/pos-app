@@ -33,10 +33,15 @@ const useSSL = process.env.DB_SSL === 'true' || connectionString.includes('supab
 // Détecter si on utilise le pooler Supabase (Transaction mode)
 const isSupabasePooler = connectionString.includes('pooler.supabase.com')
 
-// Ajouter les options PostgreSQL pour augmenter les timeouts
+// Options PostgreSQL par session :
+// - statement_timeout : borne toute requête à 60s
+// - idle_in_transaction_session_timeout : si le runtime est tué en pleine transaction
+//   (serverless), PostgreSQL rollback et libère les verrous après 30s au lieu de
+//   bloquer indéfiniment la caisse (zombie constaté sur staging le 2026-07-03).
+//   Également posé au niveau base via ALTER DATABASE (cf. runbook staging).
 if (isSupabasePooler) {
   const separator = connectionString.includes('?') ? '&' : '?'
-  connectionString += `${separator}options=-c%20statement_timeout%3D60000`
+  connectionString += `${separator}options=-c%20statement_timeout%3D60000%20-c%20idle_in_transaction_session_timeout%3D30000`
 }
 
 // Détecter le mode du pooler (Session = 5432, Transaction = 6543)

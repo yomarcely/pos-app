@@ -110,6 +110,39 @@ gros chantier, à valider explicitement (règle CLAUDE.md n°1).
    - flow complet : vente → ticket → clôture → ticket Z → verify-chain
 3. Vérifier les headers : `curl -sI https://<url-staging>/login | grep -i content-security`
 
+## Incidents connus & protections serverless (2026-07-03)
+
+Trois problèmes rencontrés au premier déploiement réel, avec leurs correctifs :
+
+1. **Région** : Vercel déploie par défaut à Washington (iad1) → chaque requête SQL traversait
+   l'Atlantique vers la base (eu-west-1). Réglé : *Settings → Functions → Function Region* =
+   Paris/Dublin. **À vérifier sur tout nouveau projet Vercel.**
+2. **Sockets morts au réveil** : Vercel gèle l'instance entre les requêtes ; une connexion DB
+   gardée indéfiniment (`idle_timeout: 0`) est morte au réveil → blocages de `connect_timeout`
+   (30s) sur la 1ère requête. Réglé dans `connection.ts` : `idle_timeout: 20`,
+   `max_lifetime: 30min`, `connect_timeout: 10`.
+3. **Transactions zombies** : la fonction tuée à `maxDuration` (défaut 10s Hobby) en pleine
+   transaction de vente laissait le `pg_advisory_xact_lock` posé → toutes les ventes suivantes
+   bloquées, caisse paralysée. Réglé par 3 couches :
+   - `nuxt.config.ts` : `nitro.vercel.functions.maxDuration = 60`
+   - `connection.ts` : option de session `idle_in_transaction_session_timeout=30s`
+   - au niveau base (à refaire sur TOUTE nouvelle base, prod incluse) :
+     `ALTER DATABASE postgres SET idle_in_transaction_session_timeout = '30s';`
+
+**Recommandé** : activer *Fluid Compute* (Settings → Functions) — instances plus durables,
+moins de gels/réveils, durée max plus élevée.
+
+**Diagnostic en cas de caisse figée** (tout bloque après une tentative de vente) :
+
+```sql
+-- transactions zombies et verrous advisory posés
+SELECT pid, state, now()-state_change AS age, left(query,80) FROM pg_stat_activity
+  WHERE state='idle in transaction';
+SELECT locktype, objid, granted, pid FROM pg_locks WHERE locktype='advisory';
+-- débloquer (rollback automatique du zombie)
+SELECT pg_terminate_backend(<pid>);
+```
+
 ## Limites connues du serverless (acceptées pour staging)
 
 - **Rate limiting en mémoire** : le store est par instance lambda → limites effectives plus laxistes

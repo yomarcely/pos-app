@@ -89,6 +89,15 @@ export default defineNuxtConfig({
     externals: {
       inline: ['@supabase/supabase-js'],
     },
+    // Vercel : le défaut (10s sur Hobby sans Fluid Compute) tuait les fonctions en
+    // pleine transaction de vente (zombie qui garde le pg_advisory_xact_lock et
+    // paralyse la caisse — constaté sur staging le 2026-07-03). 60s laisse passer
+    // une reconnexion pooler (10s) + la transaction complète.
+    vercel: {
+      functions: {
+        maxDuration: 60,
+      },
+    },
     // ==========================================
     // HEADERS DE SÉCURITÉ (NF525 + RGPD)
     // ==========================================
