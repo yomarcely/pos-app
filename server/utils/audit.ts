@@ -3,6 +3,16 @@ import { auditLogs } from '~/server/database/schema'
 import { logger } from '~/server/utils/logger'
 
 /**
+ * Exécuteur DB : la connexion globale par défaut, ou la transaction appelante.
+ *
+ * ⚠️ Tout log d'audit émis DEPUIS une transaction doit recevoir `tx` : en mode
+ * pooler (Vercel/staging/prod, max 1 connexion), un insert via `db` attendrait
+ * la connexion que la transaction occupe → auto-deadlock (vente figée 30s puis
+ * CONNECTION_CLOSED — constaté sur staging le 2026-07-03).
+ */
+export type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
  * ==========================================
  * UTILITAIRES POUR LES LOGS D'AUDIT NF525
  * ==========================================
@@ -90,9 +100,12 @@ export async function logAuditEvent(params: {
   changes?: Record<string, unknown>
   metadata?: AuditMetadata
   ipAddress?: string | null
-}): Promise<void> {
+}, executor?: DbExecutor): Promise<void> {
   try {
-    await db.insert(auditLogs).values({
+    // Résolu DANS le try : l'accès à `db` fait partie du contrat « l'audit ne
+    // bloque jamais l'opération principale » (un défaut de paramètre serait
+    // évalué avant le try et propagerait l'erreur à l'appelant).
+    await (executor ?? db).insert(auditLogs).values({
       tenantId: params.tenantId,
       userId: params.userId,
       userName: params.userName || 'System',
@@ -131,7 +144,7 @@ export async function logSaleCreation(params: {
   establishmentId: number
   registerId: number
   ipAddress?: string | null
-}): Promise<void> {
+}, executor?: DbExecutor): Promise<void> {
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -151,7 +164,7 @@ export async function logSaleCreation(params: {
       registerId: params.registerId,
     },
     ipAddress: params.ipAddress,
-  })
+  }, executor)
 }
 
 /**

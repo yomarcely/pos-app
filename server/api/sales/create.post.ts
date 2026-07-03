@@ -863,7 +863,8 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      // 5.5 Log d'audit NF525 complet
+      // 5.5 Log d'audit NF525 complet — atomique avec la vente : on passe `tx`,
+      // JAMAIS la connexion globale (deadlock en mode pooler max=1, cf. audit.ts).
       await logSaleCreation({
         tenantId,
         userId: body.seller.id,
@@ -877,7 +878,7 @@ export default defineEventHandler(async (event) => {
         establishmentId: establishment.id,
         registerId: register.id,
         ipAddress: getRequestIP(event) || null,
-      })
+      }, tx)
 
       return { newSale: createdSale, saleItemsData, stockUpdateLogs, stockWarnings }
     })
