@@ -106,11 +106,12 @@ export default defineEventHandler(async (event) => {
 
     // 2. Transaction : créer la préparation parent + insérer les lignes
     const result = await db.transaction(async (tx) => {
+      // `tx` obligatoire : deadlock en mode pooler max=1 sinon (cf. connection.ts).
       const preparation = await createInventoryPreparation(tenantId, {
         name: body.name,
         comment: body.comment,
         establishmentId: body.establishmentId,
-      })
+      }, tx)
 
       const rowsToInsert = body.items.map((item) => {
         const product = productsById.get(item.productId)!

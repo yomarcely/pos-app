@@ -1,4 +1,4 @@
-import { db } from '~/server/database/connection'
+import { db, type DbExecutor } from '~/server/database/connection'
 import { inventoryPreparations } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 
@@ -18,6 +18,9 @@ export interface CreateInventoryPreparationOptions {
 export async function createInventoryPreparation(
   tenantId: string,
   options: CreateInventoryPreparationOptions = {},
+  // ⚠️ Appelé depuis une transaction ? Passer `tx`, sinon deadlock en mode
+  // pooler max=1 (voir DbExecutor dans server/database/connection.ts).
+  executor: DbExecutor = db,
 ): Promise<{ id: number; preparationNumber: string }> {
   if (!tenantId) {
     throw new Error("Tenant ID manquant pour la création de la préparation d'inventaire")
@@ -25,7 +28,7 @@ export async function createInventoryPreparation(
 
   // Insertion avec numéro temporaire pour éviter le conflit d'unicité
   const tempNumber = `TEMP-PREP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  const [temp] = await db
+  const [temp] = await executor
     .insert(inventoryPreparations)
     .values({
       tenantId,
@@ -43,7 +46,7 @@ export async function createInventoryPreparation(
 
   const preparationNumber = `PREP-INV-${String(temp.id).padStart(6, '0')}`
 
-  const [prep] = await db
+  const [prep] = await executor
     .update(inventoryPreparations)
     .set({ preparationNumber })
     .where(eq(inventoryPreparations.id, temp.id))

@@ -214,6 +214,7 @@ describe('POST /api/inventory-preparations', () => {
     expect(createPrepMock).toHaveBeenCalledWith(
       'test-tenant-id',
       expect.objectContaining({ name: 'Inventaire chaussures', establishmentId: 1 }),
+      expect.anything(), // tx — deadlock pooler max=1 sinon (cf. DbExecutor)
     )
     // expectedStock figé : 12 pour produit 1, 5 pour produit 2 variation S
     const inserted = insertedItems as Array<{ expectedStock: number; countedStock: number; variation: string | null }>

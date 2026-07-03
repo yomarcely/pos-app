@@ -1,16 +1,10 @@
-import { db } from '~/server/database/connection'
+import { db, type DbExecutor } from '~/server/database/connection'
 import { auditLogs } from '~/server/database/schema'
 import { logger } from '~/server/utils/logger'
 
-/**
- * Exécuteur DB : la connexion globale par défaut, ou la transaction appelante.
- *
- * ⚠️ Tout log d'audit émis DEPUIS une transaction doit recevoir `tx` : en mode
- * pooler (Vercel/staging/prod, max 1 connexion), un insert via `db` attendrait
- * la connexion que la transaction occupe → auto-deadlock (vente figée 30s puis
- * CONNECTION_CLOSED — constaté sur staging le 2026-07-03).
- */
-export type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+// ⚠️ Tout log d'audit émis DEPUIS une transaction doit recevoir `tx` en second
+// paramètre (deadlock en mode pooler sinon — voir DbExecutor dans connection.ts).
+export type { DbExecutor }
 
 /**
  * ==========================================

@@ -115,12 +115,13 @@ export default defineEventHandler(async (event) => {
       // d'acquisition (verrou pris en premier, une seule clé par transaction).
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${body.establishmentId})`)
 
-      // 1. Créer le mouvement principal
+      // 1. Créer le mouvement principal — `tx` obligatoire : deadlock en mode
+      // pooler max=1 sinon (voir DbExecutor dans connection.ts).
       const movement = await createMovement(body.type, body.comment, undefined, tenantId, {
         supplierId: body.supplierId ?? null,
         deliveryNoteNumber: body.deliveryNoteNumber ?? null,
         establishmentId: body.establishmentId ?? null,
-      })
+      }, tx)
 
       // 2. Créer les lignes de stock_movements
       const stockMovementsData = []

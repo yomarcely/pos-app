@@ -245,6 +245,7 @@ describe('POST /api/inventory-preparations/validate', () => {
       undefined,
       'test-tenant-id',
       expect.objectContaining({ establishmentId: 3 }),
+      expect.anything(), // tx — deadlock pooler max=1 sinon (cf. DbExecutor)
     )
   })
 

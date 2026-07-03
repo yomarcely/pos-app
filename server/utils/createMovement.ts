@@ -1,4 +1,4 @@
-import { db } from '~/server/database/connection'
+import { db, type DbExecutor } from '~/server/database/connection'
 import { movements } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
 
@@ -23,7 +23,10 @@ export async function createMovement(
   comment?: string,
   userId?: number,
   tenantId?: string,
-  options: CreateMovementOptions = {}
+  options: CreateMovementOptions = {},
+  // ⚠️ Appelé depuis une transaction ? Passer `tx`, sinon deadlock en mode
+  // pooler max=1 (voir DbExecutor dans server/database/connection.ts).
+  executor: DbExecutor = db
 ): Promise<{ id: number; movementNumber: string }> {
   if (!tenantId) {
     throw new Error('Tenant ID manquant pour la création du mouvement')
@@ -31,7 +34,7 @@ export async function createMovement(
 
   // Insérer le mouvement avec un numéro temporaire unique (timestamp)
   const tempNumber = `TEMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  const [tempMovement] = await db
+  const [tempMovement] = await executor
     .insert(movements)
     .values({
       tenantId,
@@ -54,7 +57,7 @@ export async function createMovement(
   const movementNumber = `${prefix}-${String(tempMovement.id).padStart(6, '0')}`
 
   // Mettre à jour avec le numéro définitif
-  const [movement] = await db
+  const [movement] = await executor
     .update(movements)
     .set({ movementNumber })
     .where(eq(movements.id, tempMovement.id))

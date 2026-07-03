@@ -253,7 +253,8 @@ describe('API /api/movements', () => {
         'Livraison du jour',
         undefined,
         'test-tenant-id',
-        { supplierId: 42, deliveryNoteNumber: 'BL-2026-001', establishmentId: 7 }
+        { supplierId: 42, deliveryNoteNumber: 'BL-2026-001', establishmentId: 7 },
+        expect.anything(), // tx — deadlock pooler max=1 sinon (cf. DbExecutor)
       )
     })
 
@@ -277,7 +278,8 @@ describe('API /api/movements', () => {
         undefined,
         undefined,
         'test-tenant-id',
-        { supplierId: null, deliveryNoteNumber: null, establishmentId: null }
+        { supplierId: null, deliveryNoteNumber: null, establishmentId: null },
+        expect.anything(), // tx — deadlock pooler max=1 sinon (cf. DbExecutor)
       )
     })
   })

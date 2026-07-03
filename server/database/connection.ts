@@ -75,6 +75,17 @@ export const client = postgres(connectionString, {
 export const db = drizzle(client, { schema })
 
 /**
+ * Exécuteur DB : la connexion globale, ou la transaction appelante.
+ *
+ * ⚠️ Tout helper qui écrit en base et peut être appelé DEPUIS une transaction
+ * doit accepter ce paramètre et l'utiliser : en mode pooler (Vercel/staging/prod,
+ * max 1 connexion), un accès via `db` pendant qu'une transaction est ouverte
+ * attend la connexion que la transaction occupe → auto-deadlock (ventes et
+ * mouvements figés 30s puis CONNECTION_CLOSED — constaté sur staging 2026-07-03).
+ */
+export type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
  * Fonction utilitaire pour tester la connexion
  */
 export async function testConnection() {

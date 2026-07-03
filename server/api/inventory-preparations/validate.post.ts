@@ -323,10 +323,11 @@ export default defineEventHandler(async (event) => {
     // 8. Transaction principale
     const auth = event.context.auth
     const result = await db.transaction(async (tx) => {
-      // 8a. Créer le mouvement parent
+      // 8a. Créer le mouvement parent — `tx` obligatoire : deadlock en mode
+      // pooler max=1 sinon (voir DbExecutor dans connection.ts).
       const movement = await createMovement('inventory', comment, undefined, tenantId, {
         establishmentId,
-      })
+      }, tx)
 
       // 8b. Pour chaque ligne : update productStocks + insert stockMovements
       for (const line of movementLines) {
