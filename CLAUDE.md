@@ -44,6 +44,7 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 ### Risques ouverts (audit 2026-06-12 — plan : [docs/audit/11-plan-corrections.md](docs/audit/11-plan-corrections.md), P1.1→P4.4 tous mergés)
 - 🔴 **Signature NF525 temporaire** (`nf525.ts:160`) : `TEMP_SIGNATURE_*` tant que `INFOCERT_PRIVATE_KEY` absente — bloquant ; l'auto-attestation éditeur n'est plus admise (loi de finances 2025), certification organisme accrédité requise (dossier INFOCERT/LNE à mener côté fondateur)
 - 🟠 **Colonnes stock deprecated non supprimées** (`schema.ts:366`) : `products.stock`/`stockByVariation` sont gelées (`@deprecated`, plus aucune écriture) mais existent encore — migration de suppression à faire dans un 2e temps (P3.5, phase 2)
+- 🟠 **Chaîne de migrations non rejouable de zéro** : 22 tables/32 sans `CREATE TABLE` dans les migrations (schéma initial créé via `db:push`) — toute base vierge s'amorce via `db:push` + `scripts/mark-migrations-applied.ts` (cf. runbook deploy-staging-vercel) ; baseline squash envisageable plus tard (à valider, règle n°1)
 - ✅ ~~Header `x-tenant-id` non validé~~ : validé contre la liste des tenants autorisés (P1.1)
 - ✅ ~~Hash NF525 invérifiable (double `new Date()`)~~ : une seule `saleDate` hashée et stockée (P1.2) ; les ventes antérieures au fix restent invérifiables en contenu (voir note docs/audit/08)
 - ✅ ~~Stock négatif silencieux~~ : survente explicite via flag `oversell` + warning (P1.3)

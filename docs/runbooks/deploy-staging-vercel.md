@@ -50,18 +50,30 @@ pnpm env:staging && pnpm db:migrate && pnpm env:dev
    - **Session pooler (port 5432) ou connexion directe** → pour les migrations depuis ta machine
      (les migrations Drizzle passent mal en Transaction mode)
 
-## Étape 2 — Préparer `.env.staging` local (migrations + seed)
+## Étape 2 — Amorcer la base staging (bootstrap)
 
 Remplacer les placeholders de `.env.staging` par les vraies valeurs de l'étape 1.
 `DATABASE_URL` = la chaîne **port 5432** (session/directe), c'est elle qu'utilisent les
 migrations locales. Ne jamais commiter ce fichier (gitignoré).
 
+⚠️ **`pnpm db:migrate` seul NE FONCTIONNE PAS sur une base vierge** : la chaîne de migrations
+ne contient pas le schéma initial (créé via `drizzle-kit push` au début du projet — 22 tables
+sur 32 n'ont aucun `CREATE TABLE` dans les fichiers). Constaté le 2026-07-03 :
+`relation "sale_items" does not exist`. Procédure d'amorçage :
+
 ```bash
-pnpm env:staging          # bascule .env → valeurs staging
-pnpm db:migrate           # applique les 13+ migrations sur la DB staging
-pnpm db:seed              # optionnel : données de démo (RUN_SEED=1 est dans le script)
-pnpm env:dev              # IMPORTANT : rebasculer en dev après
+pnpm env:staging                                        # bascule .env → valeurs staging
+pnpm db:push                                            # crée le schéma complet depuis schema.ts
+RUN_BOOTSTRAP=1 pnpm tsx scripts/mark-migrations-applied.ts   # marque les migrations comme appliquées
+pnpm db:migrate                                         # vérification : ne doit rien appliquer
+pnpm db:seed                                            # optionnel : données de démo
+pnpm env:dev                                            # IMPORTANT : rebasculer en dev après
 ```
+
+Cette procédure vaut pour TOUTE nouvelle base (prod incluse). Une fois amorcée, les migrations
+suivantes s'appliquent normalement avec `pnpm db:migrate`. Amélioration possible plus tard :
+générer une migration « baseline » complète (squash) pour rendre la chaîne rejouable de zéro —
+gros chantier, à valider explicitement (règle CLAUDE.md n°1).
 
 ## Étape 3 — Créer le projet Vercel (manuel, ~10 min)
 
