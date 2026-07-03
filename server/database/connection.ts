@@ -48,9 +48,15 @@ export const client = postgres(connectionString, {
   // Transaction mode: max 1 connexion car pooler gère le pooling
   max: isTransactionMode ? 1 : (isSupabasePooler ? 3 : 10),
 
-  // Timeouts adaptés selon le mode
-  idle_timeout: isSupabasePooler ? 0 : 20, // 0 = pas de timeout idle pour Supabase
-  connect_timeout: isSupabasePooler ? 30 : 10,
+  // Serverless (Vercel) : l'instance est gelée entre deux requêtes — une connexion
+  // gardée ouverte indéfiniment (idle_timeout 0) devient un socket mort au réveil
+  // et chaque requête attendait connect_timeout avant de se reconnecter (blocages
+  // de ~30s constatés sur staging le 2026-07-03). Config recommandée par postgres.js
+  // pour le serverless : fermer les connexions inactives et les recycler.
+  idle_timeout: 20,
+  max_lifetime: 60 * 30,
+  // Échouer vite et laisser postgres.js rouvrir une connexion fraîche.
+  connect_timeout: 10,
 
   // SSL requis pour Supabase
   ssl: useSSL ? { rejectUnauthorized: false } : undefined,

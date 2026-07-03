@@ -50,8 +50,9 @@ async function main() {
 
   // Garde-fou 2 : journal vierge uniquement (sinon ce n'est pas un amorçage)
   const existing = await sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`
-  if (existing[0].n > 0) {
-    console.error(`❌ Le journal contient déjà ${existing[0].n} ligne(s) : base non vierge, annulation.`)
+  const journalRows = Number(existing[0]?.n ?? 0)
+  if (journalRows > 0) {
+    console.error(`❌ Le journal contient déjà ${journalRows} ligne(s) : base non vierge, annulation.`)
     await sql.end()
     process.exit(1)
   }
