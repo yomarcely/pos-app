@@ -52,6 +52,7 @@ const colMiddleRef = ref<{ focusSearch: () => void; removeLastItem: () => void }
 const colRightRef = ref<{
   isSubmitting: boolean
   isDayClosed: boolean
+  saleBlocked: boolean
   balance: number
   addPayment: (mode: string) => void
   validerVente: () => void
@@ -67,7 +68,8 @@ function hasOpenRekaOverlay(): boolean {
 
 useCaisseShortcuts({
   isSubmitting: () => colRightRef.value?.isSubmitting ?? false,
-  isDayClosed: () => colRightRef.value?.isDayClosed ?? false,
+  // saleBlocked couvre aussi la journée précédente non clôturée
+  isDayClosed: () => colRightRef.value?.saleBlocked ?? false,
   getBalance: () => colRightRef.value?.balance ?? 0,
   payCash: () => colRightRef.value?.addPayment('Espèces'),
   payCard: () => colRightRef.value?.addPayment('Carte'),

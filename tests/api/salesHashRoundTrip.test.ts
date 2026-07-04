@@ -58,6 +58,13 @@ vi.mock('~/server/utils/loyalty', () => ({
   getCustomerLoyaltyPoints: vi.fn(() => Promise.resolve(0)),
 }))
 
+// Garde de clôture hors sujet ici (testée dans salesClosureGuard.test.ts) :
+// le runner route les SELECT par table, la vente précédente (chaînage du hash)
+// déclencherait la garde à tort.
+vi.mock('~/server/utils/closureGuard', () => ({
+  findLastUnclosedBusinessDay: vi.fn(() => Promise.resolve(null)),
+}))
+
 // ⚠️ NE PAS mocker ~/server/utils/nf525 : le but est de tester le vrai hash.
 
 vi.mock('drizzle-orm', () => ({

@@ -17,6 +17,7 @@ import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server
 import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
 import { resolvePurchasePriceAtSale } from '~/server/utils/purchasePriceSnapshot'
 import { getBusinessDayString } from '~/server/utils/businessDay'
+import { findLastUnclosedBusinessDay } from '~/server/utils/closureGuard'
 import { findExistingSaleByClientSaleId, buildDuplicateSaleResponse } from '~/server/utils/saleIdempotency'
 
 /**
@@ -214,6 +215,20 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 403,
         message: `La journée du ${today} est déjà clôturée pour cette caisse. Aucune nouvelle vente ne peut être enregistrée.`,
+      })
+    }
+
+    // ==========================================
+    // VÉRIFIER QUE LA DERNIÈRE JOURNÉE ACTIVE EST CLÔTURÉE
+    // ==========================================
+    // Oubli de clôture la veille → aucune nouvelle vente tant que cette journée
+    // n'est pas clôturée, même si des jours sans activité se sont écoulés depuis.
+    const lastUnclosedDay = await findLastUnclosedBusinessDay(tenantId, body.registerId)
+    if (lastUnclosedDay) {
+      throw createError({
+        statusCode: 403,
+        message: `La journée du ${lastUnclosedDay} n'est pas clôturée pour cette caisse. Clôturez-la (page Synthèse) avant d'enregistrer de nouvelles ventes.`,
+        data: { reason: 'previous_day_not_closed', day: lastUnclosedDay },
       })
     }
 

@@ -137,11 +137,12 @@ const establishment = { id: 10, name: 'Boutique', establishmentNumber: 1 }
 /**
  * Résultats des SELECT dans l'ordre d'exécution du handler (sans client ni voucher) :
  * 1. register, 2. establishment, 3. closure du jour,
- * puis en transaction : 4. lastSale, 5. lastTicket,
- * 6. basePurchasePrices, 7. overridePurchasePrices, 8. allProductStocks
+ * 4. garde clôture (dernière vente avant aujourd'hui — vide ici : garde passante),
+ * puis en transaction : 5. lastSale, 6. lastTicket,
+ * 7. basePurchasePrices, 8. overridePurchasePrices, 9. allProductStocks
  */
 function buildSelects(stockRows: unknown[]): unknown[][] {
-  return [[register], [establishment], [], [], [], [], [], stockRows]
+  return [[register], [establishment], [], [], [], [], [], [], stockRows]
 }
 
 function buildBody(items: Array<{ productId: number; productName: string; quantity: number; variation?: string }>) {

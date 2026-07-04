@@ -49,6 +49,7 @@ const {
   isSubmitting,
   isRetrying,
   isDayClosed,
+  unclosedDay,
   showErrorDialog,
   errorDialogMessage,
   errorDialogTotal,
@@ -64,6 +65,10 @@ const {
   removePayment,
   validerVente,
 } = useCheckout()
+
+// Vente bloquée : journée du jour déjà clôturée OU une journée précédente
+// avec activité n'a pas été clôturée (le 403 serveur reste la vraie barrière).
+const saleBlocked = computed(() => isDayClosed.value || !!unclosedDay.value)
 
 const emit = defineEmits<{
   (e: 'payments-changed', hasPayments: boolean): void
@@ -169,6 +174,7 @@ defineExpose({
   balance,
   isSubmitting,
   isDayClosed,
+  saleBlocked,
   showSuccessDialog,
   showErrorDialog,
   errorDialogMessage,
@@ -189,8 +195,19 @@ defineExpose({
       </div>
     </div>
 
+    <!-- ⚠️ Message de journée précédente non clôturée (vente bloquée) -->
+    <div v-else-if="unclosedDay" class="p-4 border-2 border-red-500 rounded-lg bg-red-50 dark:bg-red-950 flex-shrink-0">
+      <div class="flex items-center gap-2 text-red-700 dark:text-red-300">
+        <Lock class="w-5 h-5" />
+        <div>
+          <div class="font-semibold">Journée du {{ unclosedDay }} non clôturée</div>
+          <div class="text-sm">Aucune vente possible tant que cette journée n'est pas clôturée (page Synthèse).</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 💰 Montant total -->
-    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4 flex-shrink-0" :class="{ 'opacity-50': isDayClosed }">
+    <div class="relative rounded-lg w-full h-50 shadow bg-gray-900 text-white dark:bg-white dark:text-black p-4 flex-shrink-0" :class="{ 'opacity-50': saleBlocked }">
       <div class="absolute top-2 left-4 text-xl font-medium text-gray-400 dark:text-black">
         Total TTC
       </div>
@@ -222,18 +239,18 @@ defineExpose({
     </div>
 
     <!-- 💳 Boutons de paiement -->
-    <div v-if="totalTTC !== 0" class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isSubmitting || isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0) }">
+    <div v-if="totalTTC !== 0" class="flex flex-col gap-2 flex-shrink-0" :class="{ 'opacity-50 pointer-events-none': isSubmitting || saleBlocked || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0) }">
       <label class="text-sm font-semibold">Mode de {{ totalTTC < 0 ? 'remboursement' : 'paiement' }}</label>
       <div class="grid grid-cols-2 gap-2">
-        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isSubmitting || isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
+        <Button variant="outline" @click="addPayment('Espèces')" :disabled="isSubmitting || saleBlocked || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           <Banknote class="w-4 h-4 mr-2" /> Espèces
           <kbd class="ml-1.5 text-[10px] font-normal text-muted-foreground">F1</kbd>
         </Button>
-        <Button variant="outline" @click="addPayment('Carte')" :disabled="isSubmitting || isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
+        <Button variant="outline" @click="addPayment('Carte')" :disabled="isSubmitting || saleBlocked || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           <CreditCard class="w-4 h-4 mr-2" /> Carte
           <kbd class="ml-1.5 text-[10px] font-normal text-muted-foreground">F2</kbd>
         </Button>
-        <Button variant="outline" @click="addPayment('Autre')" :disabled="isSubmitting || isDayClosed || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
+        <Button variant="outline" @click="addPayment('Autre')" :disabled="isSubmitting || saleBlocked || cartStore.items.length === 0 || (totalTTC > 0 && balance <= 0) || (totalTTC < 0 && balance >= 0)">
           Autre
         </Button>
       </div>
@@ -292,12 +309,12 @@ defineExpose({
         class="w-full text-lg font-semibold h-12"
         :class="{ 'opacity-50': isSubmitting }"
         @click="validerVente"
-        :disabled="isSubmitting || (totalTTC > 0 && balance > 0) || (totalTTC < 0 && balance < 0) || cartStore.items.length === 0 || isDayClosed"
+        :disabled="isSubmitting || (totalTTC > 0 && balance > 0) || (totalTTC < 0 && balance < 0) || cartStore.items.length === 0 || saleBlocked"
       >
         <Spinner class="size-4 mr-2" v-if="isSubmitting" />
-        <Lock v-if="isDayClosed" class="w-4 h-4 mr-2" />
-        {{ isDayClosed ? 'Journée clôturée' : (isRetrying ? 'Nouvelle tentative…' : (totalTTC === 0 ? 'Valider l\'échange' : (totalTTC < 0 ? 'Valider le remboursement' : 'Valider la vente'))) }}
-        <kbd v-if="!isDayClosed && !isSubmitting" class="ml-2 text-[10px] font-normal opacity-70">F10</kbd>
+        <Lock v-if="saleBlocked" class="w-4 h-4 mr-2" />
+        {{ isDayClosed ? 'Journée clôturée' : (unclosedDay ? 'Clôture requise' : (isRetrying ? 'Nouvelle tentative…' : (totalTTC === 0 ? 'Valider l\'échange' : (totalTTC < 0 ? 'Valider le remboursement' : 'Valider la vente')))) }}
+        <kbd v-if="!saleBlocked && !isSubmitting" class="ml-2 text-[10px] font-normal opacity-70">F10</kbd>
       </Button>
 
     </div>

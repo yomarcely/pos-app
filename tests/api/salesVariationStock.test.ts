@@ -146,14 +146,15 @@ interface SelectOpts {
 /**
  * Résultats des SELECT dans l'ordre d'exécution du handler (sans client ni voucher) :
  * 1. register, 2. establishment, 3. closure du jour,
- * puis en transaction : 4. lastSale, 5. lastTicket,
- * 6. basePurchasePrices (avec variationGroupIds),
- * 7. overridePurchasePrices (avec variationGroupIdsOverride),
- * 8. allProductStocks,
- * 9. (si variations du produit à résoudre) variations par ID
+ * 4. garde clôture (dernière vente avant aujourd'hui — vide ici : garde passante),
+ * puis en transaction : 5. lastSale, 6. lastTicket,
+ * 7. basePurchasePrices (avec variationGroupIds),
+ * 8. overridePurchasePrices (avec variationGroupIdsOverride),
+ * 9. allProductStocks,
+ * 10. (si variations du produit à résoudre) variations par ID
  */
 function buildSelects(stockRows: unknown[], opts: SelectOpts = {}): unknown[][] {
-  const selects: unknown[][] = [[register], [establishment], [], [], [], opts.productRows || [], opts.overrideRows || [], stockRows]
+  const selects: unknown[][] = [[register], [establishment], [], [], [], [], opts.productRows || [], opts.overrideRows || [], stockRows]
   if (opts.variationRows) selects.push(opts.variationRows)
   return selects
 }

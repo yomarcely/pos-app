@@ -136,15 +136,37 @@ async function loadDailyData() {
   }
 }
 
+// Préremplir la date avec la dernière journée active non clôturée de la caisse
+// (oubli de clôture la veille → on arrive directement sur la bonne journée).
+async function prefillUnclosedDay() {
+  if (!selectedRegisterId.value) return
+  try {
+    const res = await $fetch<{ success: boolean; day: string | null }>('/api/sales/unclosed-day', {
+      params: { registerId: selectedRegisterId.value },
+    })
+    if (res?.day) {
+      selectedDate.value = res.day
+    }
+  } catch (error) {
+    console.error('Erreur lors de la recherche de journée non clôturée:', error)
+  }
+}
+
 // Initialiser au montage
 onMounted(async () => {
   await initialize()
+  await prefillUnclosedDay()
   loadDailyData()
 })
 
 // Charger quand la date, l'établissement ou la caisse change
 watch([selectedDate, selectedEstablishmentId, selectedRegisterId], () => {
   loadDailyData()
+})
+
+// Changement de caisse : repositionner la date sur sa journée non clôturée éventuelle
+watch(selectedRegisterId, () => {
+  prefillUnclosedDay()
 })
 
 // Ouvrir le dialog d'annulation

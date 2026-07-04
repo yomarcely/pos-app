@@ -40,6 +40,8 @@ export function useCheckout() {
   const payments = ref<Payment[]>([])
   const isSubmitting = ref(false)
   const isDayClosed = ref(false)
+  // Dernier jour métier avec activité mais sans clôture (bloque la vente)
+  const unclosedDay = ref<string | null>(null)
   const lastSaleDocument = ref<SaleDocumentData | null>(null)
   const showSuccessDialog = ref(false)
 
@@ -139,6 +141,7 @@ export function useCheckout() {
   async function checkClosure() {
     if (!selectedRegisterId.value) {
       isDayClosed.value = false
+      unclosedDay.value = null
       return
     }
     try {
@@ -147,6 +150,18 @@ export function useCheckout() {
     catch (error) {
       console.error('Erreur lors de la vérification de clôture:', error)
       isDayClosed.value = false
+    }
+    // Dernière journée active non clôturée → vente bloquée (le 403 serveur reste
+    // la vraie barrière ; ici on informe et on désactive l'UI).
+    try {
+      const res = await $fetch<{ success: boolean; day: string | null }>('/api/sales/unclosed-day', {
+        params: { registerId: selectedRegisterId.value },
+      })
+      unclosedDay.value = res?.day ?? null
+    }
+    catch (error) {
+      console.error('Erreur lors de la vérification des journées non clôturées:', error)
+      unclosedDay.value = null
     }
   }
 
@@ -182,6 +197,11 @@ export function useCheckout() {
     try {
       if (isDayClosed.value) {
         toast.error('⚠️ La journée est clôturée. Impossible d\'enregistrer une vente.')
+        return
+      }
+
+      if (unclosedDay.value) {
+        toast.error(`⚠️ La journée du ${unclosedDay.value} n'est pas clôturée. Clôturez-la (page Synthèse) avant de vendre.`)
         return
       }
 
@@ -409,6 +429,7 @@ export function useCheckout() {
     isSubmitting,
     isRetrying,
     isDayClosed,
+    unclosedDay,
     showErrorDialog,
     errorDialogMessage,
     errorDialogTotal,
