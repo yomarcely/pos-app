@@ -28,6 +28,26 @@ export const useVariationGroupsStore = defineStore('variationGroups', () => {
     loaded.value = false
   }
 
+  /**
+   * Résout un nom de variation vers son ID parmi les variations d'un produit
+   * (product.variationGroupIds contient des IDs de variations, pas de groupes).
+   * Les noms peuvent être purement numériques (ex. taille « 38 ») : la
+   * résolution se fait toujours par nom, jamais en interprétant le nom comme
+   * un ID. Retourne null si le nom ne correspond à aucune variation du produit.
+   */
+  function resolveVariationId(
+    productVariationIds: Array<number | string> | undefined | null,
+    name: string | null | undefined
+  ): number | null {
+    if (!name || !Array.isArray(productVariationIds) || productVariationIds.length === 0) return null
+    const idSet = new Set(productVariationIds.map(Number))
+    for (const group of groups.value) {
+      const variation = group.variations.find(v => idSet.has(Number(v.id)) && v.name === name)
+      if (variation) return Number(variation.id)
+    }
+    return null
+  }
+
   return {
     groups,
     loaded,
@@ -35,5 +55,6 @@ export const useVariationGroupsStore = defineStore('variationGroups', () => {
     error,
     loadGroups,
     invalidate,
+    resolveVariationId,
   }
 })

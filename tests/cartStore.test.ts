@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useCartStore } from '@/stores/cart'
 import { useProductsStore } from '@/stores/products'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 
 // Mock du customer store pour éviter les dépendances externes
 vi.mock('@/stores/customer', () => ({
@@ -43,6 +44,40 @@ describe('cart store', () => {
     expect(cart.items).toHaveLength(1)
     expect(cart.items[0]!.variation).toBe('red')
     expect(cart.items[0]!.quantity).toBe(2)
+  })
+
+  it('addToCart porte le variationId explicite, sinon le résout par NOM parmi les variations du produit', () => {
+    const cart = useCartStore()
+    const variationStore = useVariationGroupsStore()
+    variationStore.groups = [
+      { id: 1, name: 'Taille', variations: [{ id: 152, name: '38' }, { id: 7, name: 'Rouge' }] },
+    ] as any
+
+    const p = { ...product, id: 2, variationGroupIds: [152, 7] }
+
+    // ID explicite fourni par la caisse
+    cart.addToCart(p as any, '38', 152)
+    expect(cart.items[0]!.variationId).toBe(152)
+
+    // Résolution par nom (raccourci / panier persisté) — un nom numérique
+    // n'est jamais interprété comme un ID
+    cart.addToCart(p as any, 'Rouge')
+    expect(cart.items[1]!.variationId).toBe(7)
+  })
+
+  it('updateVariation met à jour le variationId (résolu par nom si non fourni)', () => {
+    const cart = useCartStore()
+    const variationStore = useVariationGroupsStore()
+    variationStore.groups = [
+      { id: 1, name: 'Taille', variations: [{ id: 152, name: '38' }, { id: 7, name: 'Rouge' }] },
+    ] as any
+
+    const p = { ...product, id: 2, variationGroupIds: [152, 7] }
+    cart.addToCart(p as any, '38', 152)
+
+    cart.updateVariation(2, '38', 'Rouge')
+    expect(cart.items[0]!.variation).toBe('Rouge')
+    expect(cart.items[0]!.variationId).toBe(7)
   })
 
   it('validateStock retourne une erreur si stock insuffisant', () => {

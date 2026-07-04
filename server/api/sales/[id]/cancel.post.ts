@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { sales, saleItems, stockMovements, auditLogs, variations, productStocks, customerEstablishments, loyaltyVouchers, registers, establishments, closures } from '~/server/database/schema'
+import { sales, saleItems, stockMovements, auditLogs, variations, productStocks, products, productEstablishments, customerEstablishments, loyaltyVouchers, registers, establishments, closures } from '~/server/database/schema'
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { getBusinessDayString } from '~/server/utils/businessDay'
@@ -229,6 +229,7 @@ export default defineEventHandler(async (event) => {
           productId: it.productId,
           productName: it.productName,
           variation: it.variation || null,
+          variationId: it.variationId ?? null,
           quantity: q,
           originalPrice: null,
           unitPrice: up.toString(),
@@ -261,17 +262,51 @@ export default defineEventHandler(async (event) => {
         : []
       const stockMap = new Map(allProductStocks.map(s => [s.productId, s]))
 
-      // Pré-fetch des variations par nom (clés non-numériques), 1 SELECT
-      const variationNamesToLookup = [
-        ...new Set(items.map(i => i.variation).filter((v): v is string => !!v && !/^\d+$/.test(v))),
-      ]
-      const variationNameMap = new Map<string, number>()
-      if (variationNamesToLookup.length > 0) {
-        const foundVariations = await tx
-          .select({ id: variations.id, name: variations.name })
-          .from(variations)
-          .where(inArray(variations.name, variationNamesToLookup))
-        foundVariations.forEach(v => variationNameMap.set(v.name, v.id))
+      // Pré-fetch des variations effectives des produits concernés (override
+      // établissement > base, comme create.post.ts / productOverrides.ts).
+      // La clé enregistrée sur la ligne de vente est un NOM de variation (y
+      // compris purement numérique, ex. « 38 ») : elle est résolue vers l'ID
+      // parmi les variations du produit, jamais interprétée comme un ID.
+      const productVariationIds = new Map<number, number[]>()
+      const variationNameById = new Map<number, string>()
+      if (itemProductIds.length > 0 && items.some(i => i.variation || i.variationId != null)) {
+        const productVariationRows = await tx
+          .select({ id: products.id, variationGroupIds: products.variationGroupIds })
+          .from(products)
+          .where(and(
+            inArray(products.id, itemProductIds),
+            eq(products.tenantId, tenantId),
+          ))
+        const overrideRows = await tx
+          .select({
+            productId: productEstablishments.productId,
+            variationGroupIdsOverride: productEstablishments.variationGroupIdsOverride,
+          })
+          .from(productEstablishments)
+          .where(and(
+            inArray(productEstablishments.productId, itemProductIds),
+            eq(productEstablishments.establishmentId, establishment.id),
+            eq(productEstablishments.tenantId, tenantId),
+          ))
+        const overrideById = new Map(overrideRows.map(r => [r.productId, r.variationGroupIdsOverride]))
+        for (const row of productVariationRows) {
+          const override = overrideById.get(row.id)
+          const effective = Array.isArray(override)
+            ? override
+            : (Array.isArray(row.variationGroupIds) ? row.variationGroupIds : [])
+          productVariationIds.set(row.id, effective.map(Number).filter(Number.isFinite))
+        }
+        const variationIdsToLookup = [...new Set([...productVariationIds.values()].flat())]
+        if (variationIdsToLookup.length > 0) {
+          const foundVariations = await tx
+            .select({ id: variations.id, name: variations.name })
+            .from(variations)
+            .where(and(
+              inArray(variations.id, variationIdsToLookup),
+              eq(variations.tenantId, tenantId),
+            ))
+          foundVariations.forEach(v => variationNameById.set(v.id, v.name))
+        }
       }
 
       type VarStock = { variationId: string; stock: number }
@@ -290,26 +325,38 @@ export default defineEventHandler(async (event) => {
         const varStocks: VarStock[] = Array.isArray(rawStockByVar) ? (rawStockByVar as VarStock[]) : []
         let variationKey: string | null = item.variation || null
 
-        // Normaliser la clé de variation (nom → id) comme create.post.ts
-        if (variationKey && varStocks.length > 0) {
-          const directMatch = varStocks.some(v => v.variationId === variationKey)
-          if (!directMatch) {
-            const numericKey = Number(variationKey)
-            if (Number.isFinite(numericKey) && varStocks.some(v => v.variationId === String(numericKey))) {
-              variationKey = String(numericKey)
-            } else {
-              const foundVarId = variationNameMap.get(variationKey)
-              if (foundVarId !== undefined && varStocks.some(v => v.variationId === String(foundVarId))) {
-                variationKey = String(foundVarId)
-              } else {
-                logger.warn({ variation: variationKey, productId: item.productId }, 'Variation inconnue, stock non restauré pour cette ligne')
-                variationKey = null
-              }
+        // Normaliser la clé de variation comme create.post.ts. Priorité :
+        // 1. variationId persisté sur la ligne de vente (clé de stock exacte) ;
+        // 2. résolution du NOM parmi les variations du produit (les noms peuvent
+        //    être purement numériques — jamais interprétés comme des IDs) ;
+        // 3. clé brute déjà présente dans stockByVariation (legacy).
+        // Si la vente portait sur une variation, la restauration se fait sur la
+        // variation (entrée créée à la volée si absente), jamais sur le stock global.
+        const prodVarIds = productVariationIds.get(item.productId) || []
+        if (variationKey || item.variationId != null) {
+          const explicitId = item.variationId
+          if (
+            explicitId != null
+            && (prodVarIds.includes(explicitId) || varStocks.some(v => v.variationId === String(explicitId)))
+          ) {
+            variationKey = String(explicitId)
+          } else {
+            const resolvedId = prodVarIds.find(id => variationNameById.get(id) === variationKey)
+            if (resolvedId !== undefined) {
+              variationKey = String(resolvedId)
+            } else if (!variationKey || !varStocks.some(v => v.variationId === variationKey)) {
+              // Ni un variationId valide, ni un nom de variation du produit, ni
+              // une clé déjà présente dans le tableau (legacy) : irrésolvable →
+              // ne toucher à AUCUN stock (surtout pas au stock global — le
+              // produit se vend par variation).
+              logger.warn({ variation: variationKey, variationId: explicitId ?? null, productId: item.productId }, 'Variation inconnue, stock non restauré pour cette ligne')
+              continue
             }
+            // sinon : clé brute conservée (entrée existante dans stockByVariation)
           }
         }
 
-        if (variationKey && varStocks.length > 0) {
+        if (variationKey) {
           const varEntry = varStocks.find(v => v.variationId === variationKey)
           oldStock = varEntry?.stock || 0
           newStock = oldStock + item.quantity // Restaurer : on annule une sortie

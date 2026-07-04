@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import type { Product, ProductInCart, SalePayload, SaleResponse } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
 import { useProductsStore } from '@/stores/products'
+import { useVariationGroupsStore } from '@/stores/variationGroups'
 import { useAuthStore } from '@/stores/auth'
 import { useEstablishmentRegister } from '@/composables/useEstablishmentRegister'
 import { useToast } from '@/composables/useToast'
@@ -322,13 +323,14 @@ export const useCartStore = defineStore('cart', () => {
 
   // --- ACTIONS ---
 
-  function toCartItem(product: Product, variation: string): ProductInCart {
+  function toCartItem(product: Product, variation: string, variationId: number | null): ProductInCart {
     return {
       ...product,
       quantity: 1,
       discount: 0,
       discountType: '%',
       variation,
+      variationId,
       restockOnReturn: false,
       _uniqueId: Date.now() + Math.random(),
     }
@@ -337,10 +339,15 @@ export const useCartStore = defineStore('cart', () => {
   /**
    * Ajoute un produit au panier (permet les stocks négatifs)
    * @param product - Produit à ajouter
-   * @param variation - Variation du produit (optionnel)
+   * @param variation - Nom de la variation (optionnel)
+   * @param variationId - ID de la variation ; si absent, résolu par nom parmi
+   *   les variations du produit (jamais en interprétant le nom comme un ID)
    * @returns true si l'ajout a réussi
    */
-  function addToCart(product: Product, variation = ''): boolean {
+  function addToCart(product: Product, variation = '', variationId: number | null = null): boolean {
+    const resolvedVariationId = variationId
+      ?? useVariationGroupsStore().resolveVariationId(product.variationGroupIds, variation)
+
     // Vérifier si le produit existe déjà dans le panier avec une quantité positive
     const existing = items.value.find(
       item => item.id === product.id && item.variation === variation && item.quantity > 0
@@ -349,8 +356,12 @@ export const useCartStore = defineStore('cart', () => {
     // Ajouter ou incrémenter (sans vérification de stock)
     if (existing) {
       existing.quantity++
+      // Compléter l'ID si l'item vient d'un panier persisté sans variationId
+      if (existing.variationId == null && resolvedVariationId != null) {
+        existing.variationId = resolvedVariationId
+      }
     } else {
-      const cartItem = toCartItem(product, variation)
+      const cartItem = toCartItem(product, variation, resolvedVariationId)
       // Appliquer la remise client permanente si plus forte
       const clientDiscount = getClientDiscountPercent()
       if (clientDiscount > 0 && cartItem.discount < clientDiscount) {
@@ -575,12 +586,16 @@ export const useCartStore = defineStore('cart', () => {
   function updateVariation(
     productId: number,
     oldVariation: string,
-    newVariation: string
+    newVariation: string,
+    newVariationId: number | null = null
   ): void {
     const item = items.value.find(
       p => p.id === productId && p.variation === oldVariation
     )
     if (!item) return
+
+    const resolvedVariationId = newVariationId
+      ?? useVariationGroupsStore().resolveVariationId(item.variationGroupIds, newVariation)
 
     const existing = items.value.find(
       p => p.id === productId && p.variation === newVariation
@@ -589,9 +604,13 @@ export const useCartStore = defineStore('cart', () => {
     // Si la variation existe déjà, fusionner les quantités
     if (existing && existing !== item) {
       existing.quantity += item.quantity
+      if (existing.variationId == null && resolvedVariationId != null) {
+        existing.variationId = resolvedVariationId
+      }
       removeFromCart(productId, oldVariation)
     } else {
       item.variation = newVariation
+      item.variationId = resolvedVariationId
     }
   }
 

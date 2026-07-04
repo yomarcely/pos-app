@@ -130,7 +130,11 @@ export const saleItems = pgTable('sale_items', {
   // Produit
   productId: integer('product_id').notNull().references(() => products.id),
   productName: varchar('product_name', { length: 255 }).notNull(), // Copie pour archivage
-  variation: varchar('variation', { length: 100 }),
+  variation: varchar('variation', { length: 100 }), // nom de la variation (lisible, snapshot)
+  // ID de la variation vendue — clé exacte pour le stock (stockByVariation) et le
+  // re-stockage des avoirs. Pas de FK : snapshot immuable NF525, nullable (ventes
+  // antérieures et payloads sans variation).
+  variationId: integer('variation_id'),
 
   // Quantité et prix
   quantity: integer('quantity').notNull(),

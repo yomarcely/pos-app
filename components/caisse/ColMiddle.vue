@@ -93,14 +93,17 @@ function isProduct(v: unknown): v is Product {
 }
 
 function handleProductAdd(product: Product) {
-  const variationName = (() => {
+  // Variation par défaut : la première du produit. On porte l'ID ET le nom
+  // (l'ID est la clé de stock côté serveur ; le nom sert à l'affichage).
+  const { variationName, variationId } = (() => {
     if (product.variationGroupIds && product.variationGroupIds.length > 0) {
       const firstVariationId = product.variationGroupIds[0]
       if (firstVariationId !== undefined) {
-        return getVariationNameById(firstVariationId)
+        const name = getVariationNameById(firstVariationId)
+        if (name) return { variationName: name, variationId: Number(firstVariationId) }
       }
     }
-    return ''
+    return { variationName: '', variationId: null }
   })()
 
   // Mode retour : quantité négative, remise en stock cochée par défaut.
@@ -120,12 +123,13 @@ function handleProductAdd(product: Product) {
         discount: 0,
         discountType: '%',
         variation: variationName,
+        variationId,
         restockOnReturn: true,
         _uniqueId: Date.now() + Math.random(), // ID unique pour différencier les lignes
       } as ProductInCart)
     }
   } else {
-    cartStore.addToCart(product, variationName)
+    cartStore.addToCart(product, variationName, variationId)
   }
   scrollToBottom()
 }

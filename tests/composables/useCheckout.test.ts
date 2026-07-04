@@ -33,7 +33,7 @@ vi.mock('@/stores/customer', () => ({ useCustomerStore: () => customerMock }))
 const sellersMock = { selectedSeller: 1, sellers: [{ id: 1, name: 'Vendeur Test' }] }
 vi.mock('@/stores/sellers', () => ({ useSellersStore: () => sellersMock }))
 
-vi.mock('@/stores/variationGroups', () => ({ useVariationGroupsStore: () => ({ groups: [] }) }))
+vi.mock('@/stores/variationGroups', () => ({ useVariationGroupsStore: () => ({ groups: [], resolveVariationId: () => null }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ tenantId: 'tenant-test' }) }))
 
 vi.mock('@/composables/useEstablishmentRegister', () => ({

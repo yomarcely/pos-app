@@ -22,7 +22,8 @@ export interface ProductInCart extends BaseProduct {
   quantity: number
   discount: number
   discountType: '%' | '€'
-  variation: string
+  variation: string // nom de la variation (affichage + clé de fusion panier)
+  variationId?: number | null // ID de la variation (clé de stock côté serveur)
   restockOnReturn?: boolean
   _uniqueId?: number
 }
@@ -53,7 +54,8 @@ export interface SaleItem {
   restockOnReturn: boolean
   unitPrice: number
   originalPrice: number
-  variation: string | null
+  variation: string | null // nom de la variation (lisible, persisté sur la ligne de vente)
+  variationId?: number | null // ID de la variation (utilisé par le serveur pour le stock)
   discount: number
   discountType: '%' | '€'
   tva: number

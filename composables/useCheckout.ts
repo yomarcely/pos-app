@@ -165,13 +165,14 @@ export function useCheckout() {
     payments.value = payments.value.filter(p => p.mode !== mode)
   }
 
-  function findVariationIdByName(name?: string | null): number | string | null {
-    if (!name) return null
-    for (const group of variationStore.groups) {
-      const variation = group.variations.find(v => v.name === name)
-      if (variation) return variation.id
-    }
-    return null
+  /**
+   * Fallback pour les items de paniers persistés avant l'introduction de
+   * variationId : résolution du nom parmi les variations DU produit (jamais
+   * en interprétant le nom comme un ID — les noms peuvent être numériques).
+   */
+  function resolveItemVariationId(item: { variationId?: number | null; variation?: string | null; variationGroupIds?: Array<number | string> }): number | null {
+    if (item.variationId != null) return Number(item.variationId)
+    return variationStore.resolveVariationId(item.variationGroupIds, item.variation)
   }
 
   async function validerVente() {
@@ -229,8 +230,6 @@ export function useCheckout() {
       const saleData = {
         items: cartStore.items.map((item) => {
           const finalPrice = cartStore.getFinalPrice(item)
-          const variationId = findVariationIdByName(item.variation)
-          const variationKey = variationId ? String(variationId) : (item.variation || null)
           return {
             productId: item.id,
             productName: item.name,
@@ -238,7 +237,9 @@ export function useCheckout() {
             restockOnReturn: item.restockOnReturn ?? false,
             unitPrice: finalPrice,
             originalPrice: item.price,
-            variation: variationKey,
+            // Nom lisible (affichage/historique) ; l'ID est la clé de stock serveur
+            variation: item.variation || null,
+            variationId: resolveItemVariationId(item),
             discount: item.discount,
             discountType: item.discountType,
             tva: item.tva || 20,

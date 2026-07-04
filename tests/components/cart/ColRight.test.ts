@@ -84,7 +84,7 @@ vi.mock('@/stores/sellers', () => ({
   useSellersStore: () => sellersStoreMock
 }))
 vi.mock('@/stores/variationGroups', () => ({
-  useVariationGroupsStore: () => ({ groups: [] })
+  useVariationGroupsStore: () => ({ groups: [], resolveVariationId: () => null })
 }))
 vi.mock('@/composables/useToast', () => ({
   useToast: () => toastMock

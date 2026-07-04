@@ -65,6 +65,8 @@ const tables = {
   stockMovements: { __t: 'stockMovements' },
   variations: { __t: 'variations' },
   productStocks: { __t: 'productStocks' },
+  products: { __t: 'products' },
+  productEstablishments: { __t: 'productEstablishments' },
   customerEstablishments: { __t: 'customerEstablishments' },
   loyaltyVouchers: { __t: 'loyaltyVouchers' },
   registers: { __t: 'registers' },
@@ -309,6 +311,80 @@ describe('POST /api/sales/:id/cancel — avoir NF525', () => {
     expect(movements[0]?.quantity).toBe(3)
     expect(movements[0]?.reason).toBe('sale_cancellation')
     expect(movements[0]?.saleId).toBe(999) // rattaché à l'avoir
+  })
+
+  it('restaure la variation même si stockByVariation est vide (nom résolu en ID, entrée créée, stock global intact)', async () => {
+    setReads({
+      items: [
+        // La ligne de vente porte le NOM de la variation (peut être numérique, ex. « 38 »)
+        { id: 10, saleId: 1, tenantId: 'test-tenant-id', productId: 100, productName: 'Produit A', variation: '38', quantity: 3, unitPrice: '10.00', discount: '0', discountType: '%', tva: '20.00', purchasePriceAtSale: null },
+      ],
+      productStocks: [
+        { productId: 100, establishmentId: 1, tenantId: 'test-tenant-id', stock: 8, stockByVariation: [] },
+      ],
+    })
+    // Variations du produit : « 38 » est un NOM (ID réel 152), jamais interprété comme l'ID 38
+    readResults.set(tables.products, [{ id: 100, variationGroupIds: [152] }])
+    readResults.set(tables.variations, [{ id: 152, name: '38' }])
+    const handler = await importHandler()
+    await handler(createMockEvent({ params: { id: '1' }, body: { reason: 'Retour' } }))
+
+    // L'entrée de la variation est créée à la volée sous son ID (0 + 3 = 3)…
+    const psUpdates = updatedByTable.get(tables.productStocks) || []
+    expect(psUpdates).toHaveLength(1)
+    expect(psUpdates[0]?.stockByVariation).toEqual([{ variationId: '152', stock: 3 }])
+    // …et le stock global n'est PAS touché (pas de fallback)
+    expect(psUpdates[0]?.stock).toBeUndefined()
+  })
+
+  it('variationId persisté sur la ligne : restock exact via l\'ID (prioritaire sur le nom) + copié dans l\'avoir', async () => {
+    setReads({
+      items: [
+        // Ligne de vente avec l'ID exact : le nom « 38 » est ambigu (une autre
+        // variation du produit a l'ID 38) mais l'ID 152 tranche.
+        { id: 10, saleId: 1, tenantId: 'test-tenant-id', productId: 100, productName: 'Produit A', variation: '38', variationId: 152, quantity: 3, unitPrice: '10.00', discount: '0', discountType: '%', tva: '20.00', purchasePriceAtSale: null },
+      ],
+      productStocks: [
+        { productId: 100, establishmentId: 1, tenantId: 'test-tenant-id', stock: 8, stockByVariation: [{ variationId: '38', stock: 4 }] },
+      ],
+    })
+    readResults.set(tables.products, [{ id: 100, variationGroupIds: [152, 38] }])
+    readResults.set(tables.variations, [{ id: 152, name: '38' }, { id: 38, name: 'Rouge' }])
+    const handler = await importHandler()
+    await handler(createMockEvent({ params: { id: '1' }, body: { reason: 'Retour' } }))
+
+    // Restock sur l'entrée '152' (créée), l'entrée '38' reste intacte
+    const psUpdates = updatedByTable.get(tables.productStocks) || []
+    expect(psUpdates).toHaveLength(1)
+    expect(psUpdates[0]?.stockByVariation).toEqual(
+      expect.arrayContaining([
+        { variationId: '38', stock: 4 },
+        { variationId: '152', stock: 3 },
+      ])
+    )
+    expect(psUpdates[0]?.stock).toBeUndefined()
+
+    // L'avoir copie variationId sur ses lignes négatives
+    const creditItems = (insertedByTable.get(tables.saleItems) || [])[0] as Array<Record<string, unknown>>
+    expect(creditItems[0]).toMatchObject({ variation: '38', variationId: 152, quantity: -3 })
+  })
+
+  it('variation irrésolvable : aucun stock restauré (ni variation ni global)', async () => {
+    setReads({
+      items: [
+        { id: 10, saleId: 1, tenantId: 'test-tenant-id', productId: 100, productName: 'Produit A', variation: 'Fuchsia', quantity: 3, unitPrice: '10.00', discount: '0', discountType: '%', tva: '20.00', purchasePriceAtSale: null },
+      ],
+      productStocks: [
+        { productId: 100, establishmentId: 1, tenantId: 'test-tenant-id', stock: 8, stockByVariation: [] },
+      ],
+    })
+    // Lookup par nom : rien trouvé (readResults ne contient pas tables.variations → [])
+    const handler = await importHandler()
+    const res = await handler(createMockEvent({ params: { id: '1' }, body: { reason: 'Retour' } }))
+
+    expect(res.success).toBe(true) // l'avoir est bien émis
+    expect(updatedByTable.get(tables.productStocks) || []).toHaveLength(0)
+    expect(insertedByTable.get(tables.stockMovements)).toBeUndefined()
   })
 
   it('renvoie 409 si la vente est déjà annulée', async () => {

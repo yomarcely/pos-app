@@ -138,12 +138,17 @@ function getVariationNameById(variationId: string | number): string {
     return `Variation ${variationId}` // Fallback si non trouvée
 }
 
-// Fonction pour obtenir l'ID d'une variation par son nom
-function getVariationIdByName(variationName: string): string | number | null {
+// Fonction pour obtenir l'ID d'une variation par son nom, PARMI les variations
+// du produit (les noms peuvent être numériques, ex. « 38 » — jamais interprétés
+// comme des IDs, et pas de collision avec les autres groupes du tenant)
+function getVariationIdByName(variationName: string): number | null {
+    const productIds = new Set((props.product.variationGroupIds ?? []).map(Number))
     for (const group of variationGroups.value) {
-        const variation = group.variations.find((v) => v.name === variationName)
+        const variation = group.variations.find(
+            (v) => productIds.has(Number(v.id)) && v.name === variationName
+        )
         if (variation) {
-            return variation.id
+            return Number(variation.id)
         }
     }
     return null
@@ -164,7 +169,7 @@ watch(variationGroups, (newGroups) => {
 
     const resolved = getVariationNameById(firstId)
     if (resolved && !/^Variation \d+$/.test(resolved)) {
-        cartStore.updateVariation(props.product.id, current, resolved)
+        cartStore.updateVariation(props.product.id, current, resolved, Number(firstId))
     }
 }, { immediate: true })
 </script>
@@ -222,7 +227,7 @@ watch(variationGroups, (newGroups) => {
             <div v-if="product.variationGroupIds?.length" class="mt-1">
                 <Select :model-value="product.variation" @update:model-value="val => {
                     if (typeof val === 'string') {
-                        cartStore.updateVariation(product.id, product.variation, val)
+                        cartStore.updateVariation(product.id, product.variation, val, getVariationIdByName(val))
                     }
                 }">
                     <SelectTrigger>

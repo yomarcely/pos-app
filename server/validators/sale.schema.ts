@@ -9,7 +9,8 @@ import { z } from 'zod'
 const saleItemSchema = z.object({
   productId: z.number().int().positive(),
   productName: z.string().min(1),
-  variation: z.string().optional().nullable(),
+  variation: z.string().optional().nullable(), // nom de la variation (affichage)
+  variationId: z.number().int().positive().optional().nullable(), // ID de la variation (clé de stock)
   quantity: z.number().int().refine(val => val !== 0, { message: 'La quantité ne peut pas être 0' }), // Accepte négatif pour les retours
   unitPrice: z.string().or(z.number()).transform(val => String(val)),
   discount: z.string().or(z.number()).transform(val => String(val)).default('0'),
