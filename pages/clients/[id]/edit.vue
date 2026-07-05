@@ -356,7 +356,9 @@
 
     <!-- Modale Historique des achats -->
     <Dialog v-model:open="showPurchaseHistory">
-      <DialogContent class="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <!-- sm:max-w-4xl requis : la classe par défaut du DialogContent est
+           sm:max-w-lg, une max-w sans variante ne la surcharge pas -->
+      <DialogContent class="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Historique des achats</DialogTitle>
           <DialogDescription>

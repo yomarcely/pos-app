@@ -254,7 +254,7 @@ watch(selectedEstablishmentId, async () => {
         <div class="space-y-4">
           <div>
             <Label for="name">Nom *</Label>
-            <Input id="name" v-model="formData.name" placeholder="Ex: Vêtements" />
+            <Input id="name" v-model="formData.name" placeholder="Ex: Vêtements" @keydown.enter="createCategory" />
           </div>
         </div>
 
@@ -278,7 +278,7 @@ watch(selectedEstablishmentId, async () => {
         <div class="space-y-4">
           <div>
             <Label for="edit-name">Nom *</Label>
-            <Input id="edit-name" v-model="formData.name" placeholder="Ex: Vêtements" />
+            <Input id="edit-name" v-model="formData.name" placeholder="Ex: Vêtements" @keydown.enter="updateCategory" />
           </div>
         </div>
 

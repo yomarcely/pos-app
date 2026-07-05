@@ -354,7 +354,7 @@ const cancelledSales = computed(() => {
     </div>
 
     <!-- Contenu principal -->
-    <div v-else-if="dailyData">
+    <div v-else-if="dailyData" class="space-y-6">
       <!-- Statistiques -->
       <DailySummaryStats
         :summary="dailyData.summary"

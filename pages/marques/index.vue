@@ -90,7 +90,7 @@
       v-model:open="deleteDialogOpen"
       title="Supprimer la marque"
       :description="`Êtes-vous sûr de vouloir supprimer la marque &quot;${brandToDelete?.name}&quot; ?`"
-      confirm-text="Supprimer"
+      confirm-label="Supprimer"
       @confirm="confirmDelete"
     />
   </div>
@@ -194,6 +194,10 @@ async function confirmDelete() {
     toast.success('Marque supprimée avec succès')
   } catch (error: unknown) {
     toast.error(extractFetchError(error, 'Erreur lors de la suppression'))
+  } finally {
+    // Fermer le dialog de confirmation dans tous les cas (le toast porte l'issue)
+    deleteDialogOpen.value = false
+    brandToDelete.value = null
   }
 }
 

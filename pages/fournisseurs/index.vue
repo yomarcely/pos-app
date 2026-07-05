@@ -76,6 +76,7 @@
               id="supplier-name"
               v-model="form.name"
               placeholder="Ex: Adidas"
+              @keydown.enter="saveSupplier"
             />
           </div>
           <div class="space-y-2">
@@ -85,6 +86,7 @@
               v-model="form.email"
               type="email"
               placeholder="contact@fournisseur.com"
+              @keydown.enter="saveSupplier"
             />
           </div>
           <div class="space-y-2">
@@ -93,6 +95,7 @@
               id="supplier-phone"
               v-model="form.phone"
               placeholder="01 23 45 67 89"
+              @keydown.enter="saveSupplier"
             />
           </div>
         </div>
@@ -110,7 +113,7 @@
       v-model:open="deleteDialogOpen"
       title="Supprimer le fournisseur"
       :description="`Êtes-vous sûr de vouloir supprimer le fournisseur &quot;${supplierToDelete?.name}&quot; ?`"
-      confirm-text="Supprimer"
+      confirm-label="Supprimer"
       @confirm="confirmDelete"
     />
   </div>
@@ -233,6 +236,10 @@ async function confirmDelete() {
     toast.success('Fournisseur supprimé avec succès')
   } catch (error: unknown) {
     toast.error(extractFetchError(error, 'Erreur lors de la suppression'))
+  } finally {
+    // Fermer le dialog de confirmation dans tous les cas (le toast porte l'issue)
+    deleteDialogOpen.value = false
+    supplierToDelete.value = null
   }
 }
 

@@ -317,11 +317,14 @@ function createPutChain(existingClient: Record<string, unknown> | null, updatedC
 /**
  * Creates a db mock for DELETE /api/clients/:id
  * 1. select().from(customers).where(...).limit(1) -> existence check
- * 2. delete(customers).where(...)
+ * 2. select().from(sales).where(...).limit(1) -> ventes associées (blocage 409)
+ * 3. delete(customers).where(...)
  */
-function createDeleteChain(existingRows: unknown[]) {
+function createDeleteChain(existingRows: unknown[], salesRows: unknown[] = []) {
+  let selectIdx = 0
+  const limitResults = [existingRows, salesRows]
   const chain: MockDbChain = {
-    select: vi.fn(() => chain),
+    select: vi.fn(() => { selectIdx++; return chain }),
     from: vi.fn(() => chain),
     leftJoin: vi.fn(() => chain),
     innerJoin: vi.fn(() => chain),
@@ -329,7 +332,7 @@ function createDeleteChain(existingRows: unknown[]) {
     groupBy: vi.fn(() => chain),
     having: vi.fn(() => chain),
     orderBy: vi.fn(() => Promise.resolve([])),
-    limit: vi.fn(() => Promise.resolve(existingRows)),
+    limit: vi.fn(() => Promise.resolve(limitResults[selectIdx - 1] || [])),
     offset: vi.fn(() => chain),
     insert: vi.fn(),
     update: vi.fn(),
@@ -686,6 +689,19 @@ describe('API /api/clients', () => {
         statusCode: 404,
         message: 'Client non trouvé'
       })
+    })
+
+    it('throw 409 explicite si le client a des ventes (invite à archiver)', async () => {
+      currentDb = createDeleteChain([{ id: 1 }], [{ id: 42 }])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id].delete')).default as any
+      const event = createMockEvent({ params: { id: '1' } })
+
+      await expect(handler(event)).rejects.toMatchObject({
+        statusCode: 409,
+        message: expect.stringContaining('archiver'),
+      })
+      expect(currentDb.delete).not.toHaveBeenCalled()
     })
   })
 

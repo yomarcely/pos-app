@@ -1,6 +1,6 @@
 import { db } from '~/server/database/connection'
 import { categories, products } from '~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
@@ -29,11 +29,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier s'il y a des sous-catégories - SÉCURITÉ: filtre par tenantId
+    // Vérifier s'il y a des sous-catégories ACTIVES - SÉCURITÉ: filtre par tenantId.
+    // La suppression étant un archivage, les sous-catégories déjà archivées
+    // (« supprimées ») ne doivent pas bloquer la suppression du parent.
     const subcategories = await db.select({ id: categories.id }).from(categories).where(
       and(
         eq(categories.parentId, id),
-        eq(categories.tenantId, tenantId)
+        eq(categories.tenantId, tenantId),
+        sql`(${categories.isArchived} = false OR ${categories.isArchived} IS NULL)`
       )
     ).limit(1)
 
@@ -44,11 +47,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Vérifier s'il y a des produits dans cette catégorie - SÉCURITÉ: filtre par tenantId
+    // Vérifier s'il y a des produits ACTIFS dans cette catégorie - SÉCURITÉ: filtre
+    // par tenantId (un produit archivé ne bloque pas l'archivage de la catégorie)
     const productsInCategory = await db.select({ id: products.id }).from(products).where(
       and(
         eq(products.categoryId, id),
-        eq(products.tenantId, tenantId)
+        eq(products.tenantId, tenantId),
+        sql`(${products.isArchived} = false OR ${products.isArchived} IS NULL)`
       )
     ).limit(1)
 

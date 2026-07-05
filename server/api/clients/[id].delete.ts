@@ -1,5 +1,5 @@
 import { db } from '~/server/database/connection'
-import { customers } from '~/server/database/schema'
+import { customers, sales } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { logger } from '~/server/utils/logger'
@@ -43,6 +43,26 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 404,
         message: 'Client non trouvé',
+      })
+    }
+
+    // Un client avec des ventes ne peut pas être supprimé (traçabilité NF525) :
+    // message explicite + invitation à archiver, plutôt qu'une erreur FK opaque.
+    const [existingSale] = await db
+      .select({ id: sales.id })
+      .from(sales)
+      .where(
+        and(
+          eq(sales.customerId, id),
+          eq(sales.tenantId, tenantId),
+        )
+      )
+      .limit(1)
+
+    if (existingSale) {
+      throw createError({
+        statusCode: 409,
+        message: 'Impossible de supprimer ce client : des ventes lui sont associées. Vous pouvez l\'archiver pour le masquer des listes tout en conservant son historique.',
       })
     }
 

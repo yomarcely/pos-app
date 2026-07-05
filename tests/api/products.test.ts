@@ -470,7 +470,7 @@ describe('API /api/products', () => {
 
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 409,
-        message: 'Ce produit est présent dans des ventes et ne peut pas être supprimé. Archivez-le à la place.'
+        message: 'Impossible de supprimer ce produit : il apparaît dans des ventes déjà enregistrées. Vous pouvez l\'archiver pour le retirer du catalogue tout en conservant l\'historique.'
       })
     })
   })

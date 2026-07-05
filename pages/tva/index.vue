@@ -120,7 +120,7 @@
       v-model:open="deleteDialogOpen"
       title="Archiver le taux de TVA"
       :description="`Êtes-vous sûr de vouloir archiver le taux &quot;${rateToDelete?.name}&quot; ?`"
-      confirm-text="Archiver"
+      confirm-label="Archiver"
       @confirm="confirmDelete"
     />
   </div>
@@ -257,6 +257,10 @@ async function confirmDelete() {
   } catch (error: unknown) {
     console.error('Erreur lors de l\'archivage:', error)
     toast.error(extractFetchError(error, 'Une erreur est survenue'))
+  } finally {
+    // Fermer le dialog de confirmation dans tous les cas (le toast porte l'issue)
+    deleteDialogOpen.value = false
+    rateToDelete.value = null
   }
 }
 </script>

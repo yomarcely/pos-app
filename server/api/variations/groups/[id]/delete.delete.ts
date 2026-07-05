@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
     if (variationsInGroup.length > 0) {
       throw createError({
         statusCode: 400,
-        message: `Impossible de supprimer un groupe contenant ${variationsInGroup.length} variation(s)`,
+        message: `Ce groupe contient encore ${variationsInGroup.length} variation(s). Supprimez-les d'abord pour pouvoir supprimer le groupe.`,
       })
     }
 
@@ -72,7 +72,16 @@ export default defineEventHandler(async (event) => {
       )
 
     if (allVariationsInGroup.length > 0) {
-      const variationIds = allVariationsInGroup.map(v => v.id)
+      // ⚠️ variationGroupIds est une colonne JSONB (tableau d'IDs, éléments
+      // numériques) : l'opérateur d'overlap `&&` n'existe pas pour jsonb
+      // (l'utiliser lève une erreur Postgres → 500). On teste l'intersection
+      // via jsonb_array_elements_text, en comparaison TEXTE (pas de cast ::int,
+      // robuste aux éléments non numériques legacy).
+      // ⚠️ ANY(${tableau}) est aussi un piège : drizzle lie un tableau JS comme
+      // une LISTE de paramètres ($2,$3,$4), pas comme un array Postgres → il
+      // faut construire ANY(ARRAY[...]::text[]) explicitement (validé en base).
+      const variationIdsAsText = allVariationsInGroup.map(v => String(v.id))
+      const idParams = sql.join(variationIdsAsText.map(v => sql`${v}`), sql`, `)
       const [productUsingGroup] = await db
         .select({ id: products.id })
         .from(products)
@@ -80,7 +89,14 @@ export default defineEventHandler(async (event) => {
           and(
             eq(products.tenantId, tenantId),
             sql`(${products.isArchived} = false OR ${products.isArchived} IS NULL)`,
-            sql`${products.variationGroupIds} && ${JSON.stringify(variationIds)}::jsonb`
+            sql`EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(
+                CASE WHEN jsonb_typeof(${products.variationGroupIds}) = 'array'
+                     THEN ${products.variationGroupIds}
+                     ELSE '[]'::jsonb END
+              ) AS elem(val)
+              WHERE elem.val = ANY(ARRAY[${idParams}]::text[])
+            )`
           )
         )
         .limit(1)
@@ -88,7 +104,7 @@ export default defineEventHandler(async (event) => {
       if (productUsingGroup) {
         throw createError({
           statusCode: 400,
-          message: 'Impossible de supprimer ce groupe car ses variations sont assignées à un ou plusieurs produits',
+          message: 'Impossible de supprimer ce groupe : ses variations sont encore assignées à un ou plusieurs produits. Retirez-les de ces produits (ou archivez les produits) avant de supprimer le groupe.',
         })
       }
     }
