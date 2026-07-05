@@ -22,6 +22,16 @@
           @input="debouncedSearch"
         />
       </div>
+
+      <!-- Toggle archivés (comme les produits) -->
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <Checkbox
+          :model-value="showArchived"
+          @update:model-value="(value) => { showArchived = !!value }"
+        />
+        <Archive class="w-4 h-4 text-muted-foreground" />
+        Voir uniquement les archivés
+      </label>
     </div>
 
     <!-- Loading -->
@@ -68,7 +78,11 @@
                       <User class="h-5 w-5 text-primary" />
                     </div>
                     <div class="ml-4">
-                      <div class="font-medium">{{ getFullName(client) }}</div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium">{{ getFullName(client) }}</span>
+                        <Badge v-if="client.isAnonymized" variant="outline" class="text-xs">Anonymisé</Badge>
+                        <Badge v-else-if="client.isArchived" variant="outline" class="text-xs">Archivé</Badge>
+                      </div>
                       <div v-if="client.email" class="text-xs text-muted-foreground">
                         {{ client.email }}
                       </div>
@@ -110,6 +124,24 @@
                   <div class="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="sm" @click.stop="editClient(client)">
                       <Edit class="w-4 h-4" />
+                    </Button>
+                    <Button
+                      v-if="client.isArchived"
+                      variant="ghost"
+                      size="sm"
+                      title="Désarchiver"
+                      @click.stop="unarchiveClient(client)"
+                    >
+                      <ArchiveRestore class="w-4 h-4" />
+                    </Button>
+                    <Button
+                      v-else
+                      variant="ghost"
+                      size="sm"
+                      title="Archiver"
+                      @click.stop="archiveClient(client)"
+                    >
+                      <Archive class="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="sm" @click.stop="deleteClient(client)">
                       <Trash2 class="w-4 h-4 text-destructive" />
@@ -165,11 +197,12 @@ definePageMeta({
 })
 
 import { ref, onMounted, watch } from 'vue'
-import { Plus, User, Phone, Star, Edit, Trash2, Users } from 'lucide-vue-next'
+import { Plus, User, Phone, Star, Edit, Trash2, Users, Archive, ArchiveRestore } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Pagination,
   PaginationContent,
@@ -208,6 +241,8 @@ interface Customer {
   loyaltyProgram: boolean | null
   discount: string | null
   notes: string | null
+  isArchived: boolean
+  isAnonymized: boolean
   createdAt: string
   updatedAt: string
   city: string | null
@@ -219,6 +254,7 @@ interface Customer {
 const loading = ref(true)
 const clients = ref<Customer[]>([])
 const searchQuery = ref('')
+const showArchived = ref(false)
 const filteredCount = ref(0)
 const totalCount = ref(0)
 const currentPage = ref(1)
@@ -263,6 +299,7 @@ async function loadClients() {
     if (searchQuery.value && searchQuery.value.trim() !== '') {
       params.search = searchQuery.value.trim()
     }
+    if (showArchived.value) params.onlyArchived = 'true'
     if (selectedEstablishmentId.value) params.establishmentId = selectedEstablishmentId.value
 
     const response = await $fetch<PaginatedClientsResponse>('/api/clients', { params })
@@ -281,6 +318,15 @@ watch(currentPage, () => {
   loadClients()
 })
 
+// Bascule archivés : retour page 1 + rechargement
+watch(showArchived, async () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1 // le watcher currentPage déclenchera loadClients
+  } else {
+    await loadClients()
+  }
+})
+
 // Obtenir le nom complet
 function getFullName(client: Customer): string {
   const parts = []
@@ -292,6 +338,28 @@ function getFullName(client: Customer): string {
 // Actions
 function editClient(client: Customer) {
   navigateTo(`/clients/${client.id}/edit`)
+}
+
+async function archiveClient(client: Customer) {
+  try {
+    await $fetch(`/api/clients/${client.id}/archive`, { method: 'POST' })
+    toast.success('Client archivé avec succès')
+    await loadClients()
+  } catch (error: unknown) {
+    console.error('Erreur lors de l\'archivage du client:', error)
+    toast.error(extractFetchError(error, 'Erreur lors de l\'archivage du client'))
+  }
+}
+
+async function unarchiveClient(client: Customer) {
+  try {
+    await $fetch(`/api/clients/${client.id}/unarchive`, { method: 'POST' })
+    toast.success('Client désarchivé avec succès')
+    await loadClients()
+  } catch (error: unknown) {
+    console.error('Erreur lors du désarchivage du client:', error)
+    toast.error(extractFetchError(error, 'Erreur lors du désarchivage du client'))
+  }
 }
 
 async function deleteClient(client: Customer) {

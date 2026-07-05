@@ -104,6 +104,10 @@ vi.mock('~/server/database/schema', () => ({
     loyaltyProgram: 'customers.loyaltyProgram',
     discount: 'customers.discount',
     notes: 'customers.notes',
+    isArchived: 'customers.isArchived',
+    archivedAt: 'customers.archivedAt',
+    isAnonymized: 'customers.isAnonymized',
+    anonymizedAt: 'customers.anonymizedAt',
     createdAt: 'customers.createdAt',
     updatedAt: 'customers.updatedAt',
     tenantId: 'customers.tenantId'
@@ -191,6 +195,46 @@ function createPaginatedClientChain(rows: unknown[], total: number) {
     delete: vi.fn(),
   }
   return chain
+}
+
+/**
+ * Db mock pour archive/unarchive/anonymize : capture le payload de update().set()
+ * 1. (anonymize) select().from(customers).where(...).limit(1) -> existence
+ * 2. update(customers).set(...).where(...).returning() -> [updatedRow]
+ * 3. insert audit (non bloquant)
+ */
+function createUpdateCaptureChain(existingRows: unknown[], returnRow: boolean = true) {
+  const captured: { set: Record<string, unknown> | null } = { set: null }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
+    select: vi.fn(() => chain),
+    from: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    innerJoin: vi.fn(() => chain),
+    where: vi.fn(() => chain),
+    groupBy: vi.fn(() => chain),
+    having: vi.fn(() => chain),
+    orderBy: vi.fn(() => chain),
+    limit: vi.fn(() => Promise.resolve(existingRows)),
+    offset: vi.fn(() => chain),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => Promise.resolve()),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((vals: Record<string, unknown>) => {
+        captured.set = vals
+        return {
+          where: vi.fn(() => ({
+            returning: vi.fn(() =>
+              Promise.resolve(returnRow ? [{ ...(existingRows[0] as Record<string, unknown> || {}), ...vals }] : [])
+            ),
+          })),
+        }
+      }),
+    })),
+    delete: vi.fn(),
+  }
+  return { chain, captured }
 }
 
 /**
@@ -642,6 +686,106 @@ describe('API /api/clients', () => {
         statusCode: 404,
         message: 'Client non trouvé'
       })
+    })
+  })
+
+  // -----------------------------------------
+  // Archivage (comme les produits)
+  // -----------------------------------------
+  describe('POST /api/clients/:id/archive & unarchive', () => {
+    it('archive : passe isArchived=true avec archivedAt', async () => {
+      const { chain, captured } = createUpdateCaptureChain([{ id: 5, firstName: 'Jean', lastName: 'Dupont' }])
+      currentDb = chain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id]/archive.post')).default as any
+      const res = await handler(createMockEvent({ params: { id: '5' } }))
+
+      expect(res.success).toBe(true)
+      expect(captured.set).toMatchObject({ isArchived: true })
+      expect(captured.set?.archivedAt).toBeInstanceOf(Date)
+    })
+
+    it('archive : throw 404 si client inexistant', async () => {
+      const { chain } = createUpdateCaptureChain([], false)
+      currentDb = chain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id]/archive.post')).default as any
+
+      await expect(handler(createMockEvent({ params: { id: '999' } }))).rejects.toMatchObject({
+        statusCode: 404,
+      })
+    })
+
+    it('unarchive : repasse isArchived=false et archivedAt=null', async () => {
+      const { chain, captured } = createUpdateCaptureChain([{ id: 5, firstName: 'Jean', lastName: 'Dupont', isArchived: true }])
+      currentDb = chain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id]/unarchive.post')).default as any
+      const res = await handler(createMockEvent({ params: { id: '5' } }))
+
+      expect(res.success).toBe(true)
+      expect(captured.set).toMatchObject({ isArchived: false, archivedAt: null })
+    })
+  })
+
+  // -----------------------------------------
+  // Anonymisation RGPD → archive aussi
+  // -----------------------------------------
+  describe('POST /api/clients/:id/anonymize', () => {
+    it('anonymise ET archive le client dans la foulée', async () => {
+      const { chain, captured } = createUpdateCaptureChain([
+        { id: 5, firstName: 'Jean', lastName: 'Dupont', email: 'j@d.fr', phone: '06', address: 'rue X', isAnonymized: false },
+      ])
+      currentDb = chain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id]/anonymize.post')).default as any
+      const res = await handler(createMockEvent({ params: { id: '5' } }))
+
+      expect(res.success).toBe(true)
+      expect(captured.set).toMatchObject({
+        isAnonymized: true,
+        isArchived: true, // l'anonymisation archive aussi
+        firstName: 'Anonyme',
+        lastName: 'Client',
+        email: null,
+      })
+      expect(captured.set?.archivedAt).toBeInstanceOf(Date)
+    })
+
+    it('throw 409 si déjà anonymisé', async () => {
+      const { chain } = createUpdateCaptureChain([{ id: 5, isAnonymized: true }])
+      currentDb = chain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/[id]/anonymize.post')).default as any
+
+      await expect(handler(createMockEvent({ params: { id: '5' } }))).rejects.toMatchObject({
+        statusCode: 409,
+      })
+    })
+  })
+
+  // -----------------------------------------
+  // Filtre archivés sur la liste
+  // -----------------------------------------
+  describe('GET /api/clients — filtre archivés', () => {
+    it('exclut les archivés par défaut (condition isArchived dans le WHERE)', async () => {
+      currentDb = createPaginatedClientChain([], 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/index.get')).default as any
+      await handler(createMockEvent({ query: {} }))
+
+      const whereArgs = JSON.stringify(currentDb.where.mock.calls)
+      expect(whereArgs).toContain('customers.isArchived')
+    })
+
+    it('onlyArchived=true ne retourne que les archivés', async () => {
+      currentDb = createPaginatedClientChain([], 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (await import('~/server/api/clients/index.get')).default as any
+      await handler(createMockEvent({ query: { onlyArchived: 'true' } }))
+
+      const whereArgs = JSON.stringify(currentDb.where.mock.calls)
+      expect(whereArgs).toContain('customers.isArchived')
     })
   })
 })

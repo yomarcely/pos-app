@@ -24,6 +24,8 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event)
     const searchTerm = query.search as string | undefined
     const establishmentId = query.establishmentId ? Number(query.establishmentId) : undefined
+    const includeArchived = query.includeArchived === 'true'
+    const onlyArchived = query.onlyArchived === 'true'
     const { page, limit, offset } = parsePaginationQuery(event)
 
     // Logique de visibilité des clients par établissement :
@@ -33,6 +35,13 @@ export default defineEventHandler(async (event) => {
 
     // Conditions de base (WHERE) — incluent désormais le filtre search
     const baseConditions = [eq(customers.tenantId, tenantId)]
+
+    // Filtrer par statut d'archivage (comme les produits) : exclus par défaut
+    if (onlyArchived) {
+      baseConditions.push(sql`${customers.isArchived} = true`)
+    } else if (!includeArchived) {
+      baseConditions.push(sql`(${customers.isArchived} = false OR ${customers.isArchived} IS NULL)`)
+    }
 
     if (searchTerm && searchTerm.trim() !== '') {
       const term = `%${searchTerm.trim()}%`
@@ -62,6 +71,8 @@ export default defineEventHandler(async (event) => {
         loyaltyProgram: customers.loyaltyProgram,
         discount: customers.discount,
         notes: customers.notes,
+        isArchived: customers.isArchived,
+        isAnonymized: customers.isAnonymized,
         createdAt: customers.createdAt,
         updatedAt: customers.updatedAt,
         // Calculer le CA total directement avec LEFT JOIN
@@ -118,6 +129,8 @@ export default defineEventHandler(async (event) => {
         customers.loyaltyProgram,
         customers.discount,
         customers.notes,
+        customers.isArchived,
+        customers.isAnonymized,
         customers.createdAt,
         customers.updatedAt
       )
@@ -168,6 +181,8 @@ export default defineEventHandler(async (event) => {
         loyaltyPoints: client.loyaltyPoints ?? 0,
         discount: client.discount,
         notes: client.notes,
+        isArchived: client.isArchived ?? false,
+        isAnonymized: client.isAnonymized ?? false,
         city: metadata.city || null,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,

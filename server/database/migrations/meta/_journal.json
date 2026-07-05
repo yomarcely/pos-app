@@ -169,6 +169,13 @@
       "when": 1783198103271,
       "tag": "0023_clumsy_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783241751826,
+      "tag": "0024_thankful_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

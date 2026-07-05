@@ -431,6 +431,10 @@ export const customers = pgTable('customers', {
   isAnonymized: boolean('is_anonymized').default(false),
   anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
 
+  // Archivage (soft delete, comme les produits) — l'anonymisation archive aussi
+  isArchived: boolean('is_archived').default(false),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

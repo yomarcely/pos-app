@@ -61,6 +61,10 @@ export default defineEventHandler(async (event) => {
         marketingConsent: false,
         isAnonymized: true,
         anonymizedAt: now,
+        // Un client anonymisé (droit à l'oubli) n'a plus vocation à apparaître
+        // dans les listes actives : il est archivé dans la foulée.
+        isArchived: true,
+        archivedAt: now,
         updatedAt: now,
       })
       .where(eq(customers.id, id))
