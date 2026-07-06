@@ -97,7 +97,11 @@ pnpm env:dev
 
 À faire sur **chaque** base existante avant le prochain `pnpm db:migrate` la concernant
 (sinon `db:migrate` tenterait de rejouer la baseline → erreurs `relation already exists`).
-Suivi de bascule : dev ☐ · staging ☐ · prod ☐ (cocher ici même après chaque environnement).
+Suivi de bascule : dev ☑ · staging ☑ · prod ☑ — **tous basculés le 2026-07-06** (journaux
+purgés : 24 lignes en dev, 23 en staging, 1 en prod ; `pnpm db:migrate` vérifié no-op sur
+les trois). Les bascules ont été faites via l'URL **port 5432** (session) dérivée des
+`.env.*` ; aucune autre base à basculer — toute base créée après cette date s'amorce
+directement par `pnpm db:migrate`.
 
 ## Étape 3 — Créer le projet Vercel (manuel, ~10 min)
 
