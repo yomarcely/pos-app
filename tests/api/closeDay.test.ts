@@ -217,7 +217,7 @@ describe('POST /api/sales/close-day — clôture bloquante NF525', () => {
       handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
     ).rejects.toMatchObject({
       statusCode: 409,
-      data: expect.objectContaining({ reason: 'totals_mismatch', diffCents: -400 }),
+      data: expect.objectContaining({ reason: 'totals_mismatch', diffCents: -400, code: 'TOTALS_MISMATCH', retryable: false }),
     })
 
     // Aucune clôture créée
@@ -258,6 +258,8 @@ describe('POST /api/sales/close-day — clôture bloquante NF525', () => {
       statusCode: 409,
       data: expect.objectContaining({
         reason: 'pending_sales',
+        code: 'PENDING_SALES',
+        retryable: false,
         pendingCount: 2,
         pendingSales: expect.arrayContaining([
           expect.objectContaining({ id: 7, itemCount: 2, createdByEmail: 'vendeur@x.fr' }),
