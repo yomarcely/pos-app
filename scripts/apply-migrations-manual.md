@@ -1,5 +1,9 @@
 # Guide : Appliquer les Migrations Manuellement sur Supabase
 
+> ⚠️ **OBSOLÈTE (2026-07-06)** : les migrations citées ici vivent désormais dans
+> `server/database/migrations-archive/` (chaîne remplacée par une baseline rejouable de zéro —
+> voir le README de l'archive). Conservé pour l'historique uniquement.
+
 ## Problème identifié
 
 La connexion directe PostgreSQL à Supabase est bloquée :

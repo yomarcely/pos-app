@@ -5,6 +5,7 @@ import { createMockEvent } from '../setup'
 ;(globalThis as Record<string, unknown>).createError = (data: Record<string, unknown>) => {
   const err = new Error((data.message || data.statusMessage) as string) as Error & Record<string, unknown>
   err.statusCode = data.statusCode
+  err.data = data.data
   err.__isError = true
   return err
 }
@@ -224,7 +225,8 @@ describe('API /api/movements', () => {
 
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 404,
-        message: 'Produit #999 non trouvé'
+        message: 'Produit #999 non trouvé',
+        data: { code: 'PRODUCT_NOT_FOUND', retryable: false },
       })
     })
 

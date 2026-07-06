@@ -5,6 +5,7 @@ import { createMockEvent } from '../setup'
 ;(globalThis as Record<string, unknown>).createError = (data: Record<string, unknown>) => {
   const err = new Error((data.message || data.statusMessage) as string) as Error & Record<string, unknown>
   err.statusCode = data.statusCode
+  err.data = data.data
   err.__isError = true
   return err
 }
@@ -273,7 +274,8 @@ describe('API /api/sales', () => {
 
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 400,
-        message: 'Le panier est vide'
+        message: 'Le panier est vide',
+        data: { code: 'CART_EMPTY', retryable: false },
       })
     })
 
@@ -493,7 +495,8 @@ describe('API /api/sales', () => {
 
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 400,
-        message: 'Cette journée est déjà clôturée pour cette caisse'
+        message: 'Cette journée est déjà clôturée pour cette caisse',
+        data: { code: 'DAY_ALREADY_CLOSED', retryable: false },
       })
     })
 
@@ -507,7 +510,8 @@ describe('API /api/sales', () => {
 
       await expect(handler(event)).rejects.toMatchObject({
         statusCode: 404,
-        message: 'Caisse non trouvée'
+        message: 'Caisse non trouvée',
+        data: { code: 'REGISTER_NOT_FOUND', retryable: false },
       })
     })
   })

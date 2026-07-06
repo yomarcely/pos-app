@@ -5,6 +5,7 @@ import { createMovement } from '~/server/utils/createMovement'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
+import { createApiError } from '~/server/utils/apiResponse'
 import { logger } from '~/server/utils/logger'
 import { z } from 'zod'
 
@@ -75,17 +76,11 @@ export default defineEventHandler(async (event) => {
 
     // Validation
     if (!body.type) {
-      throw createError({
-        statusCode: 400,
-        message: 'Type de mouvement manquant',
-      })
+      throw createApiError(400, 'MOVEMENT_TYPE_MISSING', 'Type de mouvement manquant')
     }
 
     if (!body.items || body.items.length === 0) {
-      throw createError({
-        statusCode: 400,
-        message: 'Aucun article dans le mouvement',
-      })
+      throw createApiError(400, 'MOVEMENT_ITEMS_EMPTY', 'Aucun article dans le mouvement')
     }
 
     // Mapper le type vers le reason pour stock_movements
@@ -135,10 +130,7 @@ export default defineEventHandler(async (event) => {
           .limit(1)
 
         if (!product) {
-          throw createError({
-            statusCode: 404,
-            message: `Produit #${item.productId} non trouvé`,
-          })
+          throw createApiError(404, 'PRODUCT_NOT_FOUND', `Produit #${item.productId} non trouvé`)
         }
 
         // Source de vérité = productStocks (par établissement, requis).
@@ -258,12 +250,12 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     logger.error({ err: error }, 'Erreur lors de la création du mouvement')
 
-    const statusCode = error instanceof Error && 'statusCode' in error ? (error as { statusCode: number }).statusCode : 500
-    const message = statusCode !== 500 && error instanceof Error ? error.message : "Une erreur interne s'est produite"
+    // Re-propager l'erreur d'origine (statusCode/message inchangés) pour ne pas
+    // perdre son `data` ({ code, retryable }) ; 500 générique sinon.
+    if (error instanceof Error && 'statusCode' in error && (error as { statusCode: number }).statusCode !== 500) {
+      throw error
+    }
 
-    throw createError({
-      statusCode,
-      message,
-    })
+    throw createApiError(500, 'INTERNAL', "Une erreur interne s'est produite")
   }
 })

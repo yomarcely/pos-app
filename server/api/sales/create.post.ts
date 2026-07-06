@@ -11,6 +11,7 @@ import {
 import { logSaleCreation, logSystemError } from '~/server/utils/audit'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { validateBody } from '~/server/utils/validation'
+import { createApiError } from '~/server/utils/apiResponse'
 import { createSaleRequestSchema, type CreateSaleRequestInput } from '~/server/validators/sale.schema'
 import { logger } from '~/server/utils/logger'
 import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server/utils/financialValidation'
@@ -104,32 +105,20 @@ export default defineEventHandler(async (event) => {
 
     // Validation des données
     if (!body.items || body.items.length === 0) {
-      throw createError({
-        statusCode: 400,
-        message: 'Le panier est vide',
-      })
+      throw createApiError(400, 'CART_EMPTY', 'Le panier est vide')
     }
 
     if (!body.seller || !body.seller.id) {
-      throw createError({
-        statusCode: 400,
-        message: 'Vendeur manquant',
-      })
+      throw createApiError(400, 'SELLER_MISSING', 'Vendeur manquant')
     }
 
     // Pour les échanges (total = 0), on n'exige pas de mode de paiement
     if (Number(body.totals.totalTTC) !== 0 && (!body.payments || body.payments.length === 0)) {
-      throw createError({
-        statusCode: 400,
-        message: 'Mode de paiement manquant',
-      })
+      throw createApiError(400, 'PAYMENT_MISSING', 'Mode de paiement manquant')
     }
 
     if (!body.establishmentId || !body.registerId) {
-      throw createError({
-        statusCode: 400,
-        message: 'Établissement ou caisse manquant',
-      })
+      throw createApiError(400, 'ESTABLISHMENT_OR_REGISTER_MISSING', 'Établissement ou caisse manquant')
     }
 
     // Vérifier la caisse et l'établissement associés au tenant
@@ -152,17 +141,11 @@ export default defineEventHandler(async (event) => {
       .limit(1)
 
     if (!register) {
-      throw createError({
-        statusCode: 400,
-        message: 'Caisse introuvable ou inactive',
-      })
+      throw createApiError(400, 'REGISTER_INACTIVE', 'Caisse introuvable ou inactive')
     }
 
     if (register.establishmentId !== body.establishmentId) {
-      throw createError({
-        statusCode: 400,
-        message: 'La caisse sélectionnée n’appartient pas à cet établissement',
-      })
+      throw createApiError(400, 'REGISTER_ESTABLISHMENT_MISMATCH', 'La caisse sélectionnée n’appartient pas à cet établissement')
     }
 
     const [establishment] = await db
@@ -182,10 +165,7 @@ export default defineEventHandler(async (event) => {
       .limit(1)
 
     if (!establishment) {
-      throw createError({
-        statusCode: 400,
-        message: 'Établissement introuvable ou inactif',
-      })
+      throw createApiError(400, 'ESTABLISHMENT_INACTIVE', 'Établissement introuvable ou inactif')
     }
 
     // Numérotation NF525 stable : établissement.establishment_number + register.register_number
@@ -212,10 +192,7 @@ export default defineEventHandler(async (event) => {
       .limit(1)
 
     if (todayClosure) {
-      throw createError({
-        statusCode: 403,
-        message: `La journée du ${today} est déjà clôturée pour cette caisse. Aucune nouvelle vente ne peut être enregistrée.`,
-      })
+      throw createApiError(403, 'DAY_ALREADY_CLOSED', `La journée du ${today} est déjà clôturée pour cette caisse. Aucune nouvelle vente ne peut être enregistrée.`)
     }
 
     // ==========================================
@@ -225,9 +202,7 @@ export default defineEventHandler(async (event) => {
     // n'est pas clôturée, même si des jours sans activité se sont écoulés depuis.
     const lastUnclosedDay = await findLastUnclosedBusinessDay(tenantId, body.registerId)
     if (lastUnclosedDay) {
-      throw createError({
-        statusCode: 403,
-        message: `La journée du ${lastUnclosedDay} n'est pas clôturée pour cette caisse. Clôturez-la (page Synthèse) avant d'enregistrer de nouvelles ventes.`,
+      throw createApiError(403, 'PREVIOUS_DAY_NOT_CLOSED', `La journée du ${lastUnclosedDay} n'est pas clôturée pour cette caisse. Clôturez-la (page Synthèse) avant d'enregistrer de nouvelles ventes.`, {
         data: { reason: 'previous_day_not_closed', day: lastUnclosedDay },
       })
     }
@@ -257,10 +232,7 @@ export default defineEventHandler(async (event) => {
     // Valider la cohérence des totaux envoyés par le client
     const recomputed = recomputeTotalTTC(parsedItems)
     if (!validateTotalTTC(Number(body.totals.totalTTC), recomputed)) {
-      throw createError({
-        statusCode: 400,
-        message: `Totaux incohérents : déclaré ${body.totals.totalTTC}€, calculé ${recomputed}€`,
-      })
+      throw createApiError(400, 'TOTALS_MISMATCH', `Totaux incohérents : déclaré ${body.totals.totalTTC}€, calculé ${recomputed}€`)
     }
 
     // Q8 — Revalider HT et TVA serveur. Le check TTC seul laissait un attaquant
@@ -271,26 +243,17 @@ export default defineEventHandler(async (event) => {
     const { totalHT: recomputedHT, totalTVA: recomputedTVA } = recomputeHTandTVA(parsedItems)
 
     if (!validateTotalTTC(declaredHT, recomputedHT)) {
-      throw createError({
-        statusCode: 400,
-        message: `Total HT incohérent : déclaré ${declaredHT}€, calculé ${recomputedHT}€`,
-      })
+      throw createApiError(400, 'TOTALS_MISMATCH', `Total HT incohérent : déclaré ${declaredHT}€, calculé ${recomputedHT}€`)
     }
     if (!validateTotalTTC(declaredTVA, recomputedTVA)) {
-      throw createError({
-        statusCode: 400,
-        message: `Total TVA incohérent : déclaré ${declaredTVA}€, calculé ${recomputedTVA}€`,
-      })
+      throw createApiError(400, 'TOTALS_MISMATCH', `Total TVA incohérent : déclaré ${declaredTVA}€, calculé ${recomputedTVA}€`)
     }
 
     // Cohérence interne du payload : HT + TVA doit = TTC à 1 centime près
     const sumCents = Math.round(declaredHT * 100) + Math.round(declaredTVA * 100)
     const ttcCents = Math.round(declaredTTC * 100)
     if (Math.abs(sumCents - ttcCents) > 1) {
-      throw createError({
-        statusCode: 400,
-        message: `Incohérence : HT (${declaredHT}€) + TVA (${declaredTVA}€) ≠ TTC (${declaredTTC}€)`,
-      })
+      throw createApiError(400, 'TOTALS_MISMATCH', `Incohérence : HT (${declaredHT}€) + TVA (${declaredTVA}€) ≠ TTC (${declaredTTC}€)`)
     }
 
     // ==========================================
@@ -351,10 +314,7 @@ export default defineEventHandler(async (event) => {
     // (SELECT ... FOR UPDATE) effectuée DANS la transaction, plus bas (étape 5.4a-bis).
     if (Array.isArray(body.usedVoucherIds) && body.usedVoucherIds.length > 0) {
       if (!body.customer?.id) {
-        throw createError({
-          statusCode: 400,
-          message: 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client',
-        })
+        throw createApiError(400, 'VOUCHER_CUSTOMER_REQUIRED', 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client')
       }
 
       const now = new Date()
@@ -376,18 +336,12 @@ export default defineEventHandler(async (event) => {
         )
 
       if (rows.length !== body.usedVoucherIds.length) {
-        throw createError({
-          statusCode: 400,
-          message: 'Un ou plusieurs bons d\'achat sont invalides (déjà utilisés, expirés ou inexistants)',
-        })
+        throw createApiError(400, 'VOUCHER_INVALID', 'Un ou plusieurs bons d\'achat sont invalides (déjà utilisés, expirés ou inexistants)')
       }
 
       // Vérifier que tous appartiennent bien au client de la vente
       if (rows.some(r => r.customerId !== body.customer!.id)) {
-        throw createError({
-          statusCode: 400,
-          message: 'Un bon d\'achat ne correspond pas au client de la vente',
-        })
+        throw createApiError(400, 'VOUCHER_INVALID', 'Un bon d\'achat ne correspond pas au client de la vente')
       }
       // Pas de persistance ici : la liste validée est reconstruite sous lock dans la transaction.
     }
@@ -501,7 +455,7 @@ export default defineEventHandler(async (event) => {
         .returning()
 
       if (!createdSale) {
-        throw createError({ statusCode: 500, message: 'Échec de l\'enregistrement de la vente' })
+        throw createApiError(500, 'INTERNAL', 'Échec de l\'enregistrement de la vente')
       }
 
       // 5.1 bis Snapshot du prix d'achat (pour marge historique).
@@ -824,10 +778,7 @@ export default defineEventHandler(async (event) => {
       // (READ COMMITTED) avec status='used' → re-validation échoue → rollback + 409.
       if (Array.isArray(body.usedVoucherIds) && body.usedVoucherIds.length > 0) {
         if (!body.customer?.id) {
-          throw createError({
-            statusCode: 400,
-            message: 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client',
-          })
+          throw createApiError(400, 'VOUCHER_CUSTOMER_REQUIRED', 'Un bon d\'achat ne peut être utilisé que si la vente est rattachée à un client')
         }
 
         const nowDate = new Date()
@@ -867,10 +818,7 @@ export default defineEventHandler(async (event) => {
 
         if (invalidCodes.length > 0) {
           // throw dans la transaction → rollback automatique (la vente n'est pas créée).
-          throw createError({
-            statusCode: 409,
-            message: `Bon(s) d'achat non disponible(s) : ${invalidCodes.join(', ')} (déjà utilisé, expiré ou invalide). Veuillez recharger la page.`,
-          })
+          throw createApiError(409, 'VOUCHER_CONFLICT', `Bon(s) d'achat non disponible(s) : ${invalidCodes.join(', ')} (déjà utilisé, expiré ou invalide). Veuillez recharger la page.`)
         }
 
         for (const row of lockedRows) {
@@ -991,9 +939,6 @@ export default defineEventHandler(async (event) => {
       throw error
     }
 
-    throw createError({
-      statusCode: 500,
-      message: "Une erreur interne s'est produite",
-    })
+    throw createApiError(500, 'INTERNAL', "Une erreur interne s'est produite")
   }
 })

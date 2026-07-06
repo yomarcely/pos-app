@@ -6,6 +6,7 @@ import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { getBusinessDayBounds } from '~/server/utils/businessDay'
 import { assertRole } from '~/server/utils/roles'
 import { validateBody } from '~/server/utils/validation'
+import { createApiError } from '~/server/utils/apiResponse'
 import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.schema'
 import { logClosure, logSystemError } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
@@ -59,10 +60,7 @@ export default defineEventHandler(async (event) => {
       .limit(1)
 
     if (!register) {
-      throw createError({
-        statusCode: 404,
-        message: 'Caisse non trouvée',
-      })
+      throw createApiError(404, 'REGISTER_NOT_FOUND', 'Caisse non trouvée')
     }
 
     // ==========================================
@@ -81,10 +79,7 @@ export default defineEventHandler(async (event) => {
       .limit(1)
 
     if (existingClosure.length > 0) {
-      throw createError({
-        statusCode: 400,
-        message: 'Cette journée est déjà clôturée pour cette caisse',
-      })
+      throw createApiError(400, 'DAY_ALREADY_CLOSED', 'Cette journée est déjà clôturée pour cette caisse')
     }
 
     // ==========================================
@@ -116,9 +111,7 @@ export default defineEventHandler(async (event) => {
     }))
 
     if (pendingSummary.length > 0 && !body.force) {
-      throw createError({
-        statusCode: 409,
-        message: `Impossible de clôturer : ${pendingSummary.length} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les, ou forcez la clôture.`,
+      throw createApiError(409, 'PENDING_SALES', `Impossible de clôturer : ${pendingSummary.length} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les, ou forcez la clôture.`, {
         data: {
           reason: 'pending_sales',
           pendingCount: pendingSummary.length,
@@ -245,9 +238,7 @@ export default defineEventHandler(async (event) => {
         : null
 
     if (totalsDiscrepancy && !body.force) {
-      throw createError({
-        statusCode: 409,
-        message: `Impossible de clôturer : incohérence comptable HT + TVA ≠ TTC (écart de ${(totalsDiffCents / 100).toFixed(2)} €). Vérifiez les ventes ou forcez la clôture.`,
+      throw createApiError(409, 'TOTALS_MISMATCH', `Impossible de clôturer : incohérence comptable HT + TVA ≠ TTC (écart de ${(totalsDiffCents / 100).toFixed(2)} €). Vérifiez les ventes ou forcez la clôture.`, {
         data: {
           reason: 'totals_mismatch',
           totalHT,
@@ -327,7 +318,7 @@ export default defineEventHandler(async (event) => {
     }).returning()
 
     if (!newClosure) {
-      throw createError({ statusCode: 500, message: 'Échec de la création de la clôture' })
+      throw createApiError(500, 'INTERNAL', 'Échec de la création de la clôture')
     }
 
     logger.info({
@@ -437,9 +428,6 @@ export default defineEventHandler(async (event) => {
       throw error
     }
 
-    throw createError({
-      statusCode: 500,
-      message: "Une erreur interne s'est produite",
-    })
+    throw createApiError(500, 'INTERNAL', "Une erreur interne s'est produite")
   }
 })

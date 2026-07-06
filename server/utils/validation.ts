@@ -1,6 +1,7 @@
 import type { ZodType } from 'zod'
 import { ZodError } from 'zod'
 import { logger } from '~/server/utils/logger'
+import { createApiError } from '~/server/utils/apiResponse'
 
 // Type inline érasé par TS — pas d'import 'h3' (cf. server/utils/supabase.ts).
 type H3Event = import('h3').H3Event
@@ -38,10 +39,8 @@ export async function validateBody<T>(event: H3Event, schema: ZodType<T>): Promi
 
       logger.error({ errors }, 'Erreurs de validation du body')
 
-      throw createError({
-        statusCode: 400,
+      throw createApiError(400, 'VALIDATION_ERROR', firstMessage, {
         statusMessage: firstMessage,
-        message: firstMessage,
         data: { errors },
       })
     }
@@ -70,10 +69,8 @@ export function validateQuery<T>(event: H3Event, schema: ZodType<T>): T {
 
       logger.error({ errors }, 'Erreurs de validation des query params')
 
-      throw createError({
-        statusCode: 400,
+      throw createApiError(400, 'VALIDATION_ERROR', 'Erreur de validation des paramètres', {
         statusMessage: errors[0]?.message || 'Erreur de validation des paramètres',
-        message: 'Erreur de validation des paramètres',
         data: { errors },
       })
     }
