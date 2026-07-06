@@ -51,8 +51,9 @@ function main() {
   console.log(`📜 Entrées dans _journal.json : ${journalTags.size}\n`)
 
   // 1. Fichiers orphelins (sur disque mais pas dans journal)
-  // Tolère les fichiers ad-hoc nommés avec un suffixe (ex: 0011_update_existing_data_establishment.sql)
-  const KNOWN_ADHOC = ['0011_update_existing_data_establishment', '0002a_add_generate_movement_number', '0003a_tenant_columns_if_not_exists']
+  // Depuis la baseline 2026-07-06 (chaîne rejouable de zéro), AUCUN fichier ad-hoc hors
+  // journal n'est toléré — les anciens ad-hoc vivent dans migrations-archive/ (jamais audité).
+  const KNOWN_ADHOC: string[] = []
   const orphanedFiles = [...sqlFiles].filter(f => !journalTags.has(f) && !KNOWN_ADHOC.includes(f))
   if (orphanedFiles.length > 0) {
     console.log('🔴 Fichiers SQL orphelins (pas dans _journal.json) :')

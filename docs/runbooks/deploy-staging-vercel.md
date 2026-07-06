@@ -56,24 +56,48 @@ Remplacer les placeholders de `.env.staging` par les vraies valeurs de l'étape 
 `DATABASE_URL` = la chaîne **port 5432** (session/directe), c'est elle qu'utilisent les
 migrations locales. Ne jamais commiter ce fichier (gitignoré).
 
-⚠️ **`pnpm db:migrate` seul NE FONCTIONNE PAS sur une base vierge** : la chaîne de migrations
-ne contient pas le schéma initial (créé via `drizzle-kit push` au début du projet — 22 tables
-sur 32 n'ont aucun `CREATE TABLE` dans les fichiers). Constaté le 2026-07-03 :
-`relation "sale_items" does not exist`. Procédure d'amorçage :
+Depuis la baseline du 2026-07-06 (chaîne de migrations rejouable de zéro), une base vierge
+s'amorce par les migrations seules — plus besoin de `db:push` ni de script de marquage :
 
 ```bash
 pnpm env:staging                                        # bascule .env → valeurs staging
-pnpm db:push                                            # crée le schéma complet depuis schema.ts
-RUN_BOOTSTRAP=1 pnpm tsx scripts/mark-migrations-applied.ts   # marque les migrations comme appliquées
-pnpm db:migrate                                         # vérification : ne doit rien appliquer
+pnpm db:migrate                                         # crée TOUT le schéma (0000_baseline + suivantes)
 pnpm db:seed                                            # optionnel : données de démo
 pnpm env:dev                                            # IMPORTANT : rebasculer en dev après
 ```
 
-Cette procédure vaut pour TOUTE nouvelle base (prod incluse). Une fois amorcée, les migrations
-suivantes s'appliquent normalement avec `pnpm db:migrate`. Amélioration possible plus tard :
-générer une migration « baseline » complète (squash) pour rendre la chaîne rejouable de zéro —
-gros chantier, à valider explicitement (règle CLAUDE.md n°1).
+Cette procédure vaut pour TOUTE nouvelle base (prod, environnement jetable, e2e CI inclus).
+
+> Historique : avant le 2026-07-06, la chaîne n'était pas rejouable (schéma initial créé via
+> `drizzle-kit push`, 22 tables sur 32 sans `CREATE TABLE` — constaté le 2026-07-03 :
+> `relation "sale_items" does not exist`). L'ancienne procédure `db:push` +
+> `mark-migrations-applied.ts` est obsolète ; l'ancienne chaîne vit dans
+> `server/database/migrations-archive/` (README détaillé).
+
+### Bascule baseline migrations (2026-07-06) — bases EXISTANTES uniquement
+
+Les bases qui existaient AVANT la baseline (dev, staging, prod) ont déjà le schéma : la
+baseline ne doit **jamais** y être exécutée. Leur journal `drizzle.__drizzle_migrations`
+référence l'ancienne chaîne (0000_handy_darwin → 0024_thankful_pepper_potts) et doit être
+basculé UNE FOIS sur la nouvelle chaîne, environnement par environnement :
+
+```bash
+# 1. Se placer sur l'environnement cible (vérifier DATABASE_URL = port 5432 session/directe)
+pnpm env:staging          # ou env:dev / env:prod selon la base à basculer
+
+# 2. Basculer le journal (purge l'ancien journal, marque la baseline comme appliquée)
+RUN_BASELINE_SWITCH=1 pnpm tsx scripts/mark-migrations-applied.ts
+
+# 3. Vérification : ne doit RIEN appliquer (sinon STOP — ne pas laisser rejouer la baseline)
+pnpm db:migrate
+
+# 4. Rebasculer en dev
+pnpm env:dev
+```
+
+À faire sur **chaque** base existante avant le prochain `pnpm db:migrate` la concernant
+(sinon `db:migrate` tenterait de rejouer la baseline → erreurs `relation already exists`).
+Suivi de bascule : dev ☐ · staging ☐ · prod ☐ (cocher ici même après chaque environnement).
 
 ## Étape 3 — Créer le projet Vercel (manuel, ~10 min)
 
