@@ -50,3 +50,13 @@ docs/caisse.har
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Playwright (e2e)
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+
+
+.vscode
+.claude
