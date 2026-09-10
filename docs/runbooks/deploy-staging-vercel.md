@@ -29,6 +29,68 @@ pnpm env:staging && pnpm db:migrate && pnpm env:dev
    jobs de la CI (`audit`, `lint`, `typecheck`, `test`). Le staging ne recevra jamais de code
    dont la CI est rouge.
 
+## ⚠️ À FAIRE AVANT LE PROCHAIN MERGE `developpement` → `main` (constaté le 2026-09-10)
+
+**Soupçon de dérive de schéma sur staging — à vérifier avant tout déploiement.**
+
+Staging tourne sur le code du **2026-07-03** (`main` = 65a5e35). Les commits en attente sur
+`developpement` introduisent trois colonnes, via les migrations `0023` et `0024` du 2026-07-05
+(aujourd'hui archivées dans `server/database/migrations-archive/`, absorbées par la baseline) :
+
+| Colonne | Sert à |
+|---|---|
+| `sale_items.variation_id` | Déstockage des produits à variations + re-stockage des avoirs |
+| `customers.is_archived` | Archivage des clients |
+| `customers.archived_at` | idem |
+
+**Pourquoi `pnpm db:migrate` ne suffira PAS** : la bascule du 2026-07-06 a *marqué* la baseline
+comme appliquée sans l'exécuter. Le journal de staging affirme donc que tout le schéma est en
+place. Si ces colonnes n'y sont pas physiquement, `db:migrate` restera silencieusement no-op et
+le déploiement produira des erreurs SQL sur la fiche client et sur les ventes à variations.
+
+**Indice qui motive le doute** (non confirmé) : au moment de la bascule, les journaux purgés
+comptaient **24 lignes en dev mais 23 en staging** (voir plus bas). Staging avait donc une
+migration de retard, et la bascule a effacé l'écart au lieu de le signaler.
+
+### 1. Vérifier (lecture seule, sans risque)
+
+```bash
+pnpm env:staging
+psql "$DATABASE_URL" -c "
+  SELECT table_name, column_name
+  FROM information_schema.columns
+  WHERE (table_name = 'sale_items'  AND column_name = 'variation_id')
+     OR (table_name = 'customers'   AND column_name IN ('is_archived','archived_at'))
+  ORDER BY table_name, column_name;"
+pnpm env:dev
+```
+
+Trois lignes attendues. **Moins de trois = dérive confirmée**, appliquer le rattrapage ci-dessous.
+
+### 2. Rattraper si besoin (idempotent, aucune perte de données)
+
+```bash
+pnpm env:staging
+psql "$DATABASE_URL" -c "
+  ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variation_id integer;
+  ALTER TABLE customers  ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;
+  ALTER TABLE customers  ADD COLUMN IF NOT EXISTS archived_at timestamp with time zone;"
+pnpm env:dev
+```
+
+`ADD COLUMN IF NOT EXISTS` : rejouable sans effet de bord, n'altère aucune donnée existante.
+Ne PAS toucher au journal `drizzle.__drizzle_migrations` — la baseline reste marquée appliquée.
+
+### 3. Leçon générale
+
+`mark-migrations-applied.ts` fait une **promesse non vérifiée** : il affirme que le schéma
+correspond à la baseline, sans le contrôler. Toute base dont le schéma était en retard au
+moment de la bascule porte un écart désormais invisible. Prod a été basculée le même jour
+(journal purgé : 1 ligne) — **passer la même vérification sur prod** avant son premier
+déploiement réel.
+
+---
+
 ## Architecture
 
 - **Vercel** (serverless) héberge l'app Nuxt/Nitro — le preset Vercel est auto-détecté au build,
