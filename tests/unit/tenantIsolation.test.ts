@@ -300,6 +300,11 @@ describe('Isolation tenant — audit statique', () => {
     const root = join(process.cwd(), 'server/api')
     const repoRoot = process.cwd()
     const knownPublic = ['login', 'auth', 'database/seed']
+    // Endpoints internes cron (A5) : catégorie distincte des publics — auth par
+    // CRON_SECRET dans le middleware, pas de session, donc pas de tenant dans le
+    // contexte. Ils scopent leurs requêtes par un tenantId qu'ils déterminent
+    // eux-mêmes. Le test suivant vérifie qu'ils sont bien couverts par la garde.
+    const knownInternalCron = ['internal/']
     function listFiles(dir: string): string[] {
       const out: string[] = []
       for (const entry of readdirSync(dir)) {
@@ -313,11 +318,48 @@ describe('Isolation tenant — audit statique', () => {
     for (const file of listFiles(root)) {
       const apiPath = relative(root, file).replace(/\\/g, '/').replace(/\.ts$/, '')
       if (knownPublic.some(p => apiPath.startsWith(p))) continue
+      if (knownInternalCron.some(p => apiPath.startsWith(p))) continue
       const content = readFileSync(file, 'utf-8')
       if (!/getTenantIdFromEvent\s*\(/.test(content)) {
         violations.push(relative(repoRoot, file))
       }
     }
     expect(violations).toEqual([])
+  })
+
+  it('tout endpoint server/api/internal est couvert par la garde CRON_SECRET du middleware', async () => {
+    // A5 — filet contre l'oubli : un endpoint ajouté sous server/api/internal/
+    // sans préfixe correspondant dans CRON_ENDPOINTS serait exposé SANS aucune
+    // auth (le middleware le traiterait comme un endpoint normal → assertAuth,
+    // donc 401 ; mais si la liste changeait de forme, la garde pourrait sauter).
+    const { readFileSync, readdirSync, existsSync, statSync } = await import('node:fs')
+    const { join, relative } = await import('node:path')
+
+    const internalRoot = join(process.cwd(), 'server/api/internal')
+    if (!existsSync(internalRoot)) return
+
+    const middleware = readFileSync(join(process.cwd(), 'server/middleware/auth.global.ts'), 'utf-8')
+    const listMatch = middleware.match(/const CRON_ENDPOINTS = \[([^\]]*)\]/)
+    expect(listMatch, 'CRON_ENDPOINTS introuvable dans auth.global.ts').toBeTruthy()
+    const cronPrefixes = [...(listMatch?.[1] ?? '').matchAll(/'([^']+)'/g)].map(m => m[1] as string)
+
+    function listFiles(dir: string): string[] {
+      const out: string[] = []
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) out.push(...listFiles(full))
+        else if (full.endsWith('.ts')) out.push(full)
+      }
+      return out
+    }
+
+    const unguarded: string[] = []
+    for (const file of listFiles(internalRoot)) {
+      const routePath = '/api/internal/' + relative(internalRoot, file).replace(/\\/g, '/').replace(/\.(get|post|put|patch|delete)?\.ts$/, '').replace(/\.ts$/, '')
+      if (!cronPrefixes.some(prefix => routePath.startsWith(prefix))) {
+        unguarded.push(routePath)
+      }
+    }
+    expect(unguarded).toEqual([])
   })
 })

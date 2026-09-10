@@ -1,8 +1,44 @@
 import { assertAuth, getAccessTokenFromEvent, getTenantFromUser, supabaseServerClient } from '~/server/utils/supabase'
 import { resolveRole } from '~/server/utils/roles'
 import { logger } from '~/server/utils/logger'
+import { timingSafeEqual } from 'node:crypto'
 
 const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth']
+
+/**
+ * Endpoints internes déclenchés par un planificateur (Vercel Cron), A5.
+ *
+ * Liste VOLONTAIREMENT distincte de PUBLIC_ENDPOINTS (règle absolue n°8) : ces
+ * routes ne sont pas publiques, elles sont authentifiées AUTREMENT — par un
+ * secret partagé hors bande (`CRON_SECRET`), pas par une session utilisateur.
+ * Les confondre reviendrait à faire passer un audit de PUBLIC_ENDPOINTS pour
+ * une revue d'exposition complète, alors que la surface est différente :
+ * pas de tenant dans le contexte, pas de rôle, un appelant machine.
+ *
+ * Conséquence côté handler : `event.context.auth` n'est JAMAIS posé ici, donc
+ * `getTenantIdFromEvent` lèverait 401. Un endpoint interne détermine lui-même
+ * les tenants sur lesquels il travaille.
+ */
+const CRON_ENDPOINTS = ['/api/internal/']
+
+/** Comparaison à temps constant, tolérante aux longueurs différentes. */
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
+
+/**
+ * Extrait le secret présenté : `Authorization: Bearer <secret>` (ce que Vercel
+ * Cron envoie automatiquement quand CRON_SECRET est défini) ou `x-cron-secret`
+ * (appel manuel / curl de vérification depuis un runbook).
+ */
+function getPresentedCronSecret(event: Parameters<typeof getHeader>[0]): string | null {
+  const auth = getHeader(event, 'authorization')
+  if (auth?.startsWith('Bearer ')) return auth.slice('Bearer '.length)
+  return getHeader(event, 'x-cron-secret') || null
+}
 
 // Fail-closed au boot : refuse de démarrer si ALLOW_AUTH_BYPASS=true hors dev.
 // Évite qu'une variable oubliée dans un .env staging/prod désactive l'auth silencieusement.
@@ -22,6 +58,24 @@ export default defineEventHandler(async (event) => {
 
   const isPublic = PUBLIC_ENDPOINTS.some(publicPath => path.startsWith(publicPath))
   if (isPublic) return
+
+  // Endpoints internes : le secret est vérifié AVANT tout autre traitement
+  // (pas de lecture de body, pas d'appel Supabase, pas de requête DB). Secret
+  // non configuré, absent ou faux → 401 immédiat et fail-closed : sans
+  // CRON_SECRET en environnement, la route est inaccessible, jamais ouverte.
+  const isCron = CRON_ENDPOINTS.some(cronPath => path.startsWith(cronPath))
+  if (isCron) {
+    const expected = process.env.CRON_SECRET?.trim()
+    const presented = getPresentedCronSecret(event)
+
+    if (!expected || !presented || !secretsMatch(presented, expected)) {
+      logger.warn({ path, hasSecret: Boolean(presented), configured: Boolean(expected) }, '[auth.global] Accès refusé à un endpoint interne (CRON_SECRET)')
+      throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
+    }
+
+    // Authentifié comme appelant machine : on ne pose PAS event.context.auth.
+    return
+  }
 
   // Auth bypass explicite (uniquement si ALLOW_AUTH_BYPASS=true est défini)
   // ATTENTION: Ne JAMAIS activer en production !

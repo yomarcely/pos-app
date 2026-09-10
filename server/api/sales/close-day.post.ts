@@ -11,6 +11,7 @@ import { closeDaySchema, type CloseDayInput } from '~/server/validators/sale.sch
 import { logClosure, logSystemError } from '~/server/utils/audit'
 import { logger } from '~/server/utils/logger'
 import { assertHTplusTVAequalsTTC, htPlusTVADiffCents } from '~/server/utils/financialValidation'
+import { reportClosureRefused } from '~/server/utils/nf525Alerting'
 
 /**
  * ==========================================
@@ -111,6 +112,20 @@ export default defineEventHandler(async (event) => {
     }))
 
     if (pendingSummary.length > 0 && !body.force) {
+      // A5 — observabilité seule : le refus lui-même est inchangé. `warning`, car
+      // un ticket en attente oublié est le plus souvent une erreur d'exploitation
+      // que le commerçant résout seul. Ces 409 sont invisibles du handler Sentry
+      // global (il ignore les H3Error 3xx/4xx), d'où la capture explicite ici.
+      reportClosureRefused({
+        tenantId,
+        reason: 'pending_sales',
+        registerId: body.registerId,
+        businessDay: body.date,
+        details: { pendingCount: pendingSummary.length },
+        userId: event.context.auth?.user?.id ?? null,
+        ipAddress: getRequestIP(event) || null,
+      })
+
       throw createApiError(409, 'PENDING_SALES', `Impossible de clôturer : ${pendingSummary.length} ticket(s) en attente sur cette caisse. Reprenez ou supprimez-les, ou forcez la clôture.`, {
         data: {
           reason: 'pending_sales',
@@ -238,6 +253,19 @@ export default defineEventHandler(async (event) => {
         : null
 
     if (totalsDiscrepancy && !body.force) {
+      // A5 — observabilité seule : le refus lui-même est inchangé. `error`, car
+      // HT + TVA ≠ TTC est une incohérence comptable déjà présente en base : le
+      // commerçant ne peut rien y faire, il faut auditer les ventes du jour.
+      reportClosureRefused({
+        tenantId,
+        reason: 'totals_mismatch',
+        registerId: body.registerId,
+        businessDay: body.date,
+        details: { totalHT, totalTVA, totalTTC, diffCents: totalsDiffCents },
+        userId: event.context.auth?.user?.id ?? null,
+        ipAddress: getRequestIP(event) || null,
+      })
+
       throw createApiError(409, 'TOTALS_MISMATCH', `Impossible de clôturer : incohérence comptable HT + TVA ≠ TTC (écart de ${(totalsDiffCents / 100).toFixed(2)} €). Vérifiez les ventes ou forcez la clôture.`, {
         data: {
           reason: 'totals_mismatch',

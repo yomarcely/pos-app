@@ -18,6 +18,8 @@ import { recomputeTotalTTC, validateTotalTTC, recomputeHTandTVA } from '~/server
 import { getActiveLoyaltyConfig, calculatePointsForSale, getCustomerLoyaltyPoints, type LoyaltyConfigData } from '~/server/utils/loyalty'
 import { resolvePurchasePriceAtSale } from '~/server/utils/purchasePriceSnapshot'
 import { getBusinessDayString } from '~/server/utils/businessDay'
+import { recordOversellMovements } from '~/server/utils/oversellMonitor'
+import { reportOversellBurst } from '~/server/utils/nf525Alerting'
 import { findLastUnclosedBusinessDay } from '~/server/utils/closureGuard'
 import { findExistingSaleByClientSaleId, buildDuplicateSaleResponse } from '~/server/utils/saleIdempotency'
 
@@ -891,6 +893,30 @@ export default defineEventHandler(async (event) => {
     if (stockUpdateLogs.length > 0) {
       logger.info({ updates: stockUpdateLogs.length, establishmentId: establishment.id }, 'Stocks mis à jour pour la vente')
       stockUpdateLogs.forEach(log => logger.debug(log))
+    }
+
+    // A5 — détection de survente en rafale. Observabilité pure : ce bloc ne
+    // change ni la réponse ni le déroulé de la vente. Placé APRÈS le commit
+    // pour ne jamais compter une transaction annulée. Il est donc dans un
+    // chemin où la vente est DÉJÀ enregistrée : rien ici ne doit pouvoir lever,
+    // sinon le catch de fin transformerait une vente réussie en 500 côté caisse.
+    // Garanti par `guarded()` dans nf525Alerting.ts et par l'absence d'I/O dans
+    // recordOversellMovements (compteur in-memory pur).
+    if (stockWarnings.length > 0) {
+      const burst = recordOversellMovements(tenantId, establishment.id, stockWarnings.length)
+      if (burst.burst) {
+        logger.warn(
+          { establishmentId: establishment.id, count: burst.count, windowMs: burst.windowMs },
+          'Survente en rafale détectée : stock système probablement décorrélé du réel',
+        )
+        reportOversellBurst({
+          tenantId,
+          establishmentId: establishment.id,
+          count: burst.count,
+          windowMs: burst.windowMs,
+          threshold: burst.threshold,
+        })
+      }
     }
 
     // ==========================================

@@ -465,12 +465,12 @@ Termine par pnpm ci + e2e vert (le flux de vente déstocke).
 ## Checklist de suivi
 
 ### Phase A — filet de sécurité & infra
-- [ ] A1 — Erreurs API normalisées (code + retryable)
-- [ ] A2 — Baseline squash migrations ✅ règle n°1 levée le 2026-07-06
+- [x] A1 — Erreurs API normalisées (code + retryable)
+- [x] A2 — Baseline squash migrations ✅ règle n°1 levée le 2026-07-06
 - [ ] A3 — e2e Playwright smoke en CI
 - [ ] A4a — RLS socle + pilote suppliers/brands
 - [ ] A4b — RLS généralisé (5 vagues)
-- [ ] A5 — Alerting Sentry invariants + verify-chain planifié
+- [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10, non mergée : merge suspendu par la vérif de schéma staging ; reste à poser `CRON_SECRET` sur Vercel)
 
 ### Phase B — couche domaine
 - [ ] B1 — Caractérisation création de vente

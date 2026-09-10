@@ -19,10 +19,14 @@ const required = {
     'INFOCERT_PRIVATE_KEY',
     'INFOCERT_MERCHANT_ID',
     'DPO_EMAIL',
+    'CRON_SECRET',
   ],
   staging: [
     'SUPABASE_SERVICE_ROLE_KEY',
     'JWT_SECRET',
+    // A5 — sans lui, le cron de vérification des chaînes NF525 reçoit 401
+    // (fail-closed) et l'alerting est muet : autant le savoir au déploiement.
+    'CRON_SECRET',
   ]
 }
 

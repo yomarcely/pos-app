@@ -491,6 +491,12 @@ export async function logCustomerAnonymization(params: {
 
 /**
  * Log spécifique pour les erreurs système
+ *
+ * A5 — pas de capture Sentry ici, volontairement : ses deux appelants
+ * (sales/create.post.ts, sales/close-day.post.ts) relancent l'erreur, et le
+ * handler global de @sentry/nuxt capture déjà tout sauf les H3Error 3xx/4xx.
+ * Les seules 4xx qui méritent une alerte (refus de clôture 409) sont capturées
+ * à leur point de levée. Raisonnement détaillé §4 de server/utils/nf525Alerting.ts.
  */
 export async function logSystemError(params: {
   tenantId: string

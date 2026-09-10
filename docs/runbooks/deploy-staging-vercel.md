@@ -184,6 +184,7 @@ directement par `pnpm db:migrate`.
 | `NUXT_PUBLIC_SENTRY_DSN` | DSN Sentry (vide = désactivé, OK pour commencer) |
 | `INFOCERT_PRIVATE_KEY` / `INFOCERT_MERCHANT_ID` | laisser vide (signature TEMP_ en attendant la certification) |
 | `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | credentials R2 archives — optionnel : sans eux, les archives passent en `pending_export` (comportement prévu P3.6) |
+| `CRON_SECRET` | `openssl rand -hex 32` — **requis** (A5), voir section « Cron de vérification des chaînes » |
 
 ⚠️ Ne PAS définir `ALLOW_AUTH_BYPASS`. `NODE_ENV=production` est posé par Vercel automatiquement
 (c'est lui qui active la CSP durcie Q11 et les sample rates Sentry prod).
@@ -199,6 +200,45 @@ directement par `pnpm db:migrate`.
      `/etablissements/synchronisation` (déjà validé en local le 2026-07-01 — re-vérifier ici)
    - flow complet : vente → ticket → clôture → ticket Z → verify-chain
 3. Vérifier les headers : `curl -sI https://<url-staging>/login | grep -i content-security`
+
+## Cron de vérification des chaînes NF525 (A5, ajouté le 2026-09-10)
+
+`vercel.json` déclare un cron quotidien sur `GET /api/internal/verify-chains` : il rejoue la
+vérification de chaîne NF525 sur le **jour métier précédent**, caisse par caisse, et alerte
+Sentry sur toute chaîne cassée. Depuis l'abandon de l'offline, c'est le principal détecteur
+de panne silencieuse côté données.
+
+**`CRON_SECRET` est obligatoire.** L'endpoint n'est pas public (règle absolue n°8) : le
+middleware `auth.global.ts` vérifie le secret AVANT tout traitement, via la liste
+`CRON_ENDPOINTS` distincte de `PUBLIC_ENDPOINTS`. Fail-closed : **si `CRON_SECRET` est absent
+de l'environnement, l'endpoint répond 401 et l'alerting est muet**. Vercel envoie
+automatiquement `Authorization: Bearer $CRON_SECRET` à ses crons dès que la variable existe
+sur le projet — rien d'autre à configurer.
+
+Vérification manuelle après déploiement :
+
+```bash
+# 401 attendu sans secret
+curl -si https://<url-staging>/api/internal/verify-chains | head -1
+# 200 + résumé JSON avec le secret
+curl -s -H "x-cron-secret: $CRON_SECRET" https://<url-staging>/api/internal/verify-chains
+```
+
+Puis : Vercel → projet → **Settings → Cron Jobs** doit lister le job, et son dernier run doit
+être en succès.
+
+**Deux pièges à connaître :**
+
+- *Heure et changement d'heure.* Les crons Vercel sont en **UTC**, sans fuseau. Le schedule
+  `0 4 * * *` donne 06:00 en heure d'été (CEST) et 05:00 en heure d'hiver (CET). Ce décalage
+  d'une heure est assumé : dans les deux cas on passe après la nuit et avant l'ouverture,
+  qui est la seule contrainte. Ne pas « corriger » en changeant le cron deux fois par an.
+- *`maxDuration`.* `vercel.json` ne déclare **que** `crons`, volontairement. Le `maxDuration: 60`
+  vit dans `nuxt.config.ts` (`nitro.vercel.functions`) et protège des transactions zombies
+  (incident du 2026-07-03, section suivante). Ajouter une clé `functions` dans `vercel.json`
+  écraserait ce réglage : ne pas le faire sans relire cet incident.
+
+Plan Hobby : un seul cron par jour maximum. Le job actuel tient dans cette limite.
 
 ## Incidents connus & protections serverless (2026-07-03)
 

@@ -22,6 +22,17 @@ const KNOWN_PUBLIC = [
   'database/seed', // dev seulement
 ]
 
+// Endpoints internes déclenchés par un planificateur (Vercel Cron), A5.
+// Catégorie SÉPARÉE des publics à dessein : ils ne sont pas publics — ils sont
+// authentifiés par CRON_SECRET dans server/middleware/auth.global.ts
+// (CRON_ENDPOINTS), pas par une session. Ils n'ont donc pas de tenant dans le
+// contexte et déterminent eux-mêmes leur périmètre : `getTenantIdFromEvent` y
+// est inapplicable, mais chaque requête reste scopée par un tenantId explicite.
+// Doit matcher CRON_ENDPOINTS dans server/middleware/auth.global.ts.
+const KNOWN_INTERNAL_CRON = [
+  'internal/',
+]
+
 // Fichiers exclus de l'audit (exemples tiers, code de wizard, etc.)
 const EXCLUDED: string[] = []
 
@@ -32,6 +43,7 @@ interface AuditResult {
   hasTenantInWhere: boolean
   hasDirectAuthAccess: boolean
   isPublic: boolean
+  isInternalCron: boolean
   hasDbWrite: boolean
   hasDbSelect: boolean
   notes: string[]
@@ -50,6 +62,10 @@ function listFiles(dir: string): string[] {
 
 function isPublicPath(rel: string): boolean {
   return KNOWN_PUBLIC.some(pub => rel.startsWith(pub))
+}
+
+function isInternalCronPath(rel: string): boolean {
+  return KNOWN_INTERNAL_CRON.some(internal => rel.startsWith(internal))
 }
 
 function isExcluded(rel: string): boolean {
@@ -74,15 +90,17 @@ function audit(file: string): AuditResult {
       || /\btenantId\s*:\s*[a-zA-Z_.]+\.id/.test(content),
     hasDirectAuthAccess: /event\.context\.auth\.tenantId/.test(content),
     isPublic: isPublicPath(apiPath),
+    isInternalCron: isInternalCronPath(apiPath),
     hasDbWrite: /\.(insert|update|delete)\s*\(/.test(content),
     hasDbSelect: /\.select\s*\(/.test(content),
     notes: [],
   }
 
   if (result.isPublic) result.notes.push('Endpoint public (pas de tenant requis)')
+  if (result.isInternalCron) result.notes.push('Endpoint interne cron (auth par CRON_SECRET, tenants déterminés par le handler)')
   if (result.hasDirectAuthAccess) result.notes.push('🔴 ANTI-PATTERN : lit event.context.auth.tenantId directement (CLAUDE.md interdit)')
 
-  if (!result.isPublic) {
+  if (!result.isPublic && !result.isInternalCron) {
     if (!result.hasTenantCall) result.notes.push('🔴 N\'appelle PAS getTenantIdFromEvent')
     if ((result.hasDbSelect || result.hasDbWrite) && !result.hasTenantInWhere) {
       result.notes.push('🟠 Aucune WHERE eq(tenantId) détectée — vérifier manuellement')
@@ -97,24 +115,34 @@ function main() {
   const files = listFiles(ROOT).filter(f => !isExcluded(relative(REPO_ROOT, f)))
   const results = files.map(audit)
 
+  // L'anti-pattern `event.context.auth.tenantId` reste une violation PARTOUT,
+  // y compris sur un endpoint interne (il n'y a pas de contexte auth à y lire).
   const violations = results.filter(r =>
-    !r.isPublic && (
-      r.hasDirectAuthAccess
-      || !r.hasTenantCall
+    r.hasDirectAuthAccess
+    || (!r.isPublic && !r.isInternalCron && (
+      !r.hasTenantCall
       || ((r.hasDbSelect || r.hasDbWrite) && !r.hasTenantInWhere)
-    ),
+    )),
   )
   const publics = results.filter(r => r.isPublic)
-  const conformes = results.filter(r => !r.isPublic && !r.hasDirectAuthAccess && r.hasTenantCall && (!r.hasDbSelect && !r.hasDbWrite || r.hasTenantInWhere))
+  const internalCrons = results.filter(r => r.isInternalCron)
+  const conformes = results.filter(r => !r.isPublic && !r.isInternalCron && !r.hasDirectAuthAccess && r.hasTenantCall && (!r.hasDbSelect && !r.hasDbWrite || r.hasTenantInWhere))
 
   console.log(`\n📊 Audit isolation tenant — ${results.length} endpoints\n`)
   console.log(`✅ Conformes : ${conformes.length}`)
   console.log(`🔓 Publics  : ${publics.length}`)
+  console.log(`🔐 Internes cron : ${internalCrons.length}`)
   console.log(`⚠️  Suspects : ${violations.length}\n`)
 
   if (publics.length > 0) {
     console.log('🔓 Endpoints publics (intentionnel) :')
     for (const r of publics) console.log(`  - ${r.path}`)
+    console.log('')
+  }
+
+  if (internalCrons.length > 0) {
+    console.log('🔐 Endpoints internes cron (auth CRON_SECRET, hors session utilisateur) :')
+    for (const r of internalCrons) console.log(`  - ${r.path}`)
     console.log('')
   }
 

@@ -56,6 +56,13 @@ vi.mock('~/server/utils/audit', () => ({
   logSystemError: (...args: unknown[]) => logSystemError(...args),
 }))
 
+// A5 — Sentry mocké : on vérifie que les refus 409 sont bien remontés, et
+// surtout qu'une panne de Sentry ne change RIEN au comportement de la clôture.
+const captureMessage = vi.fn()
+vi.mock('@sentry/nuxt', () => ({
+  captureMessage: (...args: unknown[]) => captureMessage(...args),
+}))
+
 vi.mock('drizzle-orm', () => ({
   sql: (...args: unknown[]) => args,
   eq: (...args: unknown[]) => ({ type: 'eq', args }),
@@ -187,6 +194,7 @@ describe('POST /api/sales/close-day — clôture bloquante NF525', () => {
     logClosure.mockClear()
     logSystemError.mockClear()
     loggerWarn.mockClear()
+    captureMessage.mockReset()
     currentDb = makeRunner()
   })
 
@@ -270,6 +278,71 @@ describe('POST /api/sales/close-day — clôture bloquante NF525', () => {
 
     expect(insertedByTable.get(tables.closures)).toBeUndefined()
     expect(logClosure).not.toHaveBeenCalled()
+  })
+
+  // ==========================================================================
+  // A5 — alerting sur les refus de clôture (observabilité seule)
+  // ==========================================================================
+
+  it('A5 — TOTALS_MISMATCH remonte un event Sentry de niveau error', async () => {
+    setReads({ sales: [sale({ totalHT: '80.00', totalTVA: '16.00', totalTTC: '100.00' })] })
+    const handler = await importHandler()
+
+    await expect(
+      handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+    ).rejects.toMatchObject({ statusCode: 409 })
+
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    const [message, ctx] = captureMessage.mock.calls[0] as [string, { level: string; tags: Record<string, string>; extra: Record<string, unknown> }]
+    expect(message).toContain('totals_mismatch')
+    expect(ctx.level).toBe('error')
+    expect(ctx.extra.diffCents).toBe(-400)
+  })
+
+  it('A5 — PENDING_SALES remonte un event Sentry de niveau warning', async () => {
+    setReads({
+      pending: [{ id: 7, items: [{}], createdAt: new Date('2026-06-14T09:00:00Z'), createdByEmail: null }],
+    })
+    const handler = await importHandler()
+
+    await expect(
+      handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+    ).rejects.toMatchObject({ statusCode: 409 })
+
+    const [message, ctx] = captureMessage.mock.calls[0] as [string, { level: string }]
+    expect(message).toContain('pending_sales')
+    expect(ctx.level).toBe('warning')
+  })
+
+  it('A5 — force=true : pas de refus, donc pas d’alerte', async () => {
+    setReads({ sales: [sale({ totalHT: '80.00', totalTVA: '16.00', totalTTC: '100.00' })] })
+    const handler = await importHandler()
+
+    await handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1, force: true } }))
+
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('A5 — une panne Sentry ne dégrade PAS le 409 en 500', async () => {
+    // Invariant « l'observabilité ne bloque jamais » : sans la garde de
+    // nf525Alerting, l'exception serait rattrapée par le catch de fin du
+    // handler et renvoyée en 500 INTERNAL — le commerçant perdrait le motif
+    // exploitable du refus.
+    captureMessage.mockImplementation(() => {
+      throw new Error('Sentry transport down')
+    })
+    setReads({ sales: [sale({ totalHT: '80.00', totalTVA: '16.00', totalTTC: '100.00' })] })
+    const handler = await importHandler()
+
+    await expect(
+      handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      data: expect.objectContaining({ code: 'TOTALS_MISMATCH' }),
+    })
+
+    // Et la clôture n'a toujours pas eu lieu.
+    expect(insertedByTable.get(tables.closures)).toBeUndefined()
   })
 
   it('tickets en attente + force=true → clôture + paniers abandonnés audités', async () => {
