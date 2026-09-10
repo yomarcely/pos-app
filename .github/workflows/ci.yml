@@ -119,3 +119,89 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+
+  # Smoke e2e du chemin critique complet (login → vente → clôture → vérification
+  # NF525), contre un build de production réel + une base Postgres jetable migrée
+  # et seedée. Voir e2e/README.md.
+  #
+  # NON-BLOQUANT pour l'instant (continue-on-error) : scénario neuf, on observe sa
+  # stabilité avant de le rendre bloquant.
+  # TODO(suivi) : ouvrir une issue « rendre le job e2e bloquant » et la référencer
+  # ici ; retirer continue-on-error après ~2 semaines sans flakiness constatée.
+  e2e:
+    name: E2E smoke (non-bloquant)
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fympos_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: fympos_e2e
+      DB_SSL: 'false'
+      NODE_ENV: production
+      PORT: 3000
+      BASE_URL: http://localhost:3000
+      E2E_BASE_URL: http://localhost:3000
+      RUN_SEED: '1'
+      # Projet Supabase dédié aux tests (jamais dev/staging/prod) — voir e2e/README.md.
+      SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+      E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Migrations (base vierge → rejouable de zéro, cf. baseline 2026-07-06)
+        run: pnpm db:migrate
+
+      - name: Seed
+        run: pnpm db:seed
+
+      - name: Build (production)
+        run: pnpm build
+
+      - name: Playwright (smoke e2e)
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
