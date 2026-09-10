@@ -87,12 +87,11 @@ pnpm dev
 
 Toute la documentation est dans le dossier [`docs/`](./docs/README.md) :
 
-- **[Architecture backend](./docs/architecture-backend.md)** — Architecture et conformité NF525/RGPD
+- **[Architecture cible & roadmap](./docs/architecture/2026-07-audit-architecture-cible.md)** — état des lieux, cible, décisions actées
 - **[Environnements](./docs/environments.md)** — Configuration dev/staging/prod
-- **[Auth Supabase](./docs/auth-supabase.md)** — Authentification et RLS
 - **[Synchronisation](./docs/synchronisation.md)** — Sync multi-établissements
-- **[NF525](./docs/nf525.md)** — Détails de la conformité
 - **[Checklist pré-déploiement](./docs/pre-deploy-checklist.md)** — Avant mise en production
+- **[Runbooks](./docs/runbooks/)** — Déploiement staging, backup/restore, archives NF525
 - **[Journal](./docs/journal.md)** — Suivi des sessions de développement
 
 ## Points d'attention

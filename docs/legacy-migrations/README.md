@@ -6,7 +6,7 @@ gestionnaire de migrations officiel. Ils sont conservés à titre historique.
 ⚠️ NE PAS EXÉCUTER — leur contenu est couvert par les migrations
 Drizzle dans `server/database/migrations/`.
 
-Contexte : voir docs/audit/05-migrations.md
+Contexte : voir docs/audit/archive/05-migrations.md
 
 ## Migrations SQL orphelines archivées
 

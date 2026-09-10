@@ -14,13 +14,13 @@
 | 2026-03-15 | Architecture Auth | BATCH 3 : frontière Supabase/Drizzle documentée (Auth vs DB) | ✅ |
 | 2026-03-15 | Migrations | BATCH 4+5 : 4 paires doublons + 8 scripts ad-hoc — bug critique 0007 identifié | ✅ |
 | 2026-03-15 | Migrations (fix) | 0007 fusionné, reset-migrations.ts sécurisé, 9 scripts archivés dans docs/legacy-migrations/, doublons renommés | ✅ |
-| 2026-03-15 | Pages monolithiques | 10 composables identifiés, rapport dans docs/audit/06 | ✅ |
+| 2026-03-15 | Pages monolithiques | 10 composables identifiés, rapport dans docs/audit/archive/06-composables-a-extraire.md | ✅ |
 | 2026-03-15 | Extraction composables | 10 composables extraits, 13 commits atomiques, pages 831→484 / 1050→614 / 891→528, 14 tests caractérisation | ✅ |
 | 2026-03-15 | Convention auth serveur | Section "Convention auth serveur" ajoutée à CLAUDE.md | ✅ |
 | 2026-03-15 | Tests getTenantFromUser | 11 tests dans tests/unit/getTenantFromUser.test.ts | ✅ |
 | 2026-03-15 | Sécurité serviceRoleKey | Grep exhaustif — 0 import côté client confirmé | ✅ |
 | 2026-03-15 | Analyse tests failing | 26 tests en échec classifiés (pré-existants au refactor) | ✅ |
-| 2026-03-15 | Audit calculs financiers | `docs/audit/07-calculs-financiers.md` : 4 risques identifiés | ✅ |
+| 2026-03-15 | Audit calculs financiers | `docs/audit/archive/07-calculs-financiers.md` : 4 risques identifiés | ✅ |
 | 2026-03-15 | Audit NF525 couverture | 6 fonctions exportées, 0 test unitaire réel, 38 tests identifiés | ✅ |
 | 2026-03-15 | Corrections P1–P4 | P1 validate totalTTC serveur, P2 centimes close-day, P3 assertion HT+TVA=TTC, P4 hash aligné .toFixed(2) — 16 tests | ✅ |
 | 2026-03-15 | Correction 26 tests failing | 7 batches — résultat : 313 tests / 57 fichiers, 0 échec | ✅ |

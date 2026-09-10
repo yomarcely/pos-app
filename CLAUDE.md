@@ -46,7 +46,7 @@ plugins/02.session-restore.client.ts       # pré-monte session avant render
 - 🟠 **Colonnes stock deprecated non supprimées** (`schema.ts:366`) : `products.stock`/`stockByVariation` sont gelées (`@deprecated`, plus aucune écriture) mais existent encore — migration de suppression à faire dans un 2e temps (P3.5, phase 2)
 - ✅ ~~Chaîne de migrations non rejouable de zéro~~ : baseline squash le 2026-07-06 (validation §10 de [docs/architecture/2026-07-audit-architecture-cible.md](docs/architecture/2026-07-audit-architecture-cible.md)) — `pnpm db:migrate` seul amorce une base vierge ; ancienne chaîne archivée dans `server/database/migrations-archive/` (README) ; bases existantes basculées via `RUN_BASELINE_SWITCH=1 pnpm tsx scripts/mark-migrations-applied.ts` (runbook deploy-staging-vercel, section « Bascule baseline »)
 - ✅ ~~Header `x-tenant-id` non validé~~ : validé contre la liste des tenants autorisés (P1.1)
-- ✅ ~~Hash NF525 invérifiable (double `new Date()`)~~ : une seule `saleDate` hashée et stockée (P1.2) ; les ventes antérieures au fix restent invérifiables en contenu (voir note docs/audit/08)
+- ✅ ~~Hash NF525 invérifiable (double `new Date()`)~~ : une seule `saleDate` hashée et stockée (P1.2) ; les ventes antérieures au fix restent invérifiables en contenu (voir note docs/audit/archive/08-nf525-tests.md)
 - ✅ ~~Stock négatif silencieux~~ : survente explicite via flag `oversell` + warning (P1.3)
 - ✅ ~~Annulations non chaînées~~ : l'annulation crée un avoir `credit_note` chaîné (P3.2)
 - ✅ ~~Panier non persisté~~ : localStorage scopé tenant+caisse via `utils/cartPersistence.ts` (P2.1)
@@ -135,10 +135,10 @@ pnpm env:switch           # bascule d'environnement (dev/staging/prod)
 
 ## 📊 Pointeurs
 
-- Audits : [docs/audit/](docs/audit/)
+- Plan post-audit (terminé) : [docs/audit/11-plan-corrections.md](docs/audit/11-plan-corrections.md)
+- Audits archivés : [docs/audit/archive/](docs/audit/archive/)
 - Architecture Supabase vs Drizzle : [docs/architecture/supabase-vs-drizzle.md](docs/architecture/supabase-vs-drizzle.md)
 - Journal des sessions : [docs/journal.md](docs/journal.md)
 - Checklist pré-déploiement : [docs/pre-deploy-checklist.md](docs/pre-deploy-checklist.md)
-- Index structurel : [codebase_index.md](codebase_index.md)
 
 *Dernière mise à jour : 2026-07-06 — baseline migrations rejouable de zéro (reste : signature INFOCERT, suppression colonnes stock deprecated)*

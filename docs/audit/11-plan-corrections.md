@@ -67,7 +67,7 @@ Corrige ainsi :
    simuler le stockage (decimal → string → Number comme le fait verify-chain), recalculer le
    hash, assert qu'ils sont identiques. Ce test doit échouer avant le fix et passer après.
 4. Les ventes existantes ont des hashes calculés avec une date jamais stockée : elles resteront
-   invérifiables. Ajoute une note datée dans docs/audit/08-nf525-tests.md expliquant que la
+   invérifiables. Ajoute une note datée dans docs/audit/archive/08-nf525-tests.md expliquant que la
    vérification de contenu n'est fiable qu'à partir de ce commit (le chaînage previousHash →
    currentHash, lui, reste vérifiable sur tout l'historique).
 
@@ -464,7 +464,7 @@ Aucun changement de comportement : pnpm ci doit passer à l'identique.
 Supprime après vérification grep des usages (règle CLAUDE.md : pas de suppression sans grep) :
 1. stores/tickets.ts + tests/stores/ticketsStore.test.ts (store orphelin, zéro import).
 2. pages/sentry-example-page.vue et server/api/sentry-example-api.ts.
-3. Les 4 fonctions identifiées mortes dans docs/audit/04-dead-code.md si toujours sans usage.
+3. Les 4 fonctions identifiées mortes dans docs/audit/archive/04-dead-code.md si toujours sans usage.
 Vérifie qu'aucune route/nav ne pointe vers les pages supprimées. pnpm ci vert.
 ```
 
