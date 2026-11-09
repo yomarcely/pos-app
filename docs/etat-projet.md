@@ -16,8 +16,9 @@ Non relancés ce jour : lint, typecheck, e2e. Non vérifiés : état de la CI Gi
 |---|---|---|
 | `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 17 commits de retard sur `developpement` |
 | `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude (phases 1 et 2), mergés et poussés le 2026-11-10 |
-| `feat/a5-alerting-invariants` | Alerting NF525 (A5) | Mergée dans `developpement` — supprimable |
-| `chore/env-claude` | Chantier environnement Claude | Mergée dans `developpement` — supprimable, la phase 3 partira d'une nouvelle branche |
+
+Aucune branche de travail ouverte : `feat/a5-alerting-invariants` et `chore/env-claude` ont été
+supprimées après merge. La phase 3 du chantier partira d'une nouvelle branche.
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
@@ -59,8 +60,10 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
   filtrage applicatif (`getTenantIdFromEvent` + audit statique `pnpm audit:tenant`).
 - B1 → B7 — couche domaine ; B2, B4 et B5 rétrogradés depuis l'abandon de l'offline.
 - Suppression des colonnes `products.stock` / `stockByVariation` (gelées) = B7.
-- Ménage git : 4 branches mortes, un stash sur « initial commit », `package-lock.json` suivi alors
-  que le projet utilise pnpm.
+- Ménage git : fait le 2026-11-10, sauf un point. Il ne reste que `main` et `developpement`, et
+  `package-lock.json` n'est plus suivi (le projet utilise pnpm). Reste un stash du 2025-05-30
+  (22 lignes sur `pages/caisse/index.vue`, posé sur le tout premier commit, sans intérêt) :
+  `git stash drop` à lancer par Yohan, la session Claude n'y est pas autorisée.
 
 ## Chantier en cours — environnement Claude
 
