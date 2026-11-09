@@ -7,17 +7,17 @@
 > checklist du [plan d'exécution](architecture/2026-07-plan-execution-phases-1-2.md).
 > Si cette page contredit le code, le code a raison : corriger la page.
 
-**Dernière vérification : 2026-11-10** — commit `3530308` · 934 tests / 114 fichiers verts (Vitest, mesurés sur `c83bba1` ; seuls des fichiers de doc et de config ont changé depuis).
+**Dernière vérification : 2026-11-10** — 934 tests / 114 fichiers verts (Vitest, mesurés sur `c83bba1` ; seuls des fichiers de doc et de config ont changé depuis).
 Non relancés ce jour : lint, typecheck, e2e. Non vérifiés : état de la CI GitHub, état du staging.
 
 ## Branches
 
 | Branche | Rôle | État |
 |---|---|---|
-| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 13 commits de retard sur `developpement` |
-| `developpement` | Travail quotidien | `338a327`, poussée |
-| `feat/a5-alerting-invariants` | Alerting NF525 (A5) | 1 commit (`c83bba1`), **ni poussée ni mergée** |
-| `chore/env-claude` | Chantier environnement Claude | Part de la branche A5 ; phases 1 et 2 commitées ; **non poussée** |
+| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 17 commits de retard sur `developpement` |
+| `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude (phases 1 et 2), mergés et poussés le 2026-11-10 |
+| `feat/a5-alerting-invariants` | Alerting NF525 (A5) | Mergée dans `developpement` — supprimable |
+| `chore/env-claude` | Chantier environnement Claude | Mergée dans `developpement` — supprimable, la phase 3 partira d'une nouvelle branche |
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
@@ -32,14 +32,14 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 
 ## Prochaines actions, dans l'ordre
 
-1. Pousser `feat/a5-alerting-invariants` puis `chore/env-claude` sur GitHub (à faire depuis le
-   terminal : la session Claude n'a pas accès au trousseau).
+1. `gh auth login` dans le terminal (GitHub CLI installé le 2026-11-10, pas encore connecté), puis
+   lire le résultat de la **première CI sur `developpement`** : `gh run list --branch developpement`.
+   Elle n'a jamais tourné sur cette branche, son résultat est inconnu.
 2. Dérouler la vérification de schéma du bloquant n°1.
-3. Poser `CRON_SECRET` sur Vercel, merger A5 dans `developpement`, puis `developpement` dans `main`.
+3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
    Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
-4. A3 (e2e) : confirmer que les secrets `E2E_*` sont posés sur GitHub, observer le job, puis le
-   rendre bloquant. La CI tournera sur `developpement` dès que `chore/env-claude` y sera mergée ;
-   jusque-là elle ne tourne que sur `main`, et rien ne dit que ce job s'est déjà exécuté sur GitHub.
+4. A3 (e2e) : confirmer que les secrets `E2E_*` sont posés sur GitHub (sans eux le job e2e échoue,
+   sans bloquer la CI), observer le job sur quelques runs, puis le rendre bloquant.
 5. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
 6. Chantier environnement Claude : utiliser `/debut-session` et `/fin-session` pendant deux
    semaines, noter ce qui manque, puis phase 3 (ci-dessous).
@@ -70,5 +70,5 @@ mécaniques plutôt que déclaratives. Plan validé le 2026-11-10.
 | Phase | Contenu | État |
 |---|---|---|
 | 1 — Assainir | `.claude/` versionné, CLAUDE.md resynchronisé, cette page, journal rattrapé, README corrigé, permissions resserrées | Fait le 2026-11-10 |
-| 2 — Rituels | Skills `/debut-session` et `/fin-session`, `.claude/settings.json` partagé (refus, confirmations, résumé de démarrage via `.claude/hooks/etat-session.sh`), CI aussi sur `developpement` | Fait et commité le 2026-11-10. Skills et résumé de démarrage **pas encore éprouvés dans une vraie session** — premier test à la prochaine reprise |
+| 2 — Rituels | Skills `/debut-session` et `/fin-session`, `.claude/settings.json` partagé (refus, confirmations, résumé de démarrage via `.claude/hooks/etat-session.sh`), CI aussi sur `developpement` | Fait le 2026-11-10. `/debut-session` essayé et validé par Yohan le jour même. Restent à éprouver : `/fin-session` et le résumé de démarrage |
 | 3 — Garde-fous | Hooks (migrations intouchables, confirmation sur zones 🔴, commandes de base bloquées hors dev), agents relecteurs `gardien-nf525` et `gardien-tenant-auth` | À faire, après deux semaines d'usage de la phase 2 |

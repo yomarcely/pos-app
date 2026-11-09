@@ -34,7 +34,7 @@ for e in development staging production; do cmp -s .env .env.$e && echo "actif :
 
 Si l'environnement actif n'est pas `development`, c'est la **première ligne du briefing**, et aucune commande touchant la base ne part sans accord explicite.
 
-Ne lance pas `git fetch` ni `git push` : la session n'a pas accès aux identifiants GitHub. L'état des branches distantes se lit d'après les refs locales, et il faut le dire tel quel.
+Pour connaître l'état réel de GitHub, lance `git fetch origin` avant `git branch -vv` : il met à jour la vue locale des branches distantes sans toucher aux fichiers de travail. S'il échoue (identifiants indisponibles), dis-le et précise que l'état des branches distantes est lu d'après des refs locales peut-être périmées. Aucun `git push` à cette étape.
 
 ## 3. Confronter la page au code
 

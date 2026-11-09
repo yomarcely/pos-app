@@ -1,6 +1,6 @@
 ---
 name: fin-session
-description: Clôture de session FymPOS — vérifie le travail (pnpm ci), réécrit docs/etat-projet.md, ajoute la ligne de journal, met à jour la checklist du plan, puis propose le commit. À utiliser quand Yohan dit « fin de session », « on s'arrête là », « on clôture », ou avant de fermer une session où du travail a été fait.
+description: Clôture de session FymPOS — vérifie le travail (pnpm ci), réécrit docs/etat-projet.md, ajoute la ligne de journal, met à jour la checklist du plan, puis propose le commit et le push. À utiliser quand Yohan dit « fin de session », « on s'arrête là », « on clôture », ou avant de fermer une session où du travail a été fait.
 ---
 
 # Fin de session — FymPOS
@@ -54,7 +54,7 @@ Dans `docs/journal.md`, une ligne à la fin du tableau « Sessions », au format
 Présente la liste des fichiers et le message, au format du dépôt (`type(scope): résumé` en français, corps expliquant le pourquoi), puis attends l'accord de Yohan.
 
 - Ajoute les fichiers nommément, jamais `git add -A` : les `.env` et les artefacts ne doivent pas partir par accident.
-- Ne pousse pas. La session n'a pas accès aux identifiants GitHub : donne à Yohan la commande `git push` exacte à lancer dans son terminal.
+- Ne pousse qu'après un accord explicite de Yohan, demandé séparément du commit : un push vers `developpement` lance la CI, un push vers `main` déploie le staging. Si le push échoue faute d'identifiants, donne-lui la commande `git push` exacte à lancer dans son terminal.
 - Rien ne part vers `main` depuis cette étape. Un merge `developpement` → `main` déclenche un déploiement staging et suit le runbook `docs/runbooks/deploy-staging-vercel.md`.
 
 ## 7. Rendre le compte rendu

@@ -470,7 +470,7 @@ Termine par pnpm ci + e2e vert (le flux de vente déstocke).
 - [x] A3 — e2e Playwright smoke en CI — implémenté le 2026-09-10 (`f8c618f`, sur `developpement`). Reste : job CI encore **non-bloquant** (`continue-on-error`), à rendre bloquant après une période sans flakiness ; exécution réelle sur GitHub à confirmer (la CI ne tourne que sur `main`, secrets `E2E_*` requis)
 - [ ] A4a — RLS socle + pilote suppliers/brands
 - [ ] A4b — RLS généralisé (5 vagues)
-- [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10, non mergée : merge suspendu par la vérif de schéma staging ; reste à poser `CRON_SECRET` sur Vercel)
+- [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10), mergée dans `developpement` le 2026-11-10. Pas encore sur `main` : merge `developpement` → `main` suspendu par la vérif de schéma staging ; reste à poser `CRON_SECRET` sur Vercel
 
 ### Phase B — couche domaine
 - [ ] B1 — Caractérisation création de vente
