@@ -59,4 +59,7 @@ docs/caisse.har
 
 
 .vscode
-.claude
+
+# Claude Code : skills, agents, hooks et settings.json partagés sont versionnés.
+# Seuls les réglages propres à la machine restent ignorés.
+.claude/settings.local.json

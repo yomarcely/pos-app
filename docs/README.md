@@ -7,6 +7,7 @@
 
 | Document | À lire quand |
 |---|---|
+| [etat-projet.md](etat-projet.md) | **En début de session.** Où en est le projet maintenant : branches, bloquants, prochaines actions. Une page, réécrite à chaque fin de session |
 | [architecture/2026-07-audit-architecture-cible.md](architecture/2026-07-audit-architecture-cible.md) | Document de référence : état des lieux, architecture cible, roadmap. **Le tableau « Décisions actées » (§10) est la mémoire longue du projet** — toute décision structurante s'y ajoute |
 | [architecture/2026-07-plan-execution-phases-1-2.md](architecture/2026-07-plan-execution-phases-1-2.md) | Les prompts prêts à jouer, un par session, avec la checklist d'avancement |
 | [architecture/supabase-vs-drizzle.md](architecture/supabase-vs-drizzle.md) | Comprendre la frontière Auth (Supabase) / DB (Drizzle) |

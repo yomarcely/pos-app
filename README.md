@@ -12,10 +12,10 @@ FymPOS est une solution POS (Point of Sale) complète construite avec **Nuxt 4**
 | État | **Pinia** (panier, produits, vendeurs, tickets, variations) |
 | UI | **Tailwind 4** + **shadcn-nuxt** + **Reka UI** |
 | Base de données | **Drizzle ORM** + **PostgreSQL** (Supabase) |
-| Authentification | **Supabase Auth** (multi-tenant, RLS) |
+| Authentification | **Supabase Auth** (multi-tenant) |
 | Validation | **Zod** (schémas de validation) |
 | Logger | **Pino** (côté serveur) |
-| Tests | **Vitest** (37+ fichiers) |
+| Tests | **Vitest** (unitaires et intégration) + **Playwright** (smoke e2e du chemin critique) |
 
 ## Structure du projet
 
@@ -24,19 +24,20 @@ pages/           Vues métier (caisse, produits, stocks, clients, etc.)
 components/      Composants Vue (métier + shadcn-ui)
 stores/          Stores Pinia (cart, products, sellers, tickets, etc.)
 composables/     Composables Vue (supabase, establishment, toast)
-server/api/      73+ endpoints API REST
+server/api/      Endpoints API REST
 server/database/ Schema Drizzle, migrations, seed
 server/utils/    Utilitaires (auth, audit, nf525, sync, logger)
 server/validators/ Schemas Zod pour validation
-tests/           37+ fichiers de tests Vitest
+tests/           Tests Vitest
+e2e/             Smoke Playwright (login → vente → clôture → vérification NF525)
 docs/            Documentation complète du projet
 ```
 
 ## Multi-tenant & Conformité NF525
 
 - **Multi-tenant** : toutes les tables utilisent `tenantId` pour l'isolation des données
-- **NF525** : générateur de hash SHA-256, chaînage des tickets, numérotation conforme
-- **RLS** : Row Level Security via Supabase pour l'accès aux données
+- **Isolation** : filtrage applicatif dans chaque endpoint (`getTenantIdFromEvent`), contrôlé par l'audit statique `pnpm audit:tenant`. Le RLS PostgreSQL n'est pas encore en place (prévu : A4 du plan d'exécution)
+- **NF525** : générateur de hash SHA-256, chaînage des tickets, numérotation conforme. La signature reste temporaire tant que la certification n'est pas obtenue
 
 ---
 
@@ -58,8 +59,7 @@ cp .env.example .env
 ### 3. Initialiser la base (PostgreSQL doit être démarré)
 
 ```bash
-pnpm db:generate   # génère les migrations Drizzle
-pnpm db:migrate    # applique les migrations
+pnpm db:migrate    # applique les migrations (suffit pour amorcer une base vierge)
 pnpm db:seed       # optionnel : données de test (RUN_SEED=1)
 ```
 
@@ -87,6 +87,7 @@ pnpm dev
 
 Toute la documentation est dans le dossier [`docs/`](./docs/README.md) :
 
+- **[État du projet](./docs/etat-projet.md)** — où en est le projet maintenant : branches, bloquants, prochaines actions
 - **[Architecture cible & roadmap](./docs/architecture/2026-07-audit-architecture-cible.md)** — état des lieux, cible, décisions actées
 - **[Environnements](./docs/environments.md)** — Configuration dev/staging/prod
 - **[Synchronisation](./docs/synchronisation.md)** — Sync multi-établissements
@@ -103,6 +104,6 @@ Toute la documentation est dans le dossier [`docs/`](./docs/README.md) :
 - `server/utils/nf525.ts` — Hash SHA-256, chaînage, numérotation
 - `server/database/schema.ts` — Impact sur N endpoints
 - `stores/cart.ts` + `utils/cartUtils.ts` — Logique caisse, calculs en centimes
-- `composables/useEstablishmentRegister.ts` — Singleton sélection établ./caisse
+- `stores/establishmentRegister.ts` — Store Pinia sélection établ./caisse
 
 Voir [CLAUDE.md](./CLAUDE.md) pour les règles absolues et invariants architecturaux.
