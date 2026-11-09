@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(pnpm db:drop*)",
+      "Bash(pnpm drizzle-kit drop*)",
+      "Bash(pnpm exec drizzle-kit drop*)",
+      "Bash(npx drizzle-kit drop*)",
+      "Read(./.env)",
+      "Read(./.env.development)",
+      "Read(./.env.staging)",
+      "Read(./.env.production)",
+      "Read(./.env.backup)",
+      "Read(./.env.sentry-build-plugin)",
+      "Read(./.envrc)"
+    ],
+    "ask": [
+      "Bash(pnpm db:migrate*)",
+      "Bash(pnpm db:push*)",
+      "Bash(pnpm db:seed*)",
+      "Bash(pnpm drizzle-kit migrate*)",
+      "Bash(pnpm drizzle-kit push*)",
+      "Bash(pnpm env:switch*)",
+      "Bash(pnpm env:staging*)",
+      "Bash(pnpm env:prod*)",
+      "Bash(git push*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/etat-session.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
