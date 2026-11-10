@@ -8,18 +8,20 @@
 > Si cette page contredit le code, le code a raison : corriger la page.
 
 **Dernière vérification : 2026-11-10**
-- En local, sur la branche `fix/ci-typecheck` : `pnpm run ci` vert — lint 0 erreur (174 avertissements), typecheck, audits tenant (110 endpoints) et migrations, 934 tests / 114 fichiers. E2e non relancé.
-- **CI GitHub sur `developpement` : rouge** (runs sur `d7df920` et `59b21ed`). Lint, audits et tests verts ; **typecheck en échec** sur `components/ui/drawer/Drawer.vue` (TS2698) ; e2e sauté en conséquence. Correctif prêt sur `fix/ci-typecheck`, pas encore vérifié sur GitHub.
+- **CI GitHub : verte** sur la PR #4 (commit `db933a4`) — audits, lint, typecheck et tests passent ; le job e2e est sauté volontairement (voir action n°4).
+- Dans une copie propre du dépôt, installée comme en CI (`pnpm install --frozen-lockfile`) : `pnpm run ci` vert — lint 0 erreur (174 avertissements), typecheck, audits tenant (110 endpoints) et migrations, 934 tests / 114 fichiers.
+- **Le `node_modules` du poste de Yohan n'est pas fiable** (voir action n°1) : tant qu'il n'est pas refait, un résultat « vert en local » ne prouve rien, seule la CI fait foi.
 - **Sauvegardes automatiques : aucune ne fonctionne** (voir bloquant n°3).
-- Non vérifié : état du staging.
+- Non vérifié : état du staging. E2e non relancé.
 
 ## Branches
 
 | Branche | Rôle | État |
 |---|---|---|
-| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 17 commits de retard sur `developpement` |
-| `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude complet (phases 1 à 3), poussés le 2026-11-10 |
-| `fix/ci-typecheck` | Remettre la CI au vert | Part de `developpement` ; correctif commité, **à pousser et à vérifier sur GitHub** |
+| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`). En retard de tout le travail fait depuis sur `developpement` (le nombre exact de commits est donné au démarrage de session) |
+| `developpement` | Travail quotidien | Contient A5, le chantier environnement Claude complet (phases 1 à 3) et la remise au vert de la CI (PR #4), le tout poussé le 2026-11-10 |
+
+Aucune branche de travail ouverte.
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
@@ -53,13 +55,11 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 
 ## Prochaines actions, dans l'ordre
 
-1. **Remettre la CI au vert sur `developpement`** : pousser `fix/ci-typecheck`, vérifier que la CI
-   passe sur GitHub, puis merger. Mécanisme établi : `vue-tsc` n'était pas une dépendance du projet,
-   donc `nuxt typecheck` téléchargeait à chaque fois la dernière version de `vue-tsc` **et de
-   TypeScript** au lieu d'utiliser le TypeScript 5.8.3 du projet. Le correctif ajoute `vue-tsc`
-   3.3.14 aux dépendances de développement. L'échec vu sur GitHub n'a pas pu être reproduit sur le
-   poste : si la CI reste rouge après le correctif, la piste suivante est la version de Node
-   (20 sur GitHub, 22 en local).
+1. **Refaire le `node_modules` du poste** (à lancer par Yohan, à la racine du projet) :
+   `rm -rf node_modules && pnpm install`. Il mélange une ancienne installation npm de janvier 2026
+   et l'installation pnpm : sur 685 dossiers à sa racine, 30 seulement viennent de pnpm. Le poste
+   exécute donc d'autres versions de bibliothèques que celles du fichier de verrouillage, celles que
+   la CI et Vercel utilisent. C'est ce qui a masqué en local l'erreur de typage du Drawer.
 2. Dérouler la vérification de schéma du bloquant n°1.
 3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
    Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
@@ -81,8 +81,13 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
 - Reportés avec la sauvegarde (bloquant n°3) : les secrets GitHub du backup et l'exercice de
   restauration.
-- À confirmer : Preview Deployments Vercel désactivés et protection de branche sur `main`
-  (réglages manuels décrits dans le runbook staging).
+- **Preview Deployments Vercel : actifs** (constaté sur la PR #4, projet `fym-pos-staging`) : chaque
+  branche poussée est déployée en aperçu. Le runbook staging avertit qu'un aperçu peut écrire dans
+  la base staging si ses variables d'environnement « Preview » pointent dessus : à vérifier dans
+  Vercel, ou désactiver les aperçus.
+- À confirmer : protection de branche sur `main` (réglage manuel décrit dans le runbook staging).
+- Le dépôt GitHub est **public** : le code et la documentation sont lisibles par tous. À confirmer
+  que c'est voulu.
 
 ## Reste à faire côté code, sans urgence
 
