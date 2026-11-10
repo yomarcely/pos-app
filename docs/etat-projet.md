@@ -23,20 +23,33 @@
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
+## Contraintes du moment
+
+- **Aucune dépense tant que l'application n'est ni vendue ni utilisée** (décision de Yohan,
+  2026-11-10). Tout ce qui demande une carte bancaire ou un abonnement attend.
+- **Deux bases Supabase seulement** (limite du plan gratuit) : la base **dev**, et la base
+  **staging**, qui sert de « prod » pour le déploiement Vercel. Il n'y a pas de troisième projet,
+  donc ni base de production séparée ni projet dédié aux tests. Le fichier `.env.production`
+  présent sur le poste ne correspond à aucun environnement réel pour l'instant.
+
 ## Bloquants
 
-1. **Dérive de schéma à vérifier sur staging, puis sur prod**, avant tout merge `developpement` → `main`.
+1. **Dérive de schéma à vérifier sur staging**, avant tout merge `developpement` → `main`.
    Trois colonnes peut-être absentes (`sale_items.variation_id`, `customers.is_archived`,
    `customers.archived_at`) ; `db:migrate` ne les rattrapera pas. Procédure de vérification et de
    rattrapage en tête du [runbook staging](runbooks/deploy-staging-vercel.md). Constaté le 2026-09-10, pas encore fait.
 2. **Certification NF525** : signature factice (`TEMP_SIGNATURE_`) tant que le dossier INFOCERT/LNE
    n'a pas abouti. Bloquant légal pour la mise en production réelle.
-3. **Aucune sauvegarde automatique de la base ne fonctionne.** Le workflow `backup.yml` a échoué
-   102 fois sur 102 entre le 2026-05-27 et le 2026-09-05 (`BACKUP_DATABASE_URL manquant`) : aucun
-   secret n'est configuré sur le dépôt GitHub. GitHub l'a ensuite désactivé pour inactivité. Les
-   seules sauvegardes existantes sont celles gérées par Supabase. À régler avant tout commerce
-   pilote : poser les 6 secrets ([runbook](runbooks/backup-restore.md), §1.4), réactiver le
-   workflow (`gh workflow enable backup.yml`), puis faire l'exercice de restauration.
+
+**Reporté par décision, bloquant avant le premier commerce pilote :**
+
+3. **Sauvegarde automatique de la base.** Le workflow `backup.yml` n'a jamais fonctionné (102 échecs
+   sur 102 entre le 2026-05-27 et le 2026-09-05, aucun secret configuré sur le dépôt) et GitHub l'a
+   désactivé pour inactivité. Cloudflare R2 exige une carte bancaire : reporté le 2026-11-10 (voir
+   Contraintes). Sans conséquence aujourd'hui, il n'y a aucune donnée de commerçant à perdre. Le
+   jour venu : 6 secrets à poser ([runbook](runbooks/backup-restore.md), §1.4), `gh workflow enable
+   backup.yml`, puis l'exercice de restauration. Le script parle le protocole S3 : n'importe quel
+   stockage compatible convient, pas seulement R2. Laisser le workflow désactivé d'ici là.
 
 ## Prochaines actions, dans l'ordre
 
@@ -50,9 +63,12 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 2. Dérouler la vérification de schéma du bloquant n°1.
 3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
    Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
-4. A3 (e2e) : les secrets `E2E_*` ne sont **pas** posés sur GitHub (aucun secret sur le dépôt) : le
-   job e2e ne peut pas passer en l'état. Les poser ([e2e/README.md](../e2e/README.md)), observer le
-   job sur quelques runs, puis le rendre bloquant.
+4. A3 (e2e) : le test de bout en bout **ne tourne pas sur GitHub**. Il lui faut un projet Supabase
+   dédié aux tests, impossible avec deux bases gratuites déjà prises (voir Contraintes). Le job est
+   donc sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true` ; il reste lançable en
+   local. Sans urgence : choisir une voie sans coût pour le rebrancher (connexion via la base dev
+   avec un utilisateur dédié, ou Supabase lancé en local dans Docker pendant la CI). Détail dans
+   [e2e/README.md](../e2e/README.md).
 5. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
 6. Chantier environnement Claude : l'éprouver à l'usage — `/fin-session`, le résumé de démarrage et
    les deux agents relecteurs n'ont pas encore servi. Noter ce qui gêne (confirmations trop
@@ -61,10 +77,10 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 ## Côté fondateur (hors code)
 
 - Dossier de certification INFOCERT/AFNOR ou LNE.
-- `CRON_SECRET` sur Vercel.
-- Secrets GitHub : les 6 du backup (bloquant n°3) et les 5 `E2E_*`. Aucun n'est posé aujourd'hui.
+- `CRON_SECRET` sur Vercel : gratuit, une valeur aléatoire à poser (`openssl rand -hex 32`).
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
-- Exercice de restauration d'un backup R2 : la procédure n'a jamais été testée en réel.
+- Reportés avec la sauvegarde (bloquant n°3) : les secrets GitHub du backup et l'exercice de
+  restauration.
 - À confirmer : Preview Deployments Vercel désactivés et protection de branche sur `main`
   (réglages manuels décrits dans le runbook staging).
 

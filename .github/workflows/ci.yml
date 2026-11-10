@@ -130,10 +130,18 @@ jobs:
   # stabilité avant de le rendre bloquant.
   # TODO(suivi) : ouvrir une issue « rendre le job e2e bloquant » et la référencer
   # ici ; retirer continue-on-error après ~2 semaines sans flakiness constatée.
+  #
+  # DÉSACTIVÉ PAR DÉFAUT (2026-11-10) : ce job a besoin d'un projet Supabase dédié aux
+  # tests et de 5 secrets E2E_*, qui n'existent pas encore (plan gratuit limité à deux
+  # projets : dev et staging). Sans eux il échouerait à chaque push pour rien. Il est donc
+  # sauté tant que la variable de dépôt E2E_ENABLED ne vaut pas 'true'.
+  # Pour l'activer, une fois les secrets posés :  gh variable set E2E_ENABLED --body true
+  # (Le contexte `secrets` n'est pas lisible dans un `if` de job, d'où la variable.)
   e2e:
     name: E2E smoke (non-bloquant)
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test]
+    if: ${{ vars.E2E_ENABLED == 'true' }}
     continue-on-error: true
     services:
       postgres:
