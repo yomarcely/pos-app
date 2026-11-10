@@ -136,7 +136,8 @@ pnpm db:generate          # créer une migration (jamais à la main)
 pnpm db:migrate           # appliquer les migrations
 pnpm db:seed              # seed — RUN_SEED=1 requis
 pnpm env:switch           # bascule d'environnement (dev/staging/prod)
-pnpm ci                   # lint + typecheck + audits tenant/migrations + tests — vert avant tout commit
+pnpm run ci               # lint + typecheck + audits tenant/migrations + tests — vert avant tout commit
+                          # (« pnpm ci » sans « run » est une commande interne de pnpm, non implémentée : elle échoue)
 pnpm e2e:local            # smoke Playwright du chemin critique (voir e2e/README.md)
 ```
 

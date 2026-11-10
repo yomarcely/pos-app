@@ -1,6 +1,6 @@
 ---
 name: fin-session
-description: Clôture de session FymPOS — vérifie le travail (pnpm ci), réécrit docs/etat-projet.md, ajoute la ligne de journal, met à jour la checklist du plan, puis propose le commit et le push. À utiliser quand Yohan dit « fin de session », « on s'arrête là », « on clôture », ou avant de fermer une session où du travail a été fait.
+description: Clôture de session FymPOS — vérifie le travail (pnpm run ci), réécrit docs/etat-projet.md, ajoute la ligne de journal, met à jour la checklist du plan, puis propose le commit et le push. À utiliser quand Yohan dit « fin de session », « on s'arrête là », « on clôture », ou avant de fermer une session où du travail a été fait.
 ---
 
 # Fin de session — FymPOS
@@ -21,8 +21,8 @@ Sépare ce qui est commité, ce qui est modifié sans être commité, et ce qui 
 
 ## 2. Vérifier
 
-- Du code a changé (autre chose que `docs/`, `.claude/` ou des fichiers `.md`) : lance `pnpm ci` (lint, typecheck, audits tenant et migrations, tests).
-- Seulement de la documentation ou de la configuration Claude : `pnpm ci` n'apporte rien, dis-le plutôt que de le lancer.
+- Du code a changé (autre chose que `docs/`, `.claude/` ou des fichiers `.md`) : lance `pnpm run ci` (lint, typecheck, audits tenant et migrations, tests). Le mot `run` est obligatoire : `pnpm ci` tout court est une commande interne de pnpm qui échoue sans rien vérifier.
+- Seulement de la documentation ou de la configuration Claude : `pnpm run ci` n'apporte rien, dis-le plutôt que de le lancer.
 
 Rapporte le résultat tel qu'il est. Si c'est rouge, la page d'état dit rouge, avec le nom de ce qui échoue : une page qui annonce du vert alors que la CI est rouge est pire que pas de page.
 

@@ -79,6 +79,20 @@ secrets du repo :
 
 `E2E_SUPABASE_URL`, `E2E_SUPABASE_ANON_KEY`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `E2E_USER_EMAIL`, `E2E_USER_PASSWORD`.
 
+**Désactivé par défaut depuis le 2026-11-10.** Ces secrets n'existent pas : le plan gratuit Supabase est limité à
+deux projets, déjà pris par dev et staging, donc il n'y a pas de projet dédié aux tests. Plutôt que d'échouer à
+chaque push, le job est sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true`. Pour l'activer une
+fois les 5 secrets posés :
+
+```bash
+gh variable set E2E_ENABLED --body true
+```
+
+D'ici là, le scénario reste lançable en local avec `pnpm e2e:local`, à condition de fournir les variables
+ci-dessus. Deux voies sans coût pour le faire tourner en CI plus tard : n'utiliser la base dev que pour la connexion
+d'un utilisateur de test dédié (la base de données du test reste un Postgres jetable), ou lancer Supabase en local
+dans Docker pendant le job.
+
 **Non-bloquant pour l'instant** (`continue-on-error: true`) : ce premier smoke e2e est neuf, on observe sa stabilité
 avant de le rendre bloquant. Voir l'issue de suivi référencée dans le job (à créer — le rendre bloquant après
 ~2 semaines sans flakiness).

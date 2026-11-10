@@ -9,7 +9,11 @@ const props = withDefaults(defineProps<DrawerRootProps>(), {
 
 const emits = defineEmits<DrawerRootEmits>()
 
-const forwarded = useForwardPropsEmits(props, emits)
+// `as DrawerRootProps` : annotation de type uniquement, sans effet à l'exécution.
+// DrawerRootProps (vaul-vue) contient `fadeFromIndex?: never` ; combiné à withDefaults,
+// vue-tsc infère `never` pour `props`, donc `forwarded` n'est plus un objet et le
+// `v-bind="forwarded"` du template échoue en TS2698.
+const forwarded = useForwardPropsEmits(props as DrawerRootProps, emits)
 </script>
 
 <template>

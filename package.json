@@ -88,7 +88,8 @@
     "tsx": "^4.20.6",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4",
-    "vue-eslint-parser": "^9.4.3"
+    "vue-eslint-parser": "^9.4.3",
+    "vue-tsc": "3.3.14"
   },
   "pnpm": {
     "overrides": {
