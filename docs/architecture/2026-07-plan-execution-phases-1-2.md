@@ -467,7 +467,7 @@ Termine par pnpm ci + e2e vert (le flux de vente déstocke).
 ### Phase A — filet de sécurité & infra
 - [x] A1 — Erreurs API normalisées (code + retryable)
 - [x] A2 — Baseline squash migrations ✅ règle n°1 levée le 2026-07-06
-- [x] A3 — e2e Playwright smoke en CI — implémenté le 2026-09-10 (`f8c618f`, sur `developpement`). Reste : job CI encore **non-bloquant** (`continue-on-error`), à rendre bloquant après une période sans flakiness ; exécution réelle sur GitHub à confirmer (la CI ne tourne que sur `main`, secrets `E2E_*` requis)
+- [x] A3 — e2e Playwright smoke en CI — implémenté le 2026-09-10 (`f8c618f`, sur `developpement`). **Ne tourne pas sur GitHub** : depuis le 2026-11-10 le job est sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true`, faute de projet Supabase dédié aux tests (plan gratuit limité à deux projets) et donc de secrets `E2E_*`. Reste : le rebrancher sans coût (voir `e2e/README.md`), puis le rendre bloquant après une période sans flakiness
 - [ ] A4a — RLS socle + pilote suppliers/brands
 - [ ] A4b — RLS généralisé (5 vagues)
 - [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10), mergée dans `developpement` le 2026-11-10. Pas encore sur `main` : merge `developpement` → `main` suspendu par la vérif de schéma staging ; reste à poser `CRON_SECRET` sur Vercel

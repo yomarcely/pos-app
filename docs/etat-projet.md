@@ -7,110 +7,90 @@
 > checklist du [plan d'exécution](architecture/2026-07-plan-execution-phases-1-2.md).
 > Si cette page contredit le code, le code a raison : corriger la page.
 
-**Dernière vérification : 2026-11-10**
-- **CI GitHub : verte** sur la PR #4 (commit `db933a4`) — audits, lint, typecheck et tests passent ; le job e2e est sauté volontairement (voir action n°4).
-- Dans une copie propre du dépôt, installée comme en CI (`pnpm install --frozen-lockfile`) : `pnpm run ci` vert — lint 0 erreur (174 avertissements), typecheck, audits tenant (110 endpoints) et migrations, 934 tests / 114 fichiers.
-- **Le `node_modules` du poste de Yohan n'est pas fiable** (voir action n°1) : tant qu'il n'est pas refait, un résultat « vert en local » ne prouve rien, seule la CI fait foi.
-- **Sauvegardes automatiques : aucune ne fonctionne** (voir bloquant n°3).
-- Non vérifié : état du staging. E2e non relancé.
+**Dernière vérification : 2026-11-10** — commit `38443e0` sur `developpement`
+- **CI GitHub : verte** sur `developpement` (`38443e0`) — audits, lint, typecheck, tests. Job e2e sauté volontairement.
+- **En local : `pnpm run ci` vert**, après réinstallation propre des dépendances — lint 0 erreur (174 avertissements), typecheck, audit tenant (110 endpoints, aucune violation), audit migrations, 934 tests / 114 fichiers.
+- Non vérifié : l'état du staging (code et base). E2e non lancé.
 
 ## Branches
 
 | Branche | Rôle | État |
 |---|---|---|
-| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`). En retard de tout le travail fait depuis sur `developpement` (le nombre exact de commits est donné au démarrage de session) |
-| `developpement` | Travail quotidien | Contient A5, le chantier environnement Claude complet (phases 1 à 3) et la remise au vert de la CI (PR #4), le tout poussé le 2026-11-10 |
+| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`). En retard de tout le travail fait depuis (le nombre de commits est donné au démarrage de session) |
+| `developpement` | Travail quotidien | À jour avec GitHub. Contient A5 (alerting NF525), l'environnement Claude et la remise au vert de la CI |
 
-Aucune branche de travail ouverte.
-
-Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
+Aucune branche de travail ouverte, aucune modification en attente.
 
 ## Contraintes du moment
 
 - **Aucune dépense tant que l'application n'est ni vendue ni utilisée** (décision de Yohan,
   2026-11-10). Tout ce qui demande une carte bancaire ou un abonnement attend.
-- **Deux bases Supabase seulement** (limite du plan gratuit) : la base **dev**, et la base
-  **staging**, qui sert de « prod » pour le déploiement Vercel. Il n'y a pas de troisième projet,
-  donc ni base de production séparée ni projet dédié aux tests. Le fichier `.env.production`
-  présent sur le poste ne correspond à aucun environnement réel pour l'instant.
+- **Deux bases Supabase seulement** (plan gratuit) : **dev**, et **staging** qui sert de « prod »
+  pour le déploiement Vercel. Ni base de production séparée, ni projet dédié aux tests. Le fichier
+  `.env.production` du poste ne correspond à aucun environnement réel.
 
 ## Bloquants
 
 1. **Dérive de schéma à vérifier sur staging**, avant tout merge `developpement` → `main`.
    Trois colonnes peut-être absentes (`sale_items.variation_id`, `customers.is_archived`,
-   `customers.archived_at`) ; `db:migrate` ne les rattrapera pas. Procédure de vérification et de
-   rattrapage en tête du [runbook staging](runbooks/deploy-staging-vercel.md). Constaté le 2026-09-10, pas encore fait.
+   `customers.archived_at`) ; `db:migrate` ne les rattrapera pas. Procédure en tête du
+   [runbook staging](runbooks/deploy-staging-vercel.md). Constaté le 2026-09-10, pas encore fait.
 2. **Certification NF525** : signature factice (`TEMP_SIGNATURE_`) tant que le dossier INFOCERT/LNE
    n'a pas abouti. Bloquant légal pour la mise en production réelle.
 
 **Reporté par décision, bloquant avant le premier commerce pilote :**
 
 3. **Sauvegarde automatique de la base.** Le workflow `backup.yml` n'a jamais fonctionné (102 échecs
-   sur 102 entre le 2026-05-27 et le 2026-09-05, aucun secret configuré sur le dépôt) et GitHub l'a
-   désactivé pour inactivité. Cloudflare R2 exige une carte bancaire : reporté le 2026-11-10 (voir
-   Contraintes). Sans conséquence aujourd'hui, il n'y a aucune donnée de commerçant à perdre. Le
-   jour venu : 6 secrets à poser ([runbook](runbooks/backup-restore.md), §1.4), `gh workflow enable
-   backup.yml`, puis l'exercice de restauration. Le script parle le protocole S3 : n'importe quel
-   stockage compatible convient, pas seulement R2. Laisser le workflow désactivé d'ici là.
+   sur 102, aucun secret configuré) et GitHub l'a désactivé. Cloudflare R2 exige une carte
+   bancaire. Sans conséquence tant qu'il n'y a aucune donnée de commerçant. Le jour venu : 6 secrets
+   ([runbook](runbooks/backup-restore.md), §1.4), `gh workflow enable backup.yml`, exercice de
+   restauration. Le script parle S3 : tout stockage compatible convient. Laisser désactivé d'ici là.
 
 ## Prochaines actions, dans l'ordre
 
-1. **Refaire le `node_modules` du poste** (à lancer par Yohan, à la racine du projet) :
-   `rm -rf node_modules && pnpm install`. Il mélange une ancienne installation npm de janvier 2026
-   et l'installation pnpm : sur 685 dossiers à sa racine, 30 seulement viennent de pnpm. Le poste
-   exécute donc d'autres versions de bibliothèques que celles du fichier de verrouillage, celles que
-   la CI et Vercel utilisent. C'est ce qui a masqué en local l'erreur de typage du Drawer.
+1. **Faire relire A5 par les deux agents relecteurs** avant qu'il parte sur le staging. Le commit
+   `c83bba1` modifie trois zones critiques (`sales/create.post.ts`, `sales/close-day.post.ts`,
+   `middleware/auth.global.ts`) et n'a jamais été relu par `gardien-nf525` ni `gardien-tenant-auth`,
+   créés après lui. Ce sera aussi leur premier essai.
 2. Dérouler la vérification de schéma du bloquant n°1.
-3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
-   Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
-4. A3 (e2e) : le test de bout en bout **ne tourne pas sur GitHub**. Il lui faut un projet Supabase
-   dédié aux tests, impossible avec deux bases gratuites déjà prises (voir Contraintes). Le job est
-   donc sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true` ; il reste lançable en
-   local. Sans urgence : choisir une voie sans coût pour le rebrancher (connexion via la base dev
-   avec un utilisateur dédié, ou Supabase lancé en local dans Docker pendant la CI). Détail dans
-   [e2e/README.md](../e2e/README.md).
-5. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
-6. Chantier environnement Claude : l'éprouver à l'usage — `/fin-session`, le résumé de démarrage et
-   les deux agents relecteurs n'ont pas encore servi. Noter ce qui gêne (confirmations trop
-   fréquentes, refus à tort) pour l'ajuster.
+3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main` (déploie le staging).
+   Sans le secret, la vérification quotidienne des chaînes NF525 reste muette.
+4. Vérifier les aperçus Vercel (voir « Côté fondateur »).
+5. A3 (e2e) : le job est sauté sur GitHub tant que la variable de dépôt `E2E_ENABLED` ne vaut pas
+   `true`, faute de projet Supabase de test. Sans urgence : le rebrancher sans coût (connexion via
+   la base dev avec un utilisateur dédié, ou Supabase en local dans Docker pendant la CI). Détail
+   dans [e2e/README.md](../e2e/README.md).
+6. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
 
 ## Côté fondateur (hors code)
 
 - Dossier de certification INFOCERT/AFNOR ou LNE.
-- `CRON_SECRET` sur Vercel : gratuit, une valeur aléatoire à poser (`openssl rand -hex 32`).
+- `CRON_SECRET` sur Vercel : gratuit, une valeur aléatoire (`openssl rand -hex 32`).
+- **Aperçus Vercel actifs** (constaté sur la PR #4, projet `fym-pos-staging`) : chaque branche
+  poussée est déployée. Vérifier dans Vercel que les variables « Preview » ne pointent pas sur la
+  base staging, ou désactiver les aperçus.
+- **Le dépôt GitHub est public** : code et documentation lisibles par tous. À confirmer que c'est voulu.
+- Protection de branche sur `main` : à confirmer (réglage décrit dans le runbook staging).
+- `git stash drop` : un stash du 2025-05-30 sans intérêt, que la session Claude ne peut pas supprimer.
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
-- Reportés avec la sauvegarde (bloquant n°3) : les secrets GitHub du backup et l'exercice de
-  restauration.
-- **Preview Deployments Vercel : actifs** (constaté sur la PR #4, projet `fym-pos-staging`) : chaque
-  branche poussée est déployée en aperçu. Le runbook staging avertit qu'un aperçu peut écrire dans
-  la base staging si ses variables d'environnement « Preview » pointent dessus : à vérifier dans
-  Vercel, ou désactiver les aperçus.
-- À confirmer : protection de branche sur `main` (réglage manuel décrit dans le runbook staging).
-- Le dépôt GitHub est **public** : le code et la documentation sont lisibles par tous. À confirmer
-  que c'est voulu.
 
 ## Reste à faire côté code, sans urgence
 
-- A4a / A4b — RLS PostgreSQL : pas commencé. L'isolation des tenants repose aujourd'hui sur le
-  filtrage applicatif (`getTenantIdFromEvent` + audit statique `pnpm audit:tenant`).
+- A4a / A4b — RLS PostgreSQL : pas commencé. L'isolation des tenants repose sur le filtrage
+  applicatif (`getTenantIdFromEvent` + audit statique `pnpm audit:tenant`).
 - B1 → B7 — couche domaine ; B2, B4 et B5 rétrogradés depuis l'abandon de l'offline.
 - Suppression des colonnes `products.stock` / `stockByVariation` (gelées) = B7.
-- Ménage git : fait le 2026-11-10, sauf un point. Il ne reste que `main` et `developpement`, et
-  `package-lock.json` n'est plus suivi (le projet utilise pnpm). Reste un stash du 2025-05-30
-  (22 lignes sur `pages/caisse/index.vue`, posé sur le tout premier commit, sans intérêt) :
-  `git stash drop` à lancer par Yohan, la session Claude n'y est pas autorisée.
 
-## Chantier en cours — environnement Claude
+## Outillage Claude — en place, en partie éprouvé
 
-Objectif : reprendre le projet sans relire six documents, et rendre les règles de CLAUDE.md
-mécaniques plutôt que déclaratives. Plan validé le 2026-11-10.
+Skills `/debut-session` et `/fin-session`, réglages partagés et trois hooks dans `.claude/`, deux
+agents relecteurs. Détail de la mise en place : journal du 2026-11-10.
 
-| Phase | Contenu | État |
-|---|---|---|
-| 1 — Assainir | `.claude/` versionné, CLAUDE.md resynchronisé, cette page, journal rattrapé, README corrigé, permissions resserrées | Fait le 2026-11-10 |
-| 2 — Rituels | Skills `/debut-session` et `/fin-session`, `.claude/settings.json` partagé (refus, confirmations, résumé de démarrage via `.claude/hooks/etat-session.sh`), CI aussi sur `developpement` | Fait le 2026-11-10. `/debut-session` essayé et validé par Yohan le jour même. Restent à éprouver : `/fin-session` et le résumé de démarrage |
-| 3 — Garde-fous | Hooks `.claude/hooks/garde-zones-critiques.sh` (migrations intouchables, confirmation une fois par session sur les zones 🔴, l'auth et CLAUDE.md) et `garde-env-db.sh` (écritures en base refusées hors base dev) ; agents relecteurs `gardien-nf525` et `gardien-tenant-auth` | Fait et mergé le 2026-11-10. Hooks testés (38 cas simulés, 2 refus constatés en session). Agents **jamais lancés** : à essayer sur le prochain diff qui touche une zone 🔴 |
-
-Limite connue des garde-fous : ils surveillent les outils d'édition et les commandes reconnues. Une
-modification de fichier par commande shell (`sed -i`…) ou une commande de base formulée autrement
-leur échappe. Ils réduisent le risque d'accident, ils ne remplacent pas la relecture.
+- Éprouvés : `/debut-session`, `/fin-session`, les refus des deux garde-fous.
+- **Pas encore éprouvés** : le résumé injecté au démarrage d'une session, les confirmations sur les
+  zones critiques en conditions réelles, les deux agents relecteurs (jamais lancés).
+- À noter à l'usage : une confirmation qui revient trop souvent, un refus à tort.
+- Limite connue : les garde-fous ne voient pas une modification faite par commande shell (`sed -i`).
+- **Sur ce poste, un « vert en local » n'est fiable que si `node_modules` vient d'un `pnpm install`
+  propre.** En cas d'écart avec la CI, la CI fait foi : reproduire dans une copie propre du dépôt
+  (`git worktree` + `pnpm install --frozen-lockfile`).
