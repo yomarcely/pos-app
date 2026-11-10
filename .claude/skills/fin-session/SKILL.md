@@ -28,6 +28,12 @@ Rapporte le résultat tel qu'il est. Si c'est rouge, la page d'état dit rouge, 
 
 Si une zone 🔴 de `CLAUDE.md` a été touchée, vérifie qu'un test de régression couvre le changement. S'il n'y en a pas, c'est un bloquant à signaler avant tout commit (règles absolues 3 et 4).
 
+Deux agents relecteurs existent pour ces cas, en lecture seule. Propose à Yohan de les lancer avant le commit, et ne les lance qu'avec son accord (ils prennent quelques minutes) :
+- `gardien-nf525` — le diff touche les ventes, la clôture, le hash, les montants ou le panier ;
+- `gardien-tenant-auth` — le diff ajoute ou modifie un endpoint, l'authentification, les rôles ou un store persistant.
+
+Leurs constats bloquants se corrigent avant le commit, ou se notent tels quels dans `docs/etat-projet.md` si Yohan décide de committer quand même.
+
 ## 3. Réécrire `docs/etat-projet.md`
 
 Réécrire, pas compléter : la page décrit le présent et tient sur une page (environ 80 lignes). Garde ses sections.

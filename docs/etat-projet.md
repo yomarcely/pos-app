@@ -7,18 +7,20 @@
 > checklist du [plan d'exécution](architecture/2026-07-plan-execution-phases-1-2.md).
 > Si cette page contredit le code, le code a raison : corriger la page.
 
-**Dernière vérification : 2026-11-10** — 934 tests / 114 fichiers verts (Vitest, mesurés sur `c83bba1` ; seuls des fichiers de doc et de config ont changé depuis).
-Non relancés ce jour : lint, typecheck, e2e. Non vérifiés : état de la CI GitHub, état du staging.
+**Dernière vérification : 2026-11-10**
+- En local : 934 tests / 114 fichiers verts (Vitest, mesurés sur `c83bba1` ; seuls des fichiers de doc et de config ont changé depuis) ; `pnpm typecheck` vert. Lint et e2e non relancés.
+- **CI GitHub sur `developpement` : rouge** (premier run, sur `d7df920`). Lint, audits et tests verts ; **typecheck en échec** sur `components/ui/drawer/Drawer.vue` (TS2698) ; e2e sauté en conséquence.
+- **Sauvegardes automatiques : aucune ne fonctionne** (voir bloquant n°3).
+- Non vérifié : état du staging.
 
 ## Branches
 
 | Branche | Rôle | État |
 |---|---|---|
 | `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 17 commits de retard sur `developpement` |
-| `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude (phases 1 et 2), mergés et poussés le 2026-11-10 |
+| `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude complet (phases 1 à 3), poussés le 2026-11-10 |
 
-Aucune branche de travail ouverte : `feat/a5-alerting-invariants` et `chore/env-claude` ont été
-supprimées après merge. La phase 3 du chantier partira d'une nouvelle branche.
+Aucune branche de travail ouverte.
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
@@ -30,25 +32,35 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
    rattrapage en tête du [runbook staging](runbooks/deploy-staging-vercel.md). Constaté le 2026-09-10, pas encore fait.
 2. **Certification NF525** : signature factice (`TEMP_SIGNATURE_`) tant que le dossier INFOCERT/LNE
    n'a pas abouti. Bloquant légal pour la mise en production réelle.
+3. **Aucune sauvegarde automatique de la base ne fonctionne.** Le workflow `backup.yml` a échoué
+   102 fois sur 102 entre le 2026-05-27 et le 2026-09-05 (`BACKUP_DATABASE_URL manquant`) : aucun
+   secret n'est configuré sur le dépôt GitHub. GitHub l'a ensuite désactivé pour inactivité. Les
+   seules sauvegardes existantes sont celles gérées par Supabase. À régler avant tout commerce
+   pilote : poser les 7 secrets ([runbook](runbooks/backup-restore.md), §1.4), réactiver le
+   workflow (`gh workflow enable backup.yml`), puis faire l'exercice de restauration.
 
 ## Prochaines actions, dans l'ordre
 
-1. `gh auth login` dans le terminal (GitHub CLI installé le 2026-11-10, pas encore connecté), puis
-   lire le résultat de la **première CI sur `developpement`** : `gh run list --branch developpement`.
-   Elle n'a jamais tourné sur cette branche, son résultat est inconnu.
+1. **Remettre la CI au vert sur `developpement`** : le typecheck échoue en CI sur `Drawer.vue` alors
+   qu'il passe en local. Piste non confirmée : `vue-tsc` n'est pas dans les dépendances du projet,
+   la CI télécharge donc la dernière version à chaque run (3.3.14 ce jour-là). À traiter sur une
+   branche dédiée : reproduire, puis épingler `vue-tsc` ou corriger le composant.
 2. Dérouler la vérification de schéma du bloquant n°1.
 3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
    Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
-4. A3 (e2e) : confirmer que les secrets `E2E_*` sont posés sur GitHub (sans eux le job e2e échoue,
-   sans bloquer la CI), observer le job sur quelques runs, puis le rendre bloquant.
+4. A3 (e2e) : les secrets `E2E_*` ne sont **pas** posés sur GitHub (aucun secret sur le dépôt) : le
+   job e2e ne peut pas passer en l'état. Les poser ([e2e/README.md](../e2e/README.md)), observer le
+   job sur quelques runs, puis le rendre bloquant.
 5. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
-6. Chantier environnement Claude : utiliser `/debut-session` et `/fin-session` pendant deux
-   semaines, noter ce qui manque, puis phase 3 (ci-dessous).
+6. Chantier environnement Claude : l'éprouver à l'usage — `/fin-session`, le résumé de démarrage et
+   les deux agents relecteurs n'ont pas encore servi. Noter ce qui gêne (confirmations trop
+   fréquentes, refus à tort) pour l'ajuster.
 
 ## Côté fondateur (hors code)
 
 - Dossier de certification INFOCERT/AFNOR ou LNE.
 - `CRON_SECRET` sur Vercel.
+- Secrets GitHub : les 7 du backup (bloquant n°3) et les 5 `E2E_*`. Aucun n'est posé aujourd'hui.
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
 - Exercice de restauration d'un backup R2 : la procédure n'a jamais été testée en réel.
 - À confirmer : Preview Deployments Vercel désactivés et protection de branche sur `main`
@@ -74,4 +86,8 @@ mécaniques plutôt que déclaratives. Plan validé le 2026-11-10.
 |---|---|---|
 | 1 — Assainir | `.claude/` versionné, CLAUDE.md resynchronisé, cette page, journal rattrapé, README corrigé, permissions resserrées | Fait le 2026-11-10 |
 | 2 — Rituels | Skills `/debut-session` et `/fin-session`, `.claude/settings.json` partagé (refus, confirmations, résumé de démarrage via `.claude/hooks/etat-session.sh`), CI aussi sur `developpement` | Fait le 2026-11-10. `/debut-session` essayé et validé par Yohan le jour même. Restent à éprouver : `/fin-session` et le résumé de démarrage |
-| 3 — Garde-fous | Hooks (migrations intouchables, confirmation sur zones 🔴, commandes de base bloquées hors dev), agents relecteurs `gardien-nf525` et `gardien-tenant-auth` | À faire, après deux semaines d'usage de la phase 2 |
+| 3 — Garde-fous | Hooks `.claude/hooks/garde-zones-critiques.sh` (migrations intouchables, confirmation une fois par session sur les zones 🔴, l'auth et CLAUDE.md) et `garde-env-db.sh` (écritures en base refusées hors base dev) ; agents relecteurs `gardien-nf525` et `gardien-tenant-auth` | Fait et mergé le 2026-11-10. Hooks testés (38 cas simulés, 2 refus constatés en session). Agents **jamais lancés** : à essayer sur le prochain diff qui touche une zone 🔴 |
+
+Limite connue des garde-fous : ils surveillent les outils d'édition et les commandes reconnues. Une
+modification de fichier par commande shell (`sed -i`…) ou une commande de base formulée autrement
+leur échappe. Ils réduisent le risque d'accident, ils ne remplacent pas la relecture.
