@@ -8,8 +8,8 @@
 > Si cette page contredit le code, le code a raison : corriger la page.
 
 **Dernière vérification : 2026-11-10**
-- En local : 934 tests / 114 fichiers verts (Vitest, mesurés sur `c83bba1` ; seuls des fichiers de doc et de config ont changé depuis) ; `pnpm typecheck` vert. Lint et e2e non relancés.
-- **CI GitHub sur `developpement` : rouge** (premier run, sur `d7df920`). Lint, audits et tests verts ; **typecheck en échec** sur `components/ui/drawer/Drawer.vue` (TS2698) ; e2e sauté en conséquence.
+- En local, sur la branche `fix/ci-typecheck` : `pnpm run ci` vert — lint 0 erreur (174 avertissements), typecheck, audits tenant (110 endpoints) et migrations, 934 tests / 114 fichiers. E2e non relancé.
+- **CI GitHub sur `developpement` : rouge** (runs sur `d7df920` et `59b21ed`). Lint, audits et tests verts ; **typecheck en échec** sur `components/ui/drawer/Drawer.vue` (TS2698) ; e2e sauté en conséquence. Correctif prêt sur `fix/ci-typecheck`, pas encore vérifié sur GitHub.
 - **Sauvegardes automatiques : aucune ne fonctionne** (voir bloquant n°3).
 - Non vérifié : état du staging.
 
@@ -19,8 +19,7 @@
 |---|---|---|
 | `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`), 17 commits de retard sur `developpement` |
 | `developpement` | Travail quotidien | Contient A5 et le chantier environnement Claude complet (phases 1 à 3), poussés le 2026-11-10 |
-
-Aucune branche de travail ouverte.
+| `fix/ci-typecheck` | Remettre la CI au vert | Part de `developpement` ; correctif commité, **à pousser et à vérifier sur GitHub** |
 
 Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le 2026-11-10.
 
@@ -36,15 +35,18 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
    102 fois sur 102 entre le 2026-05-27 et le 2026-09-05 (`BACKUP_DATABASE_URL manquant`) : aucun
    secret n'est configuré sur le dépôt GitHub. GitHub l'a ensuite désactivé pour inactivité. Les
    seules sauvegardes existantes sont celles gérées par Supabase. À régler avant tout commerce
-   pilote : poser les 7 secrets ([runbook](runbooks/backup-restore.md), §1.4), réactiver le
+   pilote : poser les 6 secrets ([runbook](runbooks/backup-restore.md), §1.4), réactiver le
    workflow (`gh workflow enable backup.yml`), puis faire l'exercice de restauration.
 
 ## Prochaines actions, dans l'ordre
 
-1. **Remettre la CI au vert sur `developpement`** : le typecheck échoue en CI sur `Drawer.vue` alors
-   qu'il passe en local. Piste non confirmée : `vue-tsc` n'est pas dans les dépendances du projet,
-   la CI télécharge donc la dernière version à chaque run (3.3.14 ce jour-là). À traiter sur une
-   branche dédiée : reproduire, puis épingler `vue-tsc` ou corriger le composant.
+1. **Remettre la CI au vert sur `developpement`** : pousser `fix/ci-typecheck`, vérifier que la CI
+   passe sur GitHub, puis merger. Mécanisme établi : `vue-tsc` n'était pas une dépendance du projet,
+   donc `nuxt typecheck` téléchargeait à chaque fois la dernière version de `vue-tsc` **et de
+   TypeScript** au lieu d'utiliser le TypeScript 5.8.3 du projet. Le correctif ajoute `vue-tsc`
+   3.3.14 aux dépendances de développement. L'échec vu sur GitHub n'a pas pu être reproduit sur le
+   poste : si la CI reste rouge après le correctif, la piste suivante est la version de Node
+   (20 sur GitHub, 22 en local).
 2. Dérouler la vérification de schéma du bloquant n°1.
 3. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main`.
    Sans le secret, la vérification quotidienne des chaînes reste inaccessible (fermée par défaut).
@@ -60,7 +62,7 @@ Dernier commit de code : 2026-09-11. Aucun développement entre cette date et le
 
 - Dossier de certification INFOCERT/AFNOR ou LNE.
 - `CRON_SECRET` sur Vercel.
-- Secrets GitHub : les 7 du backup (bloquant n°3) et les 5 `E2E_*`. Aucun n'est posé aujourd'hui.
+- Secrets GitHub : les 6 du backup (bloquant n°3) et les 5 `E2E_*`. Aucun n'est posé aujourd'hui.
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
 - Exercice de restauration d'un backup R2 : la procédure n'a jamais été testée en réel.
 - À confirmer : Preview Deployments Vercel désactivés et protection de branche sur `main`
