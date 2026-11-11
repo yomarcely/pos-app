@@ -124,4 +124,23 @@ describe('verifyTicketChain', () => {
     expect(result.isValid).toBe(false)
     expect(result.brokenLinks.some(b => b.ticketNumber === t3.ticketNumber)).toBe(true)
   })
+
+  // T9 — Caractérisation (2026-11-11) : le lien du PREMIER élément n'est pas contrôlé
+  it('T9 — ne contrôle pas le previousHash du premier élément (fenêtre commençant en milieu de chaîne)', () => {
+    // Comportement figé volontairement : une fenêtre d'un jour commence par un
+    // ticket dont le previousHash pointe vers la veille, hors fenêtre. Ce lien
+    // est contrôlé AILLEURS (server/utils/chainDayBoundaries.ts, appelé par le
+    // cron), pas ici. Si ce test casse, verifyTicketChain a changé de contrat.
+    const t1 = makeTicket(1, null)
+    const t2 = makeTicket(2, t1.currentHash)
+    const t3 = makeTicket(3, t2.currentHash)
+
+    // Fenêtre [t2, t3] : t1 absent (veille, ou supprimé) → aucune rupture vue ici.
+    expect(verifyTicketChain([t2, t3])).toEqual({ isValid: true, brokenLinks: [] })
+
+    // Même un previousHash sans rapport sur le premier élément passe, tant que
+    // le hash du ticket a été calculé avec lui.
+    const orphan = makeTicket(7, 'hash-d-un-ticket-qui-n-existe-plus')
+    expect(verifyTicketChain([orphan])).toEqual({ isValid: true, brokenLinks: [] })
+  })
 })

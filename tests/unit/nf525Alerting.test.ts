@@ -86,6 +86,52 @@ describe('A5 — alerting invariants NF525', () => {
       expect(reportChainIntegrityFailure({ ...payload, registerId: 4 })).toBe(true)
       expect(captureMessage).toHaveBeenCalledTimes(2)
     })
+
+    it('joint les constats de bord de journée au même event', () => {
+      const boundaryAnomalies = [
+        { kind: 'previous_day_link_broken', ticketNumber: '20260909-E01-R03-000101' },
+        { kind: 'closure_count_mismatch', expected: 12, found: 9 },
+      ]
+
+      // Journée effacée : aucun ticket cassé à lister, seulement des constats de bord.
+      reportChainIntegrityFailure({ ...payload, ticketCount: 0, brokenTicketNumbers: [], boundaryAnomalies })
+
+      expect(captureMessage).toHaveBeenCalledTimes(1)
+      const [message, ctx] = getCall(0)
+      expect(message).toContain('chaîne de tickets cassée')
+      expect(ctx.level).toBe('error')
+      expect(ctx.extra.boundaryAnomalies).toEqual(boundaryAnomalies)
+      expect(ctx.extra.brokenLinksCount).toBe(0)
+    })
+
+    it('ne transmet que les champs connus d’un constat de bord', () => {
+      // Garde-fou : un futur type de constat qui porterait un champ sensible
+      // (hash, nom de vendeur) ne doit pas partir à Sentry par inadvertance.
+      const leaky = { kind: 'closure_last_ticket_altered', ticketNumber: 'T-1', sellerName: 'Alice', hash: 'abc' }
+
+      reportChainIntegrityFailure({ ...payload, boundaryAnomalies: [leaky] })
+
+      const [, ctx] = getCall(0)
+      expect(ctx.extra.boundaryAnomalies).toEqual([{ kind: 'closure_last_ticket_altered', ticketNumber: 'T-1' }])
+      expect(JSON.stringify(ctx)).not.toContain('Alice')
+    })
+
+    it('ne throttle pas deux jours différents d’une même caisse', () => {
+      // Le cron peut contrôler la veille ET une journée clôturée en retard.
+      expect(reportChainIntegrityFailure(payload)).toBe(true)
+      expect(reportChainIntegrityFailure({ ...payload, businessDay: '2026-09-08' })).toBe(true)
+      expect(reportChainIntegrityFailure({ ...payload, businessDay: '2026-09-08' })).toBe(false)
+      expect(captureMessage).toHaveBeenCalledTimes(2)
+    })
+
+    it('n’ajoute pas le champ quand il n’y a aucun constat de bord', () => {
+      reportChainIntegrityFailure(payload)
+      expect(getCall(0)[1].extra).not.toHaveProperty('boundaryAnomalies')
+
+      _resetAlertingForTests()
+      reportChainIntegrityFailure({ ...payload, boundaryAnomalies: [] })
+      expect(getCall(1)[1].extra).not.toHaveProperty('boundaryAnomalies')
+    })
   })
 
   describe('reportChainVerificationError', () => {

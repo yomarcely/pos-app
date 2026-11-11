@@ -29,6 +29,7 @@ import {
   logEntityDeletion,
   logEntityDeactivation,
   logCustomerAnonymization,
+  logChainVerification,
   AuditEventType,
 } from '~/server/utils/audit'
 
@@ -255,5 +256,55 @@ describe('Q9 — logCustomerAnonymization', () => {
     expect(changes.firstName).toBe('A')
     expect(changes.email).toBeUndefined()
     expect(changes.phone).toBeUndefined()
+  })
+})
+
+describe('logChainVerification — ligne d’audit d’une vérification de chaîne', () => {
+  beforeEach(() => {
+    captured = []
+  })
+
+  const base = {
+    tenantId: 'tenant-a',
+    userId: null,
+    userName: 'System (cron)',
+    ticketCount: 12,
+    brokenLinksCount: 0,
+    registerId: 3,
+  }
+
+  it('sans jour ni constat de bord : ligne identique à l’historique (endpoint utilisateur)', async () => {
+    await logChainVerification({ ...base, isValid: true })
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0]).toMatchObject({ action: AuditEventType.CHAIN_VERIFICATION, entityType: 'system' })
+    expect(captured[0]?.changes).toEqual({ ticketCount: 12, brokenLinksCount: 0 })
+    expect(captured[0]?.metadata).toEqual({ integrityStatus: 'valid', registerId: 3 })
+  })
+
+  it('contrôle planifié : la ligne porte le jour vérifié', async () => {
+    await logChainVerification({ ...base, isValid: true, businessDay: '2026-09-09', boundaryAnomalies: [] })
+
+    expect(captured[0]?.changes).toEqual({ ticketCount: 12, brokenLinksCount: 0 })
+    expect(captured[0]?.metadata).toEqual({ integrityStatus: 'valid', registerId: 3, businessDay: '2026-09-09' })
+  })
+
+  it('journée effacée : jour, nature et nombre des constats, à part des tickets cassés', async () => {
+    await logChainVerification({
+      ...base,
+      isValid: false,
+      ticketCount: 0,
+      businessDay: '2026-09-09',
+      boundaryAnomalies: ['closure_last_ticket_missing', 'closure_count_mismatch'],
+    })
+
+    expect(captured[0]?.action).toBe(AuditEventType.CHAIN_INTEGRITY_FAILED)
+    expect(captured[0]?.changes).toEqual({ ticketCount: 0, brokenLinksCount: 0, boundaryAnomaliesCount: 2 })
+    expect(captured[0]?.metadata).toEqual({
+      integrityStatus: 'invalid',
+      registerId: 3,
+      businessDay: '2026-09-09',
+      boundaryAnomalies: 'closure_last_ticket_missing,closure_count_mismatch',
+    })
   })
 })

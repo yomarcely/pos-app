@@ -408,6 +408,89 @@ describe('POST /api/sales/close-day — clôture bloquante NF525', () => {
     )
   })
 
+  // ==========================================
+  // Contrat miroir avec le contrôle nocturne (2026-11-11)
+  // ==========================================
+  // Le cron compare chaque nuit la journée à ce que la clôture a mémorisé
+  // (server/utils/chainDayBoundaries.ts) : `ticketCount + cancelledCount` au
+  // nombre de ventes validées hors avoirs + annulées, et `lastTicketNumber` /
+  // `lastTicketHash` au ticket encore présent en base. Si la clôture se met à
+  // compter autrement, le cron sortira une fausse alerte « chaîne cassée »
+  // toutes les nuits. Ces tests figent les valeurs dont il dépend : s'ils
+  // cassent, adapter `loadDayBoundaryFacts` dans le même changement.
+  describe('valeurs mémorisées dont dépend le contrôle nocturne', () => {
+    it('compte les ventes validées hors avoirs et les annulées à part ; l’avoir n’est dans aucun des deux', async () => {
+      // Lignes dans l'ordre que le handler demande à la base : desc(saleDate).
+      setReads({
+        sales: [
+          // Avoir émis en dernier : dernier document fiscal de la journée.
+          sale({
+            id: 4, ticketNumber: '20260614-E01-R01-000004', type: 'credit_note', status: 'completed',
+            saleDate: new Date('2026-06-14T16:00:00Z'), currentHash: 'HASH4',
+            totalHT: '-83.33', totalTVA: '-16.67', totalTTC: '-100.00',
+            payments: [{ mode: 'cash', amount: -100 }],
+          }),
+          // Vente annulée, compensée par l'avoir ci-dessus.
+          sale({
+            id: 3, ticketNumber: '20260614-E01-R01-000003', status: 'cancelled', creditNoteId: 4,
+            saleDate: new Date('2026-06-14T15:00:00Z'), currentHash: 'HASH3',
+          }),
+          sale({ id: 2, ticketNumber: '20260614-E01-R01-000002', saleDate: new Date('2026-06-14T11:00:00Z'), currentHash: 'HASH2' }),
+          sale({ id: 1, ticketNumber: '20260614-E01-R01-000001', saleDate: new Date('2026-06-14T10:00:00Z'), currentHash: 'HASH1' }),
+        ],
+      })
+      const handler = await importHandler()
+      const res = await handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+
+      expect(res.success).toBe(true)
+      const closureInsert = (insertedByTable.get(tables.closures) || [])[0]!
+
+      // 2 validées hors avoir + 1 annulée = 3 tickets comptés par le cron. L'avoir : aucun des deux.
+      expect(closureInsert.ticketCount).toBe(2)
+      expect(closureInsert.cancelledCount).toBe(1)
+
+      // Dernier document fiscal = l'avoir ; premier = la première vente validée.
+      expect(closureInsert.lastTicketNumber).toBe('20260614-E01-R01-000004')
+      expect(closureInsert.lastTicketHash).toBe('HASH4')
+      expect(closureInsert.firstTicketNumber).toBe('20260614-E01-R01-000001')
+    })
+
+    it('une vente annulée n’est jamais le « dernier ticket » : c’est le dernier document validé ou avoir', async () => {
+      setReads({
+        sales: [
+          // Annulée sans avoir (ancien parcours) en toute fin de journée.
+          sale({
+            id: 2, ticketNumber: '20260614-E01-R01-000002', status: 'cancelled',
+            saleDate: new Date('2026-06-14T17:00:00Z'), currentHash: 'HASH2',
+          }),
+          sale({ id: 1, ticketNumber: '20260614-E01-R01-000001', saleDate: new Date('2026-06-14T10:00:00Z'), currentHash: 'HASH1' }),
+        ],
+      })
+      const handler = await importHandler()
+      await handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+
+      const closureInsert = (insertedByTable.get(tables.closures) || [])[0]!
+      expect(closureInsert.ticketCount).toBe(1)
+      expect(closureInsert.cancelledCount).toBe(1)
+      expect(closureInsert.lastTicketNumber).toBe('20260614-E01-R01-000001')
+      expect(closureInsert.lastTicketHash).toBe('HASH1')
+    })
+
+    it('journée sans aucun document fiscal : pas de dernier ticket, hash « INITIAL »', async () => {
+      setReads({ sales: [] })
+      const handler = await importHandler()
+      const res = await handler(createMockEvent({ body: { date: '2026-06-14', registerId: 1 } }))
+
+      expect(res.success).toBe(true)
+      const closureInsert = (insertedByTable.get(tables.closures) || [])[0]!
+      expect(closureInsert.ticketCount).toBe(0)
+      expect(closureInsert.cancelledCount).toBe(0)
+      expect(closureInsert.lastTicketNumber).toBeNull()
+      expect(closureInsert.firstTicketNumber).toBeNull()
+      expect(closureInsert.lastTicketHash).toBe('INITIAL')
+    })
+  })
+
   it('journée déjà clôturée → 400', async () => {
     setReads({ closure: [{ id: 99 }] })
     const handler = await importHandler()

@@ -81,6 +81,19 @@ export interface ChainIntegrityPayload {
   brokenTicketNumbers: string[]
   registerId?: number | null
   businessDay?: string
+  /**
+   * Constats aux bords de la journée (raccord avec la veille, écart avec la
+   * clôture — cf. server/utils/chainDayBoundaries.ts). Regroupés dans le MÊME
+   * event que les tickets cassés : la clé de throttle est par caisse, un second
+   * event dans la minute serait étouffé. Codes, numéros de ticket et compteurs
+   * uniquement — aucune donnée personnelle.
+   */
+  boundaryAnomalies?: Array<{
+    kind: string
+    ticketNumber?: string
+    expected?: number
+    found?: number
+  }>
 }
 
 /**
@@ -89,7 +102,9 @@ export interface ChainIntegrityPayload {
  */
 export function reportChainIntegrityFailure(payload: ChainIntegrityPayload): boolean {
   return guarded(() => {
-    const key = `chain:${payload.tenantId}:${payload.registerId ?? 'all'}:${payload.source}`
+    // Le jour fait partie de la clé : le cron peut contrôler deux jours d'une
+    // même caisse dans le même passage (veille + journée clôturée en retard).
+    const key = `chain:${payload.tenantId}:${payload.registerId ?? 'all'}:${payload.source}:${payload.businessDay ?? '-'}`
     if (throttled(key)) return false
 
     Sentry.captureMessage('NF525 : chaîne de tickets cassée', {
@@ -109,6 +124,18 @@ export function reportChainIntegrityFailure(payload: ChainIntegrityPayload): boo
           : {}),
         ...(payload.registerId ? { registerId: payload.registerId } : {}),
         ...(payload.businessDay ? { businessDay: payload.businessDay } : {}),
+        // Champs recopiés un à un, jamais l'objet tel quel : un futur type de
+        // constat portant un champ sensible ne partirait pas par inadvertance.
+        ...(payload.boundaryAnomalies && payload.boundaryAnomalies.length > 0
+          ? {
+              boundaryAnomalies: payload.boundaryAnomalies.map(a => ({
+                kind: a.kind,
+                ...(a.ticketNumber !== undefined ? { ticketNumber: a.ticketNumber } : {}),
+                ...(a.expected !== undefined ? { expected: a.expected } : {}),
+                ...(a.found !== undefined ? { found: a.found } : {}),
+              })),
+            }
+          : {}),
       },
     })
     return true
@@ -135,7 +162,7 @@ export interface ChainVerificationErrorPayload {
  */
 export function reportChainVerificationError(payload: ChainVerificationErrorPayload): boolean {
   return guarded(() => {
-    const key = `chain-error:${payload.tenantId}:${payload.registerId}`
+    const key = `chain-error:${payload.tenantId}:${payload.registerId}:${payload.businessDay}`
     if (throttled(key)) return false
 
     Sentry.captureMessage('NF525 : vérification de chaîne impossible', {
