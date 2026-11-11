@@ -28,10 +28,20 @@ const KNOWN_PUBLIC = [
 // (CRON_ENDPOINTS), pas par une session. Ils n'ont donc pas de tenant dans le
 // contexte et déterminent eux-mêmes leur périmètre : `getTenantIdFromEvent` y
 // est inapplicable, mais chaque requête reste scopée par un tenantId explicite.
-// Doit matcher CRON_ENDPOINTS dans server/middleware/auth.global.ts.
+//
+// Liste de FICHIERS EXACTS (chemin sous server/api, sans `.ts`), pas un préfixe.
+// Un nouvel endpoint sous server/api/internal/ n'est donc PAS exempté d'office :
+// il retombe dans le contrôle normal et fait échouer l'audit tant qu'il n'a pas
+// été relu puis ajouté ici (invariant 9 de CLAUDE.md : même audit que la règle
+// absolue n°8). Exempter tout le dossier laisserait passer au vert un endpoint
+// interne qui lit sans filtre tenant (relecture A5, 2026-11-11).
+// Doit rester identique à `knownInternalCron` dans tests/unit/tenantIsolation.test.ts.
 const KNOWN_INTERNAL_CRON = [
-  'internal/',
+  'internal/verify-chains.get',
 ]
+
+/** Dossier des endpoints internes — sert uniquement à rédiger un message d'erreur utile. */
+const INTERNAL_DIR = 'internal/'
 
 // Fichiers exclus de l'audit (exemples tiers, code de wizard, etc.)
 const EXCLUDED: string[] = []
@@ -44,6 +54,10 @@ interface AuditResult {
   hasDirectAuthAccess: boolean
   isPublic: boolean
   isInternalCron: boolean
+  /** Sous server/api/internal/ mais absent de KNOWN_INTERNAL_CRON : jamais relu. */
+  isUnreviewedInternal: boolean
+  /** Sous server/api/internal/ sans suffixe de méthode (`x.ts` au lieu de `x.get.ts`). */
+  isInternalWithoutMethod: boolean
   hasDbWrite: boolean
   hasDbSelect: boolean
   notes: string[]
@@ -65,7 +79,7 @@ function isPublicPath(rel: string): boolean {
 }
 
 function isInternalCronPath(rel: string): boolean {
-  return KNOWN_INTERNAL_CRON.some(internal => rel.startsWith(internal))
+  return KNOWN_INTERNAL_CRON.includes(rel)
 }
 
 function isExcluded(rel: string): boolean {
@@ -91,6 +105,8 @@ function audit(file: string): AuditResult {
     hasDirectAuthAccess: /event\.context\.auth\.tenantId/.test(content),
     isPublic: isPublicPath(apiPath),
     isInternalCron: isInternalCronPath(apiPath),
+    isUnreviewedInternal: apiPath.startsWith(INTERNAL_DIR) && !isInternalCronPath(apiPath),
+    isInternalWithoutMethod: apiPath.startsWith(INTERNAL_DIR) && !/\.(get|post|put|patch|delete)$/.test(apiPath),
     hasDbWrite: /\.(insert|update|delete)\s*\(/.test(content),
     hasDbSelect: /\.select\s*\(/.test(content),
     notes: [],
@@ -100,7 +116,21 @@ function audit(file: string): AuditResult {
   if (result.isInternalCron) result.notes.push('Endpoint interne cron (auth par CRON_SECRET, tenants déterminés par le handler)')
   if (result.hasDirectAuthAccess) result.notes.push('🔴 ANTI-PATTERN : lit event.context.auth.tenantId directement (CLAUDE.md interdit)')
 
-  if (!result.isPublic && !result.isInternalCron) {
+  // Violations propres aux endpoints internes — critiques EN SOI, quel que soit
+  // le contenu du fichier. Ne pas les faire dépendre de l'absence du texte
+  // `getTenantIdFromEvent(` : un simple commentaire qui le cite suffirait à
+  // faire passer un endpoint non relu (relecture du 2026-11-11).
+  if (result.isUnreviewedInternal) {
+    result.notes.push('🔴 Endpoint interne NON RELU : absent de KNOWN_INTERNAL_CRON. Audit sécurité requis (CLAUDE.md, invariant 9) avant de l\'y ajouter.')
+  }
+  // Le middleware d'auth laisse passer toute requête OPTIONS avant la garde
+  // CRON_SECRET. Un handler sans suffixe de méthode répond à OPTIONS : il
+  // s'exécuterait donc sans secret. Avec un suffixe, Nitro répond 405.
+  if (result.isInternalWithoutMethod) {
+    result.notes.push('🔴 Endpoint interne SANS SUFFIXE DE MÉTHODE : il répondrait à OPTIONS, que le middleware laisse passer sans CRON_SECRET. Le nommer `.get.ts`, `.post.ts`…')
+  }
+
+  if (!result.isPublic && !result.isInternalCron && !result.isUnreviewedInternal) {
     if (!result.hasTenantCall) result.notes.push('🔴 N\'appelle PAS getTenantIdFromEvent')
     if ((result.hasDbSelect || result.hasDbWrite) && !result.hasTenantInWhere) {
       result.notes.push('🟠 Aucune WHERE eq(tenantId) détectée — vérifier manuellement')
@@ -119,6 +149,8 @@ function main() {
   // y compris sur un endpoint interne (il n'y a pas de contexte auth à y lire).
   const violations = results.filter(r =>
     r.hasDirectAuthAccess
+    || r.isUnreviewedInternal
+    || r.isInternalWithoutMethod
     || (!r.isPublic && !r.isInternalCron && (
       !r.hasTenantCall
       || ((r.hasDbSelect || r.hasDbWrite) && !r.hasTenantInWhere)
@@ -126,7 +158,7 @@ function main() {
   )
   const publics = results.filter(r => r.isPublic)
   const internalCrons = results.filter(r => r.isInternalCron)
-  const conformes = results.filter(r => !r.isPublic && !r.isInternalCron && !r.hasDirectAuthAccess && r.hasTenantCall && (!r.hasDbSelect && !r.hasDbWrite || r.hasTenantInWhere))
+  const conformes = results.filter(r => !r.isPublic && !r.isInternalCron && !r.isUnreviewedInternal && !r.hasDirectAuthAccess && r.hasTenantCall && (!r.hasDbSelect && !r.hasDbWrite || r.hasTenantInWhere))
 
   console.log(`\n📊 Audit isolation tenant — ${results.length} endpoints\n`)
   console.log(`✅ Conformes : ${conformes.length}`)
@@ -155,9 +187,13 @@ function main() {
     console.log('')
   }
 
-  // Exit 1 si violations critiques (anti-pattern auth ou pas de getTenantIdFromEvent)
+  // Exit 1 si violations critiques (anti-pattern auth, pas de getTenantIdFromEvent,
+  // endpoint interne non relu ou sans suffixe de méthode)
   const critical = violations.filter(r =>
-    r.hasDirectAuthAccess || (!r.hasTenantCall && !r.isPublic),
+    r.hasDirectAuthAccess
+    || r.isUnreviewedInternal
+    || r.isInternalWithoutMethod
+    || (!r.hasTenantCall && !r.isPublic && !r.isInternalCron),
   )
   if (critical.length > 0) {
     console.log(`❌ ${critical.length} violation(s) critique(s) — fail.\n`)

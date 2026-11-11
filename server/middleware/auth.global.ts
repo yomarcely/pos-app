@@ -21,6 +21,24 @@ const PUBLIC_ENDPOINTS = ['/api/login', '/api/auth']
  */
 const CRON_ENDPOINTS = ['/api/internal/']
 
+/**
+ * `true` si le chemin relève d'un préfixe interne : le dossier lui-même
+ * (`/api/internal`, là où serait servie une route `index`) ou tout ce qui est
+ * dessous (`/api/internal/…`). La query string est écartée avant comparaison.
+ *
+ * Sans le cas « chemin exact », une route index sous `server/api/internal/`
+ * échapperait à la garde CRON_SECRET et tomberait dans `assertAuth` : un handler
+ * écrit pour un appelant machine deviendrait accessible à tout utilisateur
+ * connecté (relecture A5, 2026-11-11).
+ */
+function isCronPath(path: string): boolean {
+  const pathname = path.split('?')[0] ?? ''
+  return CRON_ENDPOINTS.some((prefix) => {
+    const base = prefix.replace(/\/$/, '')
+    return pathname === base || pathname.startsWith(`${base}/`)
+  })
+}
+
 /** Comparaison à temps constant, tolérante aux longueurs différentes. */
 function secretsMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided)
@@ -63,8 +81,7 @@ export default defineEventHandler(async (event) => {
   // (pas de lecture de body, pas d'appel Supabase, pas de requête DB). Secret
   // non configuré, absent ou faux → 401 immédiat et fail-closed : sans
   // CRON_SECRET en environnement, la route est inaccessible, jamais ouverte.
-  const isCron = CRON_ENDPOINTS.some(cronPath => path.startsWith(cronPath))
-  if (isCron) {
+  if (isCronPath(path)) {
     const expected = process.env.CRON_SECRET?.trim()
     const presented = getPresentedCronSecret(event)
 

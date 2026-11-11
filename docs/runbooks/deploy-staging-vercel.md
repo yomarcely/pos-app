@@ -227,6 +227,19 @@ curl -s -H "x-cron-secret: $CRON_SECRET" https://<url-staging>/api/internal/veri
 Puis : Vercel → projet → **Settings → Cron Jobs** doit lister le job, et son dernier run doit
 être en succès.
 
+**Un run « en succès » ne veut pas dire « chaînes saines ».** Le 200 signifie seulement que le
+balayage est allé au bout. L'état des chaînes se lit dans le résumé JSON :
+
+- `registersFailed` > 0 : au moins une chaîne est cassée → alerte Sentry « chaîne de tickets
+  cassée ».
+- `registersErrored` > 0 : la vérification d'au moins une caisse a **planté** (base
+  indisponible, ticket illisible) → alerte Sentry « vérification de chaîne impossible ». Ces
+  caisses ne sont **pas vérifiées** : relancer le `curl` ci-dessus le jour même (il recalcule
+  le même jour métier), et regarder le log Vercel du run pour le détail de l'erreur.
+- Les deux à 0 : toutes les caisses ayant encaissé la veille ont été vérifiées et sont intactes.
+
+Sans DSN Sentry sur l'environnement, aucune alerte ne part : il ne reste que ce résumé et les logs.
+
 **Deux pièges à connaître :**
 
 - *Heure et changement d'heure.* Les crons Vercel sont en **UTC**, sans fuseau. Le schedule
