@@ -29,13 +29,13 @@ pnpm env:staging && pnpm db:migrate && pnpm env:dev
    jobs de la CI (`audit`, `lint`, `typecheck`, `test`). Le staging ne recevra jamais de code
    dont la CI est rouge.
 
-## ⚠️ À FAIRE AVANT LE PROCHAIN MERGE `developpement` → `main` (constaté le 2026-09-10)
+## Dérive de schéma sur staging — constatée et rattrapée le 2026-11-11
 
-**Soupçon de dérive de schéma sur staging — à vérifier avant tout déploiement.**
+**État : réglé.** Ce point ne bloque plus le merge `developpement` → `main`.
 
-Staging tourne sur le code du **2026-07-03** (`main` = 65a5e35). Les commits en attente sur
-`developpement` introduisent trois colonnes, via les migrations `0023` et `0024` du 2026-07-05
-(aujourd'hui archivées dans `server/database/migrations-archive/`, absorbées par la baseline) :
+Staging tournait sur le code du **2026-07-03** (`main` = 65a5e35). Les commits en attente sur
+`developpement` utilisent trois colonnes, introduites par les migrations `0023` et `0024` du
+2026-07-05 (archivées dans `server/database/migrations-archive/`, absorbées par la baseline) :
 
 | Colonne | Sert à |
 |---|---|
@@ -43,51 +43,43 @@ Staging tourne sur le code du **2026-07-03** (`main` = 65a5e35). Les commits en 
 | `customers.is_archived` | Archivage des clients |
 | `customers.archived_at` | idem |
 
-**Pourquoi `pnpm db:migrate` ne suffira PAS** : la bascule du 2026-07-06 a *marqué* la baseline
-comme appliquée sans l'exécuter. Le journal de staging affirme donc que tout le schéma est en
-place. Si ces colonnes n'y sont pas physiquement, `db:migrate` restera silencieusement no-op et
-le déploiement produira des erreurs SQL sur la fiche client et sur les ventes à variations.
+**Ce qui a été constaté le 2026-11-11** : les trois colonnes étaient absentes de staging (0 sur 3).
+`pnpm db:migrate` ne les aurait jamais créées : la bascule du 2026-07-06 a *marqué* la baseline
+comme appliquée sans l'exécuter, donc le journal de staging affirmait que tout le schéma était en
+place. Le déploiement aurait produit des erreurs SQL sur la fiche client et sur les ventes.
 
-**Indice qui motive le doute** (non confirmé) : au moment de la bascule, les journaux purgés
-comptaient **24 lignes en dev mais 23 en staging** (voir plus bas). Staging avait donc une
-migration de retard, et la bascule a effacé l'écart au lieu de le signaler.
+**Ce qui a été fait** (sur staging, en une transaction, sans toucher au journal
+`drizzle.__drizzle_migrations`) — identique aux migrations archivées `0023` et `0024` :
 
-### 1. Vérifier (lecture seule, sans risque)
-
-```bash
-pnpm env:staging
-psql "$DATABASE_URL" -c "
-  SELECT table_name, column_name
-  FROM information_schema.columns
-  WHERE (table_name = 'sale_items'  AND column_name = 'variation_id')
-     OR (table_name = 'customers'   AND column_name IN ('is_archived','archived_at'))
-  ORDER BY table_name, column_name;"
-pnpm env:dev
+```sql
+ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variation_id integer;
+ALTER TABLE customers  ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;
+ALTER TABLE customers  ADD COLUMN IF NOT EXISTS archived_at timestamp with time zone;
 ```
 
-Trois lignes attendues. **Moins de trois = dérive confirmée**, appliquer le rattrapage ci-dessous.
+**Contrôle après rattrapage** : comparaison complète du catalogue dev ↔ staging (colonnes avec
+type, défaut et nullabilité ; contraintes ; index ; triggers ; enums ; séquences). Plus aucun
+écart sur ces points. Le journal Drizzle est identique des deux côtés (1 ligne, la baseline).
 
-### 2. Rattraper si besoin (idempotent, aucune perte de données)
+**Écarts restants, sans effet sur l'application** (constatés, non corrigés) :
 
-```bash
-pnpm env:staging
-psql "$DATABASE_URL" -c "
-  ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS variation_id integer;
-  ALTER TABLE customers  ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;
-  ALTER TABLE customers  ADD COLUMN IF NOT EXISTS archived_at timestamp with time zone;"
-pnpm env:dev
-```
+- *RLS* : six tables ont la sécurité par ligne activée sur staging et **pas sur dev**
+  (`inventory_preparation_items`, `inventory_preparations`, `loyalty_config`, `loyalty_vouchers`,
+  `notes`, `pending_sales`). Staging porte une fonction `rls_auto_enable` (absente de dev) qui
+  l'active sur les tables créées. L'application se connecte en propriétaire des tables et n'est
+  pas concernée ; c'est dev qui est le moins protégé, pas staging. À reprendre avec A4a / A4b.
+- *Fonction `generate_movement_number`* : présente sur dev seulement. Aucun code ne l'appelle et
+  la baseline ne la crée pas : reliquat de l'ancienne chaîne.
+- *`idle_in_transaction_session_timeout = 30s`* au niveau base : posé sur staging, pas sur dev
+  (voir « Incidents connus »). `connection.ts` le pose de toute façon à chaque session.
 
-`ADD COLUMN IF NOT EXISTS` : rejouable sans effet de bord, n'altère aucune donnée existante.
-Ne PAS toucher au journal `drizzle.__drizzle_migrations` — la baseline reste marquée appliquée.
-
-### 3. Leçon générale
+### Leçon générale
 
 `mark-migrations-applied.ts` fait une **promesse non vérifiée** : il affirme que le schéma
 correspond à la baseline, sans le contrôler. Toute base dont le schéma était en retard au
-moment de la bascule porte un écart désormais invisible. Prod a été basculée le même jour
-(journal purgé : 1 ligne) — **passer la même vérification sur prod** avant son premier
-déploiement réel.
+moment de la bascule porte un écart invisible, que `db:migrate` ne rattrape pas. Avant le premier
+déploiement sur une base basculée de cette façon (la future prod incluse si elle date d'avant la
+baseline), comparer son catalogue à celui de dev — pas seulement les colonnes qu'on soupçonne.
 
 ---
 
