@@ -8,6 +8,7 @@ vi.mock('@sentry/nuxt', () => ({
 
 import {
   reportChainIntegrityFailure,
+  reportChainVerificationError,
   reportClosureRefused,
   reportOversellBurst,
   _resetAlertingForTests,
@@ -84,6 +85,58 @@ describe('A5 — alerting invariants NF525', () => {
       expect(reportChainIntegrityFailure(payload)).toBe(true)
       expect(reportChainIntegrityFailure({ ...payload, registerId: 4 })).toBe(true)
       expect(captureMessage).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('reportChainVerificationError', () => {
+    const payload = {
+      tenantId: 'tenant-1',
+      registerId: 3,
+      businessDay: '2026-09-09',
+      errorName: 'TypeError',
+    }
+
+    it('émet un event de niveau error, distinct de « chaîne cassée »', () => {
+      expect(reportChainVerificationError(payload)).toBe(true)
+
+      const [message, ctx] = getCall(0)
+      expect(message).toBe('NF525 : vérification de chaîne impossible')
+      expect(ctx.level).toBe('error')
+      expect(ctx.tags.scope).toBe('nf525-chain')
+      expect(ctx.tags.source).toBe('cron')
+      expect(ctx.tags.tenantId).toBe('tenant-1')
+      expect(ctx.extra).toEqual({ registerId: 3, businessDay: '2026-09-09', errorName: 'TypeError' })
+    })
+
+    it('throttle la même caisse pendant 1 minute, pas deux caisses différentes', () => {
+      expect(reportChainVerificationError(payload)).toBe(true)
+      expect(reportChainVerificationError(payload)).toBe(false)
+      expect(reportChainVerificationError({ ...payload, registerId: 4 })).toBe(true)
+      expect(captureMessage).toHaveBeenCalledTimes(2)
+
+      vi.advanceTimersByTime(60_001)
+      expect(reportChainVerificationError(payload)).toBe(true)
+    })
+
+    it('n’étouffe pas l’alerte « chaîne cassée » de la même caisse (clés de throttle distinctes)', () => {
+      expect(reportChainVerificationError(payload)).toBe(true)
+      expect(reportChainIntegrityFailure({
+        tenantId: 'tenant-1',
+        source: 'cron',
+        registerId: 3,
+        businessDay: '2026-09-09',
+        ticketCount: 5,
+        brokenTicketNumbers: ['T-1'],
+      })).toBe(true)
+      expect(captureMessage).toHaveBeenCalledTimes(2)
+    })
+
+    it('ne lève jamais, même si Sentry lève', () => {
+      captureMessage.mockImplementation(() => {
+        throw new Error('Sentry transport down')
+      })
+      expect(() => reportChainVerificationError(payload)).not.toThrow()
+      expect(reportChainVerificationError({ ...payload, registerId: 9 })).toBe(false)
     })
   })
 

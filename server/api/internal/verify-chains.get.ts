@@ -4,7 +4,7 @@ import { and, gte, lt } from 'drizzle-orm'
 import { getBusinessDayBounds, getBusinessDayString, BUSINESS_TIMEZONE } from '~/server/utils/businessDay'
 import { verifyChainForTenant } from '~/server/utils/chainVerification'
 import { logChainVerification } from '~/server/utils/audit'
-import { reportChainIntegrityFailure } from '~/server/utils/nf525Alerting'
+import { reportChainIntegrityFailure, reportChainVerificationError } from '~/server/utils/nf525Alerting'
 import { logger } from '~/server/utils/logger'
 
 /**
@@ -70,6 +70,10 @@ export default defineEventHandler(async (event) => {
 
   const checks: RegisterCheck[] = []
   const failures: RegisterCheck[] = []
+  // Caisses dont la vérification elle-même a planté : ni saines ni cassées,
+  // NON VÉRIFIÉES. Comptées à part pour que le résumé ne les passe pas sous
+  // silence — le cron ne regarde que la veille, cette journée ne sera pas revue.
+  const errored: Array<{ tenantId: string; registerId: number }> = []
   // `sales.registerId` est nullable (ventes historiques antérieures à la
   // caisse obligatoire). Elles n'appartiennent à aucune chaîne au sens de
   // create.post.ts : on ne peut pas les vérifier par registre. On les compte
@@ -132,9 +136,18 @@ export default defineEventHandler(async (event) => {
       }
     } catch (error) {
       // Échec de la vérification elle-même (DB indisponible, ticket illisible…).
-      // On le journalise et on continue : ne pas transformer une caisse en panne
-      // en angle mort sur toutes les autres.
+      // On continue : ne pas transformer une caisse en panne en angle mort sur
+      // toutes les autres. Mais la caisse est comptée et alertée — un ticket
+      // rendu illisible par une altération en base arrive ici, pas dans
+      // `failures`.
       logger.error({ err: error, tenantId, registerId, businessDay }, '[cron] Échec de vérification de chaîne')
+      errored.push({ tenantId, registerId })
+      reportChainVerificationError({
+        tenantId,
+        registerId,
+        businessDay,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
     }
   }
 
@@ -144,12 +157,13 @@ export default defineEventHandler(async (event) => {
     registersChecked: checks.length,
     ticketsChecked: checks.reduce((acc, c) => acc + c.ticketCount, 0),
     registersFailed: failures.length,
+    registersErrored: errored.length,
     tenantsSkippedWithoutRegister: skippedWithoutRegister,
     durationMs,
   }
 
-  if (failures.length > 0) {
-    logger.error({ ...summary, failures }, '[cron] Vérification terminée AVEC ANOMALIES')
+  if (failures.length > 0 || errored.length > 0) {
+    logger.error({ ...summary, failures, errored }, '[cron] Vérification terminée AVEC ANOMALIES')
   } else {
     logger.info(summary, '[cron] Vérification terminée — toutes les chaînes intactes')
   }

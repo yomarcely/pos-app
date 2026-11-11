@@ -304,7 +304,12 @@ describe('Isolation tenant — audit statique', () => {
     // CRON_SECRET dans le middleware, pas de session, donc pas de tenant dans le
     // contexte. Ils scopent leurs requêtes par un tenantId qu'ils déterminent
     // eux-mêmes. Le test suivant vérifie qu'ils sont bien couverts par la garde.
-    const knownInternalCron = ['internal/']
+    //
+    // Liste de FICHIERS EXACTS, pas un préfixe : un nouvel endpoint sous
+    // server/api/internal/ doit faire échouer ce test tant qu'il n'a pas été
+    // relu et ajouté ici (invariant 9 de CLAUDE.md). Doit rester identique à
+    // KNOWN_INTERNAL_CRON dans scripts/audit-tenant-isolation.ts.
+    const knownInternalCron = ['internal/verify-chains.get']
     function listFiles(dir: string): string[] {
       const out: string[] = []
       for (const entry of readdirSync(dir)) {
@@ -318,13 +323,49 @@ describe('Isolation tenant — audit statique', () => {
     for (const file of listFiles(root)) {
       const apiPath = relative(root, file).replace(/\\/g, '/').replace(/\.ts$/, '')
       if (knownPublic.some(p => apiPath.startsWith(p))) continue
-      if (knownInternalCron.some(p => apiPath.startsWith(p))) continue
+      if (knownInternalCron.includes(apiPath)) continue
       const content = readFileSync(file, 'utf-8')
       if (!/getTenantIdFromEvent\s*\(/.test(content)) {
         violations.push(relative(repoRoot, file))
       }
     }
     expect(violations).toEqual([])
+  })
+
+  it('tout fichier sous server/api/internal est relu (liste exacte) et porte un suffixe de méthode', async () => {
+    // Deux règles vérifiées sur le NOM du fichier, jamais sur son contenu : le
+    // test précédent se contente de chercher le texte `getTenantIdFromEvent(`,
+    // qu'un simple commentaire suffit à faire apparaître.
+    //
+    // 1. Liste exacte — identique à KNOWN_INTERNAL_CRON du script d'audit. Un
+    //    endpoint interne n'a ni session ni tenant : il doit être relu avant
+    //    d'être admis (invariant 9 de CLAUDE.md).
+    // 2. Suffixe de méthode — le middleware laisse passer toute requête OPTIONS
+    //    avant la garde CRON_SECRET. Un handler `x.ts` (toutes méthodes)
+    //    s'exécuterait donc sur OPTIONS sans secret ; avec `x.get.ts`, Nitro
+    //    répond 405.
+    const { readdirSync, existsSync, statSync } = await import('node:fs')
+    const { join, relative } = await import('node:path')
+    const reviewed = ['internal/verify-chains.get']
+
+    const apiRoot = join(process.cwd(), 'server/api')
+    const internalRoot = join(apiRoot, 'internal')
+    if (!existsSync(internalRoot)) return
+
+    function listFiles(dir: string): string[] {
+      const out: string[] = []
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) out.push(...listFiles(full))
+        else if (full.endsWith('.ts')) out.push(full)
+      }
+      return out
+    }
+
+    const apiPaths = listFiles(internalRoot).map(f => relative(apiRoot, f).replace(/\\/g, '/').replace(/\.ts$/, ''))
+
+    expect(apiPaths.filter(p => !reviewed.includes(p)), 'endpoint interne non relu').toEqual([])
+    expect(apiPaths.filter(p => !/\.(get|post|put|patch|delete)$/.test(p)), 'endpoint interne sans suffixe de méthode').toEqual([])
   })
 
   it('tout endpoint server/api/internal est couvert par la garde CRON_SECRET du middleware', async () => {
@@ -353,10 +394,21 @@ describe('Isolation tenant — audit statique', () => {
       return out
     }
 
+    // Même règle que `isCronPath` dans le middleware : le dossier lui-même ou
+    // tout ce qui est dessous. Le comportement réel du middleware sur ces chemins
+    // est testé dans tests/api/internalVerifyChains.test.ts.
+    const isGuarded = (routePath: string) => cronPrefixes.some((prefix) => {
+      const base = prefix.replace(/\/$/, '')
+      return routePath === base || routePath.startsWith(`${base}/`)
+    })
+
     const unguarded: string[] = []
     for (const file of listFiles(internalRoot)) {
-      const routePath = '/api/internal/' + relative(internalRoot, file).replace(/\\/g, '/').replace(/\.(get|post|put|patch|delete)?\.ts$/, '').replace(/\.ts$/, '')
-      if (!cronPrefixes.some(prefix => routePath.startsWith(prefix))) {
+      const routePath = ('/api/internal/' + relative(internalRoot, file).replace(/\\/g, '/').replace(/\.(get|post|put|patch|delete)?\.ts$/, '').replace(/\.ts$/, ''))
+        // Convention Nitro : un fichier `index` est servi sur le chemin parent
+        // (`internal/index.get.ts` → `/api/internal`, sans barre finale).
+        .replace(/\/index$/, '')
+      if (!isGuarded(routePath)) {
         unguarded.push(routePath)
       }
     }

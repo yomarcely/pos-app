@@ -11,6 +11,13 @@ import { logger } from '~/server/utils/logger'
 }
 ;(globalThis as Record<string, unknown>).getRequestIP = () => '127.0.0.1'
 
+// A5 — Sentry mocké : on vérifie le câblage de l'alerte « survente en rafale »
+// dans le handler, et surtout qu'une panne de Sentry ne fait pas échouer une vente.
+const captureMessage = vi.fn()
+vi.mock('@sentry/nuxt', () => ({
+  captureMessage: (...args: unknown[]) => captureMessage(...args),
+}))
+
 vi.mock('~/server/validators/sale.schema', () => ({
   createSaleRequestSchema: {},
 }))
@@ -186,6 +193,87 @@ function getStockMovements(inserted: CapturedInsert[]) {
 // ===========================================
 // Tests
 // ===========================================
+
+// ===========================================
+// A5 — alerte « survente en rafale » : câblage dans le handler
+// ===========================================
+// Le compteur (oversellMonitor) et le reporter (nf525Alerting) sont testés en
+// unitaire ; ici on vérifie leur branchement dans la vente. vi.resetModules()
+// repart d'un compteur et d'un throttle vierges à chaque test.
+
+describe('POST /api/sales/create — alerte de survente en rafale (A5)', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.mocked(logger.warn).mockClear()
+    captureMessage.mockReset()
+  })
+
+  /** `n` produits distincts à stock nul, vendus à 1 exemplaire : `n` lignes en survente. */
+  function oversoldLines(n: number) {
+    const ids = Array.from({ length: n }, (_, i) => i + 1)
+    return {
+      stockRows: ids.map(id => ({ productId: id, stock: 0, stockByVariation: null })),
+      items: ids.map(id => ({ productId: id, productName: `Article ${id}`, quantity: 1 })),
+    }
+  }
+
+  it('sous le seuil : la survente ne remonte aucune alerte', async () => {
+    const { stockRows, items } = oversoldLines(5)
+
+    const { response } = await runSale(stockRows, items)
+
+    expect(response.success).toBe(true)
+    expect(response.stockWarnings).toHaveLength(5)
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('seuil franchi : une alerte warning part, et la vente réussit', async () => {
+    const { stockRows, items } = oversoldLines(6)
+
+    const { response } = await runSale(stockRows, items)
+
+    expect(response.success).toBe(true)
+    expect(response.stockWarnings).toHaveLength(6)
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    const [message, ctx] = captureMessage.mock.calls[0] as [string, { level: string; tags: Record<string, string>; extra: Record<string, unknown> }]
+    expect(message).toContain('Survente en rafale')
+    expect(ctx.level).toBe('warning')
+    expect(ctx.tags.scope).toBe('stock-oversell')
+    expect(ctx.tags.tenantId).toBe('test-tenant-id')
+    expect(ctx.extra).toMatchObject({ establishmentId: 10, oversellCount: 6 })
+  })
+
+  it('une panne Sentry ne fait PAS échouer la vente : même réponse qu’avec Sentry en état', async () => {
+    const { stockRows, items } = oversoldLines(6)
+    // Horloge figée : les deux ventes portent la même date, la comparaison des
+    // réponses ne dépend pas de la milliseconde.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-10T10:00:00Z'))
+
+    try {
+      const reference = await runSale(stockRows, items)
+      // La vente de référence a bien émis l'alerte : les deux ventes passent
+      // par la même branche, seule la santé de Sentry diffère.
+      expect(captureMessage).toHaveBeenCalledTimes(1)
+
+      vi.resetModules()
+      captureMessage.mockReset()
+      captureMessage.mockImplementation(() => {
+        throw new Error('Sentry transport down')
+      })
+      const withSentryDown = await runSale(stockRows, items)
+
+      expect(captureMessage).toHaveBeenCalledTimes(1)
+      expect(withSentryDown.response.success).toBe(true)
+      expect(withSentryDown.response).toEqual(reference.response)
+      // Mêmes écritures en base, valeurs comprises (vente, lignes, mouvements de stock).
+      expect(withSentryDown.inserted).toEqual(reference.inserted)
+      expect(withSentryDown.updated).toEqual(reference.updated)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
 describe('POST /api/sales/create — décrément de stock et survente', () => {
   beforeEach(() => {

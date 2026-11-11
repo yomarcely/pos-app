@@ -115,6 +115,46 @@ export function reportChainIntegrityFailure(payload: ChainIntegrityPayload): boo
   })
 }
 
+export interface ChainVerificationErrorPayload {
+  tenantId: string
+  registerId: number
+  businessDay: string
+  /** Nom de l'erreur uniquement (`Error`, `TypeError`…) — jamais son message. */
+  errorName: string
+}
+
+/**
+ * La vérification d'une caisse a PLANTÉ (base indisponible, ticket illisible…)
+ * → `error`. Distinct de « chaîne cassée » : ici on ne sait pas si la chaîne est
+ * intacte, et c'est précisément ce qu'il faut signaler — une caisse non vérifiée
+ * ne doit jamais passer pour une caisse saine. Un ticket rendu illisible par une
+ * altération en base tombe dans ce cas.
+ *
+ * Seul le nom de l'erreur part : son message peut contenir des valeurs issues de
+ * la base (paramètres SQL, contenu d'un ticket). Le détail reste dans les logs.
+ */
+export function reportChainVerificationError(payload: ChainVerificationErrorPayload): boolean {
+  return guarded(() => {
+    const key = `chain-error:${payload.tenantId}:${payload.registerId}`
+    if (throttled(key)) return false
+
+    Sentry.captureMessage('NF525 : vérification de chaîne impossible', {
+      level: 'error',
+      tags: {
+        scope: 'nf525-chain',
+        source: 'cron',
+        tenantId: payload.tenantId,
+      },
+      extra: {
+        registerId: payload.registerId,
+        businessDay: payload.businessDay,
+        errorName: payload.errorName,
+      },
+    })
+    return true
+  })
+}
+
 // ==========================================
 // 2. Refus de clôture
 // ==========================================

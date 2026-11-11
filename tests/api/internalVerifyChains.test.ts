@@ -45,11 +45,13 @@ vi.mock('~/server/database/schema', () => ({
 }))
 
 let activeRegisters: Array<{ tenantId: string; registerId: number | null }> = []
+/** Si renseignée, la requête des caisses actives échoue avec cette erreur. */
+let activeRegistersError: Error | null = null
 vi.mock('~/server/database/connection', () => ({
   db: {
     selectDistinct: () => ({
       from: () => ({
-        where: () => Promise.resolve(activeRegisters),
+        where: () => (activeRegistersError ? Promise.reject(activeRegistersError) : Promise.resolve(activeRegisters)),
       }),
     }),
   },
@@ -83,6 +85,7 @@ describe('A5 — garde CRON_SECRET sur /api/internal/*', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     delete process.env.CRON_SECRET
   })
 
@@ -142,6 +145,109 @@ describe('A5 — garde CRON_SECRET sur /api/internal/*', () => {
 
     expect(assertAuth).toHaveBeenCalledTimes(1)
   })
+
+  // --- Cas de refus ajoutés après la relecture d'A5 (2026-11-11) ---
+
+  it.each([
+    ['vide', ''],
+    ['fait d’espaces', '   '],
+  ])('401 fail-closed si CRON_SECRET est %s (état de .env.example)', async (_label, value) => {
+    process.env.CRON_SECRET = value
+
+    headers.authorization = 'Bearer nimporte-quoi'
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+
+    // Présenter exactement la valeur « vide » configurée ne doit pas passer non plus.
+    headers.authorization = `Bearer ${value}`
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+
+    delete headers.authorization
+    headers['x-cron-secret'] = value
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('401 si « Authorization: Bearer » ne porte rien', async () => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers.authorization = 'Bearer '
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('401 si x-cron-secret est vide', async () => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers['x-cron-secret'] = ''
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it.each([
+    'bearer le-vrai-secret',
+    'Basic le-vrai-secret',
+    'Bearerle-vrai-secret',
+    'le-vrai-secret',
+  ])('401 si le préfixe Authorization est mal formé : « %s »', async (value) => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers.authorization = value
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('401 si le secret présenté est plus long que le bon', async () => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers.authorization = 'Bearer le-vrai-secret-et-plus'
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('un chemin qui commence seulement par « /api/internal » sans en faire partie passe par assertAuth', async () => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers['x-cron-secret'] = 'le-vrai-secret'
+
+    await handler({ path: '/api/internalfoo', method: 'GET', context: {} })
+
+    expect(assertAuth).toHaveBeenCalledTimes(1)
+  })
+
+  // Une route index (server/api/internal/index.get.ts) serait servie sur
+  // « /api/internal », sans barre finale. Elle doit être gardée par le secret,
+  // pas ouverte à tout utilisateur connecté via assertAuth.
+  it.each([
+    '/api/internal',
+    '/api/internal?x=1',
+    '/api/internal/',
+    '/api/internal/?x=1',
+    '/api/internal/verify-chains?date=2026-09-09',
+  ])('exige le secret sur « %s » et n’appelle jamais assertAuth', async (path) => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+
+    await expect(handler({ path, method: 'GET', context: {} })).rejects.toMatchObject({ statusCode: 401 })
+    expect(assertAuth).not.toHaveBeenCalled()
+
+    headers.authorization = 'Bearer le-vrai-secret'
+    const ev = { path, method: 'GET', context: {} as Record<string, unknown> }
+    await expect(handler(ev)).resolves.toBeUndefined()
+    expect(ev.context.auth).toBeUndefined()
+    expect(assertAuth).not.toHaveBeenCalled()
+  })
+
+  it('une query string ne suffit pas à faire passer une route pour interne', async () => {
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    headers['x-cron-secret'] = 'le-vrai-secret'
+
+    await handler({ path: '/api/sales?next=/api/internal/', method: 'GET', context: {} })
+
+    expect(assertAuth).toHaveBeenCalledTimes(1)
+  })
+
+  it('ALLOW_AUTH_BYPASS=true en dev n’ouvre pas la route interne : le secret reste exigé', async () => {
+    vi.stubEnv('ALLOW_AUTH_BYPASS', 'true')
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { nodeEnv: 'development' } }))
+    vi.resetModules()
+    const devHandler = (await import('~/server/middleware/auth.global')).default as unknown as typeof handler
+
+    process.env.CRON_SECRET = 'le-vrai-secret'
+    await expect(devHandler(event)).rejects.toMatchObject({ statusCode: 401 })
+
+    headers.authorization = 'Bearer mauvais-secret'
+    await expect(devHandler(event)).rejects.toMatchObject({ statusCode: 401 })
+  })
 })
 
 // ==========================================
@@ -155,6 +261,7 @@ describe('A5 — GET /api/internal/verify-chains', () => {
     registersChecked: number
     ticketsChecked: number
     registersFailed: number
+    registersErrored: number
   }>
 
   const valid = (ticketCount: number) => ({ isValid: true, ticketCount, brokenLinks: [] })
@@ -170,6 +277,7 @@ describe('A5 — GET /api/internal/verify-chains', () => {
     logChainVerification.mockClear()
     verifyChainForTenant.mockReset()
     activeRegisters = []
+    activeRegistersError = null
 
     vi.useFakeTimers()
     // 2026-09-10 06:00 Europe/Paris (CEST = UTC+2) → jour métier précédent : 2026-09-09.
@@ -286,11 +394,105 @@ describe('A5 — GET /api/internal/verify-chains', () => {
     const result = await handler({})
 
     expect(verifyChainForTenant).toHaveBeenCalledTimes(3)
-    // La caisse en erreur n'est comptée ni comme vérifiée ni comme cassée ;
-    // la caisse suivante est bien alertée.
+    // La caisse en erreur n'est comptée ni comme vérifiée ni comme cassée :
+    // elle a son propre compteur et sa propre alerte. La caisse suivante est
+    // bien vérifiée et alertée.
     expect(result.registersChecked).toBe(2)
     expect(result.registersFailed).toBe(1)
+    expect(result.registersErrored).toBe(1)
+    expect(captureMessage).toHaveBeenCalledTimes(2)
+    const messages = captureMessage.mock.calls.map(c => c[0] as string)
+    expect(messages).toEqual([
+      'NF525 : vérification de chaîne impossible',
+      'NF525 : chaîne de tickets cassée',
+    ])
+  })
+
+  it('une caisse dont la vérification plante n’est JAMAIS déclarée intacte', async () => {
+    // Relecture A5 (2026-11-11) : un ticket rendu illisible par une altération
+    // en base fait lever la vérification. Avant ce correctif, le cron répondait
+    // « registersFailed: 0 » et loguait « toutes les chaînes intactes ».
+    activeRegisters = [{ tenantId: 'tenant-1', registerId: 7 }]
+    verifyChainForTenant.mockRejectedValue(new TypeError('p.amount.toFixed is not a function'))
+    const { logger } = await import('~/server/utils/logger')
+    vi.mocked(logger.info).mockClear()
+    vi.mocked(logger.error).mockClear()
+
+    const result = await handler({})
+
+    expect(result).toMatchObject({ success: true, registersChecked: 0, registersFailed: 0, registersErrored: 1 })
+
+    // Alerte dédiée, de niveau error, sans le message d'erreur (il peut contenir des données).
     expect(captureMessage).toHaveBeenCalledTimes(1)
+    const [message, ctx] = captureMessage.mock.calls[0] as [string, { level: string; tags: Record<string, string>; extra: Record<string, unknown> }]
+    expect(message).toBe('NF525 : vérification de chaîne impossible')
+    expect(ctx.level).toBe('error')
+    expect(ctx.tags.tenantId).toBe('tenant-1')
+    expect(ctx.extra).toEqual({ registerId: 7, businessDay: '2026-09-09', errorName: 'TypeError' })
+    expect(JSON.stringify(ctx)).not.toContain('toFixed')
+
+    // Le résumé ne dit pas « intactes » ; il est logué en anomalie.
+    const infoMessages = vi.mocked(logger.info).mock.calls.map(c => String(c[1] ?? c[0]))
+    expect(infoMessages.some(m => m.includes('intactes'))).toBe(false)
+    const errorMessages = vi.mocked(logger.error).mock.calls.map(c => String(c[1] ?? c[0]))
+    expect(errorMessages.some(m => m.includes('AVEC ANOMALIES'))).toBe(true)
+
+    // Pas de ligne d'audit « chaîne valide/invalide » : on ne sait pas.
+    expect(logChainVerification).not.toHaveBeenCalled()
+  })
+
+  it('logue « toutes les chaînes intactes » uniquement quand rien n’est cassé ni en erreur', async () => {
+    activeRegisters = [{ tenantId: 'tenant-1', registerId: 1 }]
+    verifyChainForTenant.mockResolvedValue(valid(3))
+    const { logger } = await import('~/server/utils/logger')
+    vi.mocked(logger.info).mockClear()
+
+    const result = await handler({})
+
+    expect(result.registersErrored).toBe(0)
+    const infoMessages = vi.mocked(logger.info).mock.calls.map(c => String(c[1] ?? c[0]))
+    expect(infoMessages.some(m => m.includes('toutes les chaînes intactes'))).toBe(true)
+  })
+
+  it('une panne Sentry pendant l’alerte « vérification impossible » ne bloque pas le balayage', async () => {
+    activeRegisters = [
+      { tenantId: 'tenant-1', registerId: 1 },
+      { tenantId: 'tenant-1', registerId: 2 },
+    ]
+    verifyChainForTenant
+      .mockRejectedValueOnce(new Error('connection terminated'))
+      .mockResolvedValueOnce(valid(4))
+    captureMessage.mockImplementation(() => {
+      throw new Error('Sentry transport down')
+    })
+
+    const result = await handler({})
+
+    // L'alerte a bien été tentée (et a levé) : le balayage a continué malgré tout.
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ success: true, registersChecked: 1, registersErrored: 1 })
+  })
+
+  it('compte aussi une caisse quand ce qui est levé n’est pas une Error', async () => {
+    activeRegisters = [{ tenantId: 'tenant-1', registerId: 5 }]
+    verifyChainForTenant.mockRejectedValue('valeur brute levée')
+
+    const result = await handler({})
+
+    expect(result.registersErrored).toBe(1)
+    const [, ctx] = captureMessage.mock.calls[0] as [string, { extra: Record<string, unknown> }]
+    expect(ctx.extra.errorName).toBe('UnknownError')
+    expect(JSON.stringify(ctx)).not.toContain('valeur brute')
+  })
+
+  it('si la liste des caisses actives est illisible, le cron ÉCHOUE au lieu de répondre « rien à vérifier »', async () => {
+    // Cette requête est hors du try par caisse, à dessein : sans elle on ne sait
+    // même pas quoi vérifier. Le handler doit rejeter (500, run en échec côté
+    // Vercel, erreur capturée par Sentry) — surtout pas un 200 « 0 caisse ».
+    activeRegistersError = new Error('connection terminated')
+
+    await expect(handler({})).rejects.toThrow('connection terminated')
+    expect(verifyChainForTenant).not.toHaveBeenCalled()
   })
 
   it('saute les ventes sans caisse et le signale dans le résumé', async () => {
