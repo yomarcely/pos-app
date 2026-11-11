@@ -18,7 +18,7 @@
 | Branche | Rôle | État |
 |---|---|---|
 | `main` | Staging Vercel | `b2cdf52`, poussée, déployée. **En retard** : ne contient pas le contrôle du lien entre journées |
-| `developpement` | Travail quotidien | `c7e82fe` + commit de clôture. **Non poussée** au moment de la rédaction (3 commits d'avance sur GitHub) — `git status -sb` fait foi |
+| `developpement` | Travail quotidien | `c7e82fe` + deux commits de documentation. Poussée en fin de session du 2026-11-11 ; CI GitHub non constatée |
 
 Aucune branche de travail ouverte. `main` n'a **aucune protection de branche** sur GitHub : un
 push y part sans attendre la CI.
@@ -92,7 +92,7 @@ Limites du contrôle de chaîne, connues et documentées dans le code :
   possible (ordre `id` ≠ ordre `saleDate`). Non analysé au-delà de la lecture.
 - **Contrat miroir** : le comptage de `chainDayBoundaries.ts` reproduit celui de
   `close-day.post.ts`. Changer l'un sans l'autre = fausse alerte chaque nuit. Figé par
-  `tests/api/closeDay.test.ts` ; à proposer comme ligne de `CLAUDE.md` (non fait, validation requise).
+  `tests/api/closeDay.test.ts` et inscrit dans les zones critiques de `CLAUDE.md`.
 
 Constats de la relecture d'A5 non traités (aucun n'est exploitable aujourd'hui) :
 - `PUBLIC_ENDPOINTS` fonctionne par préfixe (`/api/login`, `/api/auth`) dans `auth.global.ts`,

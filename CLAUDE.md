@@ -38,6 +38,7 @@ server/utils/businessDay.ts                # « jour métier » Europe/Paris —
 🔴 **Ne toucher qu'avec tests de régression** :
 - `server/api/sales/create.post.ts` — création vente, chaîne NF525
 - `server/api/sales/close-day.post.ts` — clôture, hash NF525
+- `server/utils/chainDayBoundaries.ts` — reproduit le comptage de `close-day.post.ts` (`ticketCount`, `cancelledCount`, dernier ticket) ; modifier l'un sans l'autre déclenche une fausse alerte « chaîne cassée » chaque nuit
 - `server/utils/nf525.ts` — hash SHA-256, chaînage, numérotation
 - `server/database/schema.ts` — impact N endpoints
 - `stores/cart.ts` + `utils/cartUtils.ts` — logique caisse, centimes
@@ -161,4 +162,4 @@ pnpm e2e:local            # smoke Playwright du chemin critique (voir e2e/README
 - Journal des sessions : [docs/journal.md](docs/journal.md)
 - Checklist pré-déploiement : [docs/pre-deploy-checklist.md](docs/pre-deploy-checklist.md)
 
-*Dernière mise à jour : 2026-11-11 — invariant 9 complété (audit des endpoints internes par fichier exact, suffixe de méthode exigé). Précédente : 2026-11-10, resynchronisation avec le code et renvoi de l'état courant vers docs/etat-projet.md*
+*Dernière mise à jour : 2026-11-11 — zone critique `server/utils/chainDayBoundaries.ts` ajoutée (comptage miroir de la clôture). Précédente : 2026-11-11, invariant 9 complété (audit des endpoints internes par fichier exact, suffixe de méthode exigé)*
