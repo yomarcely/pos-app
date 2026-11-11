@@ -312,7 +312,16 @@ export async function logChainVerification(params: {
   brokenLinksCount: number
   registerId?: number | null
   ipAddress?: string | null
+  /** Jour métier vérifié (contrôle planifié). Absent pour une vérification sur plage libre. */
+  businessDay?: string
+  /**
+   * Codes des constats de bord de journée (cf. server/utils/chainDayBoundaries.ts).
+   * Comptés à part de `brokenLinksCount`, qui reste le nombre de tickets cassés.
+   */
+  boundaryAnomalies?: string[]
 }): Promise<void> {
+  const boundaryAnomalies = params.boundaryAnomalies ?? []
+
   await logAuditEvent({
     tenantId: params.tenantId,
     userId: params.userId,
@@ -323,10 +332,13 @@ export async function logChainVerification(params: {
     changes: {
       ticketCount: params.ticketCount,
       brokenLinksCount: params.brokenLinksCount,
+      ...(boundaryAnomalies.length > 0 ? { boundaryAnomaliesCount: boundaryAnomalies.length } : {}),
     },
     metadata: {
       integrityStatus: params.isValid ? 'valid' : 'invalid',
       registerId: params.registerId || undefined,
+      ...(params.businessDay ? { businessDay: params.businessDay } : {}),
+      ...(boundaryAnomalies.length > 0 ? { boundaryAnomalies: boundaryAnomalies.join(',') } : {}),
     },
     ipAddress: params.ipAddress,
   })
