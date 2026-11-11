@@ -7,20 +7,23 @@
 > checklist du [plan d'exécution](architecture/2026-07-plan-execution-phases-1-2.md).
 > Si cette page contredit le code, le code a raison : corriger la page.
 
-**Dernière vérification : 2026-11-11** — commit `9e90bfc` sur `developpement`
-- **CI GitHub : verte** sur `developpement` (`9e90bfc`) — audits, lint, typecheck, tests. Job e2e sauté volontairement.
-- **En local : `pnpm run ci` vert** sur `9e90bfc` — lint 0 erreur (174 avertissements), typecheck, audit tenant (110 endpoints : 108 conformes, 1 public, 1 interne cron, aucune violation), audit migrations, 994 tests / 115 fichiers.
-- **Build** : `pnpm build` réussi en local sur le code de `fa9c206`, et aperçu Vercel de la PR #5 déployé. La CI GitHub, elle, ne construit pas l'application (le build est dans le job e2e, sauté).
-- Non vérifié : l'état du staging (code et base), l'e2e, le contenu réel d'un événement dans Sentry, le cron sur Vercel.
+**Dernière vérification : 2026-11-11 (2e session)** — commit `b2cdf52`, identique sur `developpement` et `main`
+- **CI GitHub : verte** sur `b2cdf52`, sur `developpement` et sur `main` — audits, lint, typecheck, tests. Job e2e sauté volontairement.
+- **En local : `pnpm run ci` vert** sur le contenu de `b2cdf52` — lint 0 erreur (174 avertissements), typecheck, audit tenant (110 endpoints : 108 conformes, 1 public, 1 interne cron, aucune violation), audit migrations, 994 tests / 115 fichiers.
+- **Staging déployé** sur `b2cdf52` (build Vercel réussi). Contrôlé depuis la session, sans identifiants : page de login 200, en-tête CSP sans `unsafe-eval`, cron refusé (401) sans secret et avec un faux secret, API refusées (401) sans connexion, adresse Sentry et environnement `staging` présents dans la page.
+- **Déclaré par Yohan, non vu par la session** : cron appelé avec le secret (`registersFailed` et `registersErrored` à 0), parcours caisse (vente, ticket, clôture) correct, cron listé dans Vercel, événement de test arrivé dans Sentry (« ça a l'air bon », sans détail point par point).
+- **Schéma de la base staging** : comparé à dev après rattrapage — aucun écart sur les colonnes, contraintes, index, triggers, enums et séquences.
+- Non vérifié : l'e2e, `pnpm build` en local (seul le build Vercel a tourné), un passage réel du cron à 4 h UTC, l'effet du réglage « Only build production » (aucun push depuis qu'il est posé).
 
 ## Branches
 
 | Branche | Rôle | État |
 |---|---|---|
-| `main` | Staging Vercel | Code du 2026-07-03 (`65a5e35`). En retard de tout le travail fait depuis (le nombre de commits est donné au démarrage de session) |
-| `developpement` | Travail quotidien | À jour avec GitHub. Contient A5 (alerting NF525) **relu et corrigé** (PR #5) |
+| `main` | Staging Vercel | `b2cdf52`, poussée, déployée. Au même commit que `developpement` (hors commit de clôture, qui n'est que de la documentation) |
+| `developpement` | Travail quotidien | À jour avec GitHub |
 
-Aucune branche de travail ouverte, aucune modification en attente.
+Aucune branche de travail ouverte, aucune modification en attente. `main` n'a **aucune protection
+de branche** sur GitHub (vérifié par l'API) : un push y part sans attendre la CI.
 
 ## Contraintes du moment
 
@@ -32,50 +35,46 @@ Aucune branche de travail ouverte, aucune modification en attente.
 
 ## Bloquants
 
-1. **Dérive de schéma à vérifier sur staging**, avant tout merge `developpement` → `main`.
-   Trois colonnes peut-être absentes (`sale_items.variation_id`, `customers.is_archived`,
-   `customers.archived_at`) ; `db:migrate` ne les rattrapera pas. Procédure en tête du
-   [runbook staging](runbooks/deploy-staging-vercel.md). Constaté le 2026-09-10, pas encore fait.
-2. **Certification NF525** : signature factice (`TEMP_SIGNATURE_`) tant que le dossier INFOCERT/LNE
+1. **Certification NF525** : signature factice (`TEMP_SIGNATURE_`) tant que le dossier INFOCERT/LNE
    n'a pas abouti. Bloquant légal pour la mise en production réelle.
 
-**Bloquants avant le premier commerce pilote, pas avant le staging :**
+**Bloquants avant le premier commerce pilote :**
 
-3. **Le cron ne contrôle pas le lien entre deux journées** (relecture d'A5). Il vérifie la veille,
-   caisse par caisse, mais ne compare pas le premier ticket du jour au dernier de la veille
-   (`verifyTicketChain` dans `server/utils/nf525.ts` ignore le `previousHash` du premier élément).
-   Des ventes supprimées en fin de soirée, ou une journée entière effacée sur une caisse, passent
-   inaperçues. Piste : charger le dernier ticket de la caisse avant la fenêtre, et comparer nombre
-   et dernier ticket à ceux de la clôture. Zone NF525 : plan et tests de caractérisation d'abord.
-4. **Sauvegarde automatique de la base** (reportée par décision). `backup.yml` n'a jamais fonctionné
+2. **Le cron ne contrôle pas le lien entre deux journées** (relecture d'A5, reconfirmé dans le code
+   le 2026-11-11). Il vérifie la veille, caisse par caisse, mais ne compare pas le premier ticket du
+   jour au dernier de la veille (`verifyTicketChain` dans `server/utils/nf525.ts` ignore le
+   `previousHash` du premier élément). Des ventes supprimées en fin de soirée, ou une journée
+   entière effacée sur une caisse, passent inaperçues. Piste : charger le dernier ticket de la
+   caisse avant la fenêtre, et comparer nombre et dernier ticket à ceux de la clôture. Zone NF525 :
+   plan et tests de caractérisation d'abord.
+3. **Sauvegarde automatique de la base** (reportée par décision). `backup.yml` n'a jamais fonctionné
    et GitHub l'a désactivé ; Cloudflare R2 exige une carte bancaire. Le jour venu : 6 secrets
    ([runbook](runbooks/backup-restore.md), §1.4), `gh workflow enable backup.yml`, exercice de
    restauration. Laisser désactivé d'ici là.
 
 ## Prochaines actions, dans l'ordre
 
-1. Dérouler la vérification de schéma du bloquant n°1 (bascule d'environnement : accord explicite).
-2. Poser `CRON_SECRET` sur Vercel, puis merger `developpement` dans `main` (déploie le staging).
-   Juste après : lancer le `curl` du runbook, puis ouvrir un événement dans Sentry et vérifier qu'il
-   ne porte ni `authorization`, ni cookie, ni adresse IP, ni contenu de requête.
-3. Vérifier les aperçus Vercel (voir « Côté fondateur »).
-4. Contrôle du lien entre deux journées (bloquant n°3).
-5. A3 (e2e) : job sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true`. Le
+1. Contrôle du lien entre deux journées (bloquant n°2).
+2. A3 (e2e) : job sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true`. Le
    rebrancher sans coût (base dev avec un utilisateur dédié, ou Supabase local dans Docker pendant
    la CI). Détail dans [e2e/README.md](../e2e/README.md).
-6. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
+3. Trancher l'hébergement (Vercel serverless ou conteneur) **avant le premier commerce pilote**.
+
+Les prochains merges `developpement` → `main` suivent le [runbook staging](runbooks/deploy-staging-vercel.md) :
+attendre la CI verte sur `developpement`, et appliquer les migrations sur staging s'il y en a.
 
 ## Côté fondateur (hors code)
 
 - Dossier de certification INFOCERT/AFNOR ou LNE.
-- `CRON_SECRET` sur Vercel : gratuit, une valeur aléatoire (`openssl rand -hex 32`, pas un mot choisi).
-- **Sentry** : vérifier que la règle d'alerte envoie un mail à chaque événement et pas seulement à
-  la première apparition (toutes les caisses se regroupent sous une même alerte), et que le
-  nettoyage des données sensibles du projet est actif.
-- **Aperçus Vercel actifs** : chaque branche poussée est déployée (encore constaté sur la PR #5).
-  Vérifier que les variables « Preview » ne pointent pas sur la base staging, ou les désactiver.
-- **Le dépôt GitHub est public** : à confirmer que c'est voulu.
-- Protection de branche sur `main` : à confirmer (réglage décrit dans le runbook staging).
+- **Demain matin** : Vercel → Cron Jobs, vérifier que le premier passage automatique de 4 h UTC
+  (5 h à Paris en hiver) est en succès.
+- **Sentry** : confirmer que la règle d'alerte envoie un mail à chaque événement et pas seulement à
+  la création d'une alerte, et que « Data Scrubber » et « Prevent Storing of IP Addresses » sont actifs.
+- **Aperçus Vercel** : réglage « Only build production » posé par Yohan le 2026-11-11. Au prochain
+  push sur `developpement`, le déploiement « Preview » doit apparaître « Canceled ».
+- **Protection de branche sur `main`** : absente. Réglage décrit dans le runbook staging.
+- **Le dépôt GitHub est public** (vérifié) : à confirmer que c'est voulu. Sa page d'accueil
+  déclarée, `fympos.vercel.app`, répond 404 : à corriger ou à retirer.
 - `git stash drop` : un stash du 2025-05-30 sans intérêt, que la session Claude ne peut pas supprimer.
 - Choix du TPE (Stripe Terminal, SumUp…) et test d'une imprimante thermique 80 mm.
 
@@ -94,6 +93,11 @@ Constats de la relecture d'A5 non traités (aucun n'est exploitable aujourd'hui)
   d'une erreur de base de données. L'alerte « vérification impossible » n'envoie que le nom de l'erreur.
 - `CRON_SECRET` : pas de longueur minimale ; un secret absent rend le cron muet (401 chaque matin).
 
+Constat du 2026-11-11 : **six tables de la base dev n'ont pas la sécurité par ligne (RLS)**, alors
+que staging l'a (`notes`, `pending_sales`, `loyalty_config`, `loyalty_vouchers`,
+`inventory_preparations`, `inventory_preparation_items`). L'application n'est pas concernée ;
+l'exposition par l'API Supabase n'a pas été vérifiée. Détail dans le runbook staging, à reprendre avec A4.
+
 Chantiers : A4a / A4b (RLS PostgreSQL, pas commencé — l'isolation repose sur le filtrage
 applicatif et `pnpm audit:tenant`) ; B1 → B7 (couche domaine ; B7 = suppression des colonnes
 `products.stock` / `stockByVariation`, gelées).
@@ -102,9 +106,11 @@ applicatif et `pnpm audit:tenant`) ; B1 → B7 (couche domaine ; B7 = suppressio
 
 Skills `/debut-session` et `/fin-session`, trois hooks, deux agents relecteurs dans `.claude/`.
 
-- Éprouvés : les deux skills, le résumé injecté au démarrage, le refus de lecture des `.env`, et les
-  deux agents relecteurs (quatre passes le 2026-11-11, constats réels à chaque fois, y compris sur
-  les corrections elles-mêmes).
+- Éprouvés : les deux skills, le résumé injecté au démarrage, le refus de lecture des `.env`, les
+  deux agents relecteurs, et la confirmation demandée avant un `psql` hors base de développement.
+- Une vérification sur staging n'exige pas de basculer `.env` : `psql` lit l'adresse dans
+  `.env.staging` sans l'afficher, en session `READ ONLY` pour une lecture. Le poste reste sur dev.
+- L'adresse publique du staging est dans la mémoire Claude du projet, pas dans le dépôt (public).
 - À confirmer par Yohan : la confirmation sur zone critique lui a-t-elle bien été posée lors de
   l'édition de `server/middleware/auth.global.ts` ?
 - Une relecture par agent est coûteuse : la limite d'usage de 5 heures a été atteinte deux fois.

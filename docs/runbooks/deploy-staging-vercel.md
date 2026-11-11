@@ -21,9 +21,11 @@ pnpm env:staging && pnpm db:migrate && pnpm env:dev
 ```
 
 **Réglages à faire une fois (manuel)** :
-1. *Vercel* → Settings du projet → **Git** : désactiver les Preview Deployments (ou configurer
-   les variables d'environnement « Preview » sur la base **dev** — sinon une preview de
-   `developpement` écrirait dans la base staging).
+1. *Vercel* → Settings du projet → **Build and Deployment** → **Ignored Build Step** :
+   « Only build production ». Seul `main` est construit ; un push sur une autre branche crée un
+   déploiement aussitôt « Canceled ». Sans ce réglage, une preview de `developpement` peut écrire
+   dans la base staging si ses variables pointent dessus. *Posé par Yohan le 2026-11-11 ; effet à
+   constater au premier push qui suit.*
 2. *GitHub* → repo → **Settings → Branches → Add branch ruleset** (ou « Add classic branch
    protection rule ») sur `main` : cocher **Require status checks to pass** et sélectionner les
    jobs de la CI (`audit`, `lint`, `typecheck`, `test`). Le staging ne recevra jamais de code
@@ -172,8 +174,8 @@ directement par `pnpm db:migrate`.
 | `BUSINESS_TIMEZONE` | `Europe/Paris` |
 | `DPO_EMAIL` | ton email |
 | `CUSTOMER_DATA_RETENTION` | `2190` |
-| `SENTRY_ENVIRONMENT` | `staging` |
-| `NUXT_PUBLIC_SENTRY_DSN` | DSN Sentry (vide = désactivé, OK pour commencer) |
+| `SENTRY_ENVIRONMENT` | `staging` — sans elle, l'environnement s'annonce « production » |
+| `NUXT_PUBLIC_SENTRY_DSN` | DSN Sentry — **requis** depuis A5 : vide, aucune alerte ne part (chaîne NF525 cassée comprise). Lu au build : redéployer après l'avoir posé. Les deux étaient absentes jusqu'au 2026-11-11 |
 | `INFOCERT_PRIVATE_KEY` / `INFOCERT_MERCHANT_ID` | laisser vide (signature TEMP_ en attendant la certification) |
 | `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | credentials R2 archives — optionnel : sans eux, les archives passent en `pending_export` (comportement prévu P3.6) |
 | `CRON_SECRET` | `openssl rand -hex 32` — **requis** (A5), voir section « Cron de vérification des chaînes » |
