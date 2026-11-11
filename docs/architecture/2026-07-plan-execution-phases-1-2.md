@@ -470,7 +470,7 @@ Termine par pnpm ci + e2e vert (le flux de vente déstocke).
 - [x] A3 — e2e Playwright smoke en CI — implémenté le 2026-09-10 (`f8c618f`, sur `developpement`). **Ne tourne pas sur GitHub** : depuis le 2026-11-10 le job est sauté tant que la variable de dépôt `E2E_ENABLED` ne vaut pas `true`, faute de projet Supabase dédié aux tests (plan gratuit limité à deux projets) et donc de secrets `E2E_*`. Reste : le rebrancher sans coût (voir `e2e/README.md`), puis le rendre bloquant après une période sans flakiness
 - [ ] A4a — RLS socle + pilote suppliers/brands
 - [ ] A4b — RLS généralisé (5 vagues)
-- [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10), mergée dans `developpement` le 2026-11-10. Relu par les deux agents relecteurs et corrigé le 2026-11-11 (PR #5, `9e90bfc`) ; reste hors de cette correction le contrôle du lien entre deux journées, à faire avant le premier pilote. Sur `main` et déployé sur le staging le 2026-11-11 (`b2cdf52`), `CRON_SECRET` et Sentry posés sur Vercel ; premier passage automatique du cron à constater
+- [x] A5 — Alerting Sentry invariants + verify-chain planifié — branche `feat/a5-alerting-invariants` (2026-09-10), mergée dans `developpement` le 2026-11-10. Relu par les deux agents relecteurs et corrigé le 2026-11-11 (PR #5, `9e90bfc`) ; le contrôle du lien entre deux journées, laissé hors de cette correction, est livré le 2026-11-11 (`7c5f719`, mergé dans `developpement` en `c7e82fe`, pas encore sur `main`). Sur `main` et déployé sur le staging le 2026-11-11 (`b2cdf52`), `CRON_SECRET` et Sentry posés sur Vercel ; premier passage automatique du cron à constater
 
 ### Phase B — couche domaine
 - [ ] B1 — Caractérisation création de vente
