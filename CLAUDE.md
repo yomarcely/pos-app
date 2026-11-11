@@ -84,7 +84,7 @@ server/utils/businessDay.ts                # « jour métier » Europe/Paris —
 6. **Finance** : calculs en centimes entiers. Points d'entrée : `utils/cartUtils.ts` (client), `server/utils/financialValidation.ts` (serveur). Pas de math float ad-hoc.
 7. **Hash NF525** : une seule fonction `generateTicketHash` dans `server/utils/nf525.ts`. Toute modification invalide les chaînes existantes = migration data.
 8. **Transactions** : tout helper qui écrit en base et peut être appelé depuis `db.transaction` accepte un paramètre `DbExecutor` (`server/database/connection.ts`) et reçoit `tx`. Écrire via le `db` global pendant qu'une transaction est ouverte = auto-deadlock en mode pooler (staging/prod, 1 connexion) : c'est la cause des ventes et mouvements figés du 2026-07-03.
-9. **Endpoints internes (cron)** : `/api/internal/*` passe par `CRON_ENDPOINTS` dans `server/middleware/auth.global.ts`, liste volontairement distincte de `PUBLIC_ENDPOINTS`. Authentification par `CRON_SECRET` comparé en temps constant, fermé par défaut si le secret est absent. `event.context.auth` n'y est jamais posé (`getTenantIdFromEvent` lèverait 401) : l'endpoint détermine lui-même les tenants traités. Y ajouter une route demande le même audit que la règle absolue n°8.
+9. **Endpoints internes (cron)** : `/api/internal/*` passe par `CRON_ENDPOINTS` dans `server/middleware/auth.global.ts`, liste volontairement distincte de `PUBLIC_ENDPOINTS`. Authentification par `CRON_SECRET` comparé en temps constant, fermé par défaut si le secret est absent. `event.context.auth` n'y est jamais posé (`getTenantIdFromEvent` lèverait 401) : l'endpoint détermine lui-même les tenants traités. Y ajouter une route demande le même audit que la règle absolue n°8. `pnpm audit:tenant` n'admet un endpoint interne que s'il figure, par fichier exact, dans `KNOWN_INTERNAL_CRON` (`scripts/audit-tenant-isolation.ts`), et s'il porte un suffixe de méthode (`.get.ts`, `.post.ts`…).
 
 ---
 
@@ -161,4 +161,4 @@ pnpm e2e:local            # smoke Playwright du chemin critique (voir e2e/README
 - Journal des sessions : [docs/journal.md](docs/journal.md)
 - Checklist pré-déploiement : [docs/pre-deploy-checklist.md](docs/pre-deploy-checklist.md)
 
-*Dernière mise à jour : 2026-11-10 — resynchronisation avec le code (tailles de fichiers retirées, résolution `x-tenant-id` corrigée, invariants 8 et 9 ajoutés) et renvoi de l'état courant vers docs/etat-projet.md*
+*Dernière mise à jour : 2026-11-11 — invariant 9 complété (audit des endpoints internes par fichier exact, suffixe de méthode exigé). Précédente : 2026-11-10, resynchronisation avec le code et renvoi de l'état courant vers docs/etat-projet.md*
