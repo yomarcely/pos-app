@@ -8,14 +8,16 @@
  * - Base VIERGE : ce script est INUTILE — `pnpm db:migrate` suffit désormais.
  * - Base EXISTANTE (dev/staging/prod) : elle possède déjà le schéma, la baseline ne doit
  *   JAMAIS y être exécutée. Ce script remplace le contenu de `drizzle.__drizzle_migrations`
- *   (journal de l'ancienne chaîne) par les entrées de la nouvelle chaîne marquées appliquées.
- *   Les migrations FUTURES (0001+) s'appliqueront ensuite normalement via `pnpm db:migrate`.
+ *   (journal de l'ancienne chaîne) par UNE seule entrée : la baseline, marquée appliquée.
+ *   Les migrations suivantes (0001+) ne sont PAS marquées : elles s'appliquent ensuite
+ *   normalement via `pnpm db:migrate`. Les marquer ici les ferait passer pour appliquées sans
+ *   les exécuter (ex. 0001 : le rôle et les règles RLS n'existeraient jamais sur la base).
  *
  * Garde-fous : exige RUN_BASELINE_SWITCH=1 ; refuse si le schéma est absent (table `sales`
  * manquante = base vierge → utiliser `pnpm db:migrate`).
  *
  * Usage : RUN_BASELINE_SWITCH=1 pnpm tsx scripts/mark-migrations-applied.ts
- * Vérification ensuite : `pnpm db:migrate` ne doit rien appliquer.
+ * Vérification ensuite : `pnpm db:migrate` ne rejoue pas la baseline et applique 0001+.
  */
 import 'dotenv/config'
 import postgres from 'postgres'
@@ -24,6 +26,9 @@ import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 
 const MIGRATIONS_DIR = join(process.cwd(), 'server/database/migrations')
+
+/** Seule migration que ce script a le droit de marquer appliquée sans l'exécuter. */
+const BASELINE_TAG = '0000_baseline'
 
 interface JournalEntry { idx: number, tag: string, when: number }
 
@@ -62,21 +67,31 @@ async function main() {
   const oldRows = Number(existing[0]?.n ?? 0)
 
   const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, 'meta/_journal.json')).toString()) as { entries: JournalEntry[] }
+  const baseline = journal.entries.find(e => e.tag === BASELINE_TAG)
+  if (!baseline) {
+    console.error(`❌ ${BASELINE_TAG} introuvable dans meta/_journal.json : rien à marquer.`)
+    await sql.end()
+    process.exit(1)
+  }
 
   await sql.begin(async (tx) => {
     if (oldRows > 0) {
       await tx`DELETE FROM drizzle.__drizzle_migrations`
       console.log(`🧹 Ancien journal purgé (${oldRows} ligne(s) de l'ancienne chaîne).`)
     }
-    for (const entry of journal.entries) {
-      const content = readFileSync(join(MIGRATIONS_DIR, `${entry.tag}.sql`)).toString()
-      const hash = createHash('sha256').update(content).digest('hex')
-      await tx`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${hash}, ${entry.when})`
-      console.log(`📌 ${entry.tag} marquée appliquée`)
-    }
+    const content = readFileSync(join(MIGRATIONS_DIR, `${baseline.tag}.sql`)).toString()
+    const hash = createHash('sha256').update(content).digest('hex')
+    await tx`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${hash}, ${baseline.when})`
+    console.log(`📌 ${baseline.tag} marquée appliquée`)
   })
 
-  console.log(`\n✅ Journal basculé sur la nouvelle chaîne (${journal.entries.length} entrée(s)). Vérifier avec : pnpm db:migrate (doit ne rien appliquer).`)
+  const pending = journal.entries.filter(e => e.tag !== BASELINE_TAG).map(e => e.tag)
+  console.log('\n✅ Journal basculé : seule la baseline est marquée appliquée.')
+  if (pending.length > 0) {
+    console.log(`➡️  À appliquer maintenant avec pnpm db:migrate (${pending.length}) : ${pending.join(', ')}`)
+  } else {
+    console.log('   Vérifier avec : pnpm db:migrate (ne doit rien appliquer).')
+  }
   await sql.end()
 }
 

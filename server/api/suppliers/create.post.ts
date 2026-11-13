@@ -1,4 +1,4 @@
-import { db } from '~/server/database/connection'
+import { withTenantTx } from '~/server/database/tenantTx'
 import { suppliers } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
 
     const body = await validateBody<CreateSupplierInput>(event, createSupplierSchema)
 
-    const [newSupplier] = await db
+    const [newSupplier] = await withTenantTx(tenantId, tx => tx
       .insert(suppliers)
       .values({
         tenantId,
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
         phone: body.phone?.trim() || null,
         address: body.address?.trim() || null,
       })
-      .returning()
+      .returning())
 
     if (!newSupplier) {
       throw createError({ statusCode: 500, message: 'Échec de la création du fournisseur' })
