@@ -1,4 +1,4 @@
-import { db } from '~/server/database/connection'
+import { withTenantTx } from '~/server/database/tenantTx'
 import { suppliers } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
 
     const validatedData = await validateBody(event, updateSupplierSchema)
 
-    const [updated] = await db
+    const [updated] = await withTenantTx(tenantId, tx => tx
       .update(suppliers)
       .set({
         ...validatedData,
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
           eq(suppliers.tenantId, tenantId)
         )
       )
-      .returning()
+      .returning())
 
     if (!updated) {
       throw createError({

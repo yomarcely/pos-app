@@ -1,4 +1,5 @@
 import { db } from '~/server/database/connection'
+import { withTenantTx } from '~/server/database/tenantTx'
 import { suppliers, syncGroupEstablishments } from '~/server/database/schema'
 import { eq, and, inArray, or, sql } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -44,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
       // Retourner les fournisseurs créés par l'établissement OU par les établissements du même groupe
       // OU les fournisseurs globaux (createdByEstablishmentId IS NULL)
-      allSuppliers = await db
+      allSuppliers = await withTenantTx(tenantId, tx => tx
         .select()
         .from(suppliers)
         .where(
@@ -57,10 +58,10 @@ export default defineEventHandler(async (event) => {
             eq(suppliers.isArchived, false)
           )
         )
-        .orderBy(suppliers.name)
+        .orderBy(suppliers.name))
     } else {
       // Sans établissement, retourner tous les fournisseurs du tenant
-      allSuppliers = await db
+      allSuppliers = await withTenantTx(tenantId, tx => tx
         .select()
         .from(suppliers)
         .where(
@@ -69,7 +70,7 @@ export default defineEventHandler(async (event) => {
             eq(suppliers.isArchived, false)
           )
         )
-        .orderBy(suppliers.name)
+        .orderBy(suppliers.name))
     }
 
     return allSuppliers

@@ -1,4 +1,4 @@
-import { db } from '~/server/database/connection'
+import { withTenantTx } from '~/server/database/tenantTx'
 import { brands } from '~/server/database/schema'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
 import { assertRole } from '~/server/utils/roles'
@@ -16,14 +16,14 @@ export default defineEventHandler(async (event) => {
 
     const body = await validateBody<CreateBrandInput>(event, createBrandSchema)
 
-    const [newBrand] = await db
+    const [newBrand] = await withTenantTx(tenantId, tx => tx
       .insert(brands)
       .values({
         tenantId,
         createdByEstablishmentId: establishmentId,
         name: body.name.trim(),
       })
-      .returning()
+      .returning())
 
     if (!newBrand) {
       throw createError({ statusCode: 500, message: 'Échec de la création de la marque' })

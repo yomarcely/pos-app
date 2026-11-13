@@ -8,6 +8,13 @@
       "when": 1783373598221,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794478471823,
+      "tag": "0001_rls_socle_suppliers_brands",
+      "breakpoints": true
     }
   ]
 }

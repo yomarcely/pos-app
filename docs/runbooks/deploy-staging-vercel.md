@@ -20,6 +20,9 @@ migrations sur la base staging AVANT ou juste après le déploiement (Vercel ne 
 pnpm env:staging && pnpm db:migrate && pnpm env:dev
 ```
 
+⚠️ **Exception : une migration RLS s'applique toujours AVANT le déploiement du code**, jamais
+après — voir « Sécurité par ligne (RLS) » plus bas.
+
 **Réglages à faire une fois (manuel)** :
 1. *Vercel* → Settings du projet → **Build and Deployment** → **Ignored Build Step** :
    « Only build production ». Seul `main` est construit ; un push sur une autre branche crée un
@@ -85,6 +88,61 @@ baseline), comparer son catalogue à celui de dev — pas seulement les colonnes
 
 ---
 
+## Sécurité par ligne (RLS) — A4a, migration `0001_rls_socle_suppliers_brands`
+
+Depuis A4a, les requêtes sur `suppliers` et `brands` passent par `withTenantTx`
+(`server/database/tenantTx.ts`) : l'application endosse le rôle `fympos_app` le temps d'une
+transaction, et la base ne lui montre que les lignes du tenant posé. Le pourquoi et le mode
+d'emploi sont en tête de ce fichier.
+
+**Ordre de déploiement : la migration d'abord, le code ensuite.** Le code endosse `fympos_app` ;
+si le rôle n'existe pas, les écrans fournisseurs et marques répondent en erreur 500
+(`role "fympos_app" does not exist`). La migration seule ne change rien pour l'ancien code.
+
+1. Contrôle en lecture seule sur la base cible, avant la migration :
+
+   ```sql
+   -- le compte de connexion contourne bien la RLS (hypothèse du socle) : attendu postgres / t.
+   -- C'est aussi le compte qui recevra le rôle fympos_app : la migration et l'application
+   -- doivent se connecter avec le même.
+   select current_user, rolbypassrls from pg_roles where rolname = current_user;
+   -- le journal Drizzle ne contient que la baseline : attendu 1
+   select count(*) from drizzle.__drizzle_migrations;
+   -- règles déjà présentes sur les deux tables : attendu, uniquement des règles {authenticated}.
+   -- Les règles permissives se cumulent en OU : une règle sans rôle (« {public} ») ou large
+   -- rendrait toutes les lignes visibles sous fympos_app. Dans ce cas, STOP.
+   select tablename, policyname, roles, cmd, qual, with_check
+   from pg_policies where tablename in ('suppliers', 'brands') order by 1, 2;
+   ```
+
+2. Appliquer la migration (commande du haut de ce runbook), puis relancer la dernière requête :
+   en plus des anciennes règles, une ligne `tenant_isolation` / `{fympos_app}` / `ALL` par table.
+
+   Ne pas lancer `pnpm db:push` sur une base qui porte ces règles : elles ne sont pas décrites
+   dans `schema.ts`, et il n'a pas été vérifié que `db:push` les laisse en place.
+
+3. Merger `developpement` → `main`, puis sur le staging : lister, créer, modifier et supprimer
+   un fournisseur et une marque ; vérifier que la liste des produits affiche toujours les noms
+   de fournisseur et de marque.
+
+**Retour arrière** (les données ne sont jamais touchées) : revenir au code précédent, puis
+
+```sql
+DROP POLICY tenant_isolation ON suppliers;
+DROP POLICY tenant_isolation ON brands;
+```
+
+Le rôle `fympos_app` reste en place : il ne peut pas se connecter et n'a de droits que sur ces
+deux tables.
+
+**Ce que cette barrière ne fait pas** : hors de `withTenantTx`, l'application garde le compte
+`postgres`, qui porte `BYPASSRLS` sur Supabase et voit tout. Ne pas ajouter
+`FORCE ROW LEVEL SECURITY` : sans effet sur ce compte, et sur un hébergement où le compte de
+connexion ne contournerait pas la RLS, les jointures de la liste des produits perdraient les
+noms de fournisseur et de marque sans aucune erreur.
+
+---
+
 ## Architecture
 
 - **Vercel** (serverless) héberge l'app Nuxt/Nitro — le preset Vercel est auto-détecté au build,
@@ -141,10 +199,11 @@ basculé UNE FOIS sur la nouvelle chaîne, environnement par environnement :
 # 1. Se placer sur l'environnement cible (vérifier DATABASE_URL = port 5432 session/directe)
 pnpm env:staging          # ou env:dev / env:prod selon la base à basculer
 
-# 2. Basculer le journal (purge l'ancien journal, marque la baseline comme appliquée)
+# 2. Basculer le journal (purge l'ancien journal, marque la baseline — et elle seule — comme appliquée)
 RUN_BASELINE_SWITCH=1 pnpm tsx scripts/mark-migrations-applied.ts
 
-# 3. Vérification : ne doit RIEN appliquer (sinon STOP — ne pas laisser rejouer la baseline)
+# 3. Appliquer la suite : ne doit PAS rejouer la baseline (sinon STOP), mais applique les
+#    migrations 0001 et suivantes, que le script ne marque volontairement pas (depuis A4a).
 pnpm db:migrate
 
 # 4. Rebasculer en dev

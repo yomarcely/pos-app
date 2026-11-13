@@ -1,4 +1,5 @@
 import { db } from '~/server/database/connection'
+import { withTenantTx } from '~/server/database/tenantTx'
 import { brands, products } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getTenantIdFromEvent } from '~/server/utils/tenant'
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const [deleted] = await db
+    const [deleted] = await withTenantTx(tenantId, tx => tx
       .delete(brands)
       .where(
         and(
@@ -43,7 +44,7 @@ export default defineEventHandler(async (event) => {
           eq(brands.tenantId, tenantId)
         )
       )
-      .returning()
+      .returning())
 
     if (!deleted) {
       throw createError({
